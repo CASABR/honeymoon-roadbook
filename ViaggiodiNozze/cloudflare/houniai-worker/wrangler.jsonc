@@ -16,9 +16,15 @@
       "migrations_dir": "migrations"
     }
   ],
+  "kv_namespaces": [
+    {
+      "binding": "LIVE_PHOTOS",
+      "id": "a9b11c313c5843659014cc62b22d0884"
+    }
+  ],
   "vars": {
-    "LIVE_PHOTOS_ENABLED": "false",
-    "LIVE_PHOTOS_FREE_PLAN_CONFIRMED": "false",
+    "LIVE_PHOTOS_ENABLED": "true",
+    "LIVE_PHOTOS_FREE_PLAN_CONFIRMED": "true",
     "ALLOWED_ORIGIN": "https://casabr.github.io",
     "FIREBASE_PROJECT_ID": "app-viaggio-di-nozze"
   },

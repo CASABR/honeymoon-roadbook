@@ -312,7 +312,6 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [showAllPhotos, setShowAllPhotos] = useState(false);
   const [isGuideControlsOpen, setIsGuideControlsOpen] = useState(false);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
@@ -333,6 +332,18 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const [isSendingGuestMsg, setIsSendingGuestMsg] = useState(false);
   const [guestMsgError, setGuestMsgError] = useState<string | null>(null);
   const [guestMsgSuccess, setGuestMsgSuccess] = useState<string | null>(null);
+
+  type LiveSectionTab = 'mappa' | 'foto' | 'diario' | 'messaggi';
+  const [activeTab, setActiveTab] = useState<LiveSectionTab>('mappa');
+  const seenStorageKey = 'hounigo_live_seen_tabs_v1';
+  const [seenSignals, setSeenSignals] = useState<Partial<Record<LiveSectionTab, string>>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      return JSON.parse(localStorage.getItem(seenStorageKey) || '{}') || {};
+    } catch {
+      return {};
+    }
+  });
 
   const handleGuestMessageSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -472,7 +483,45 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     }
   };
 
-  const visiblePhotos = showAllPhotos ? displayPhotos : displayPhotos.slice(0, 5);
+  const latestPhoto = displayPhotos[0] || null;
+  const visibleGuestMessages = useMemo(
+    () => (props.guestMessages || []).filter(m => !m.hidden),
+    [props.guestMessages]
+  );
+
+  const latestSignals = useMemo<Record<LiveSectionTab, string>>(() => ({
+    mappa: lastDetectedDate ? String(lastDetectedDate.getTime()) : '',
+    foto: latestPhoto ? `${latestPhoto.id}:${latestPhoto.timestamp}` : '',
+    diario: sortedUpdates[0] ? `${sortedUpdates[0].id}:${sortedUpdates[0].timestamp || 0}` : '',
+    messaggi: visibleGuestMessages[0] ? `${visibleGuestMessages[0].id}:${visibleGuestMessages[0].createdAt || 0}` : ''
+  }), [lastDetectedDate, latestPhoto, sortedUpdates, visibleGuestMessages]);
+
+  const markTabSeen = (tab: LiveSectionTab) => {
+    const latest = latestSignals[tab];
+    if (!latest) return;
+    setSeenSignals(prev => {
+      if (prev[tab] === latest) return prev;
+      const next = { ...prev, [tab]: latest };
+      try {
+        localStorage.setItem(seenStorageKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    const latest = latestSignals[activeTab];
+    if (!latest || seenSignals[activeTab] === latest) return;
+    markTabSeen(activeTab);
+  }, [activeTab, latestSignals, seenSignals]);
+
+  const handleSelectTab = (tab: LiveSectionTab) => {
+    setActiveTab(tab);
+    markTabSeen(tab);
+  };
+
+  const hasTabNovelty = (tab: LiveSectionTab) =>
+    tab !== activeTab && Boolean(latestSignals[tab]) && seenSignals[tab] !== latestSignals[tab];
 
   const renderUpdateCard = (update: LiveUpdate) => (
     <article key={update.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70 sm:p-5">
@@ -529,11 +578,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   );
 
   return (
-    <div className="hounigo-live-entry mx-auto w-full max-w-5xl lg:max-w-7xl overflow-x-hidden px-3 pb-6 sm:pb-8 text-slate-900 dark:text-slate-100 sm:px-6">
+    <div className="hounigo-live-entry mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-5xl lg:max-w-7xl flex-col overflow-x-hidden px-3 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] text-slate-900 dark:text-slate-100 sm:px-6">
       {/* A. INTESTAZIONE ESSENZIALE + ORARI ITALIA / LOCALE */}
       <header
         data-testid="live-section-header"
-        className="border-b border-slate-200 pb-3 dark:border-slate-800"
+        className="border-b border-slate-200 pb-2.5 dark:border-slate-800"
       >
         <div className="flex items-start justify-between gap-2.5">
           <div className="flex min-w-0 items-start gap-2.5">
@@ -645,17 +694,46 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </div>
       </header>
 
-      {/* B. MINI-CARD PROSSIMO TRASPORTO CON FRECCE */}
-      <LiveNextTransportCard item={props.nextImportantTransport} items={props.upcomingTransports} />
-
-      {/* Navigazione rapida sezioni nel flusso naturale (non sticky per non coprire mai i contenuti) */}
+      {/* Navigazione principale a 4 tab: Mappa | Foto | Diario | Messaggi */}
       <nav
-        className="mt-2.5 grid grid-cols-3 gap-1 border-b border-slate-200 pb-2 dark:border-slate-800"
+        className="mt-2.5 grid grid-cols-4 gap-1.5 rounded-2xl border border-slate-200/80 bg-white/90 p-1 shadow-2xs dark:border-slate-800 dark:bg-slate-900/80 lg:max-w-2xl"
+        role="tablist"
         aria-label="Sezioni LIVE"
       >
-        <a href="#live-position" className="min-h-9 rounded-xl px-2 py-1.5 text-center text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">Posizione</a>
-        <a href="#live-diary" className="min-h-9 rounded-xl px-2 py-1.5 text-center text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">Diario</a>
-        <a href="#live-interactions" className="min-h-9 rounded-xl px-2 py-1.5 text-center text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">Interazioni</a>
+        {([
+          { id: 'mappa', icon: '📍', label: 'Mappa' },
+          { id: 'foto', icon: '📷', label: 'Foto' },
+          { id: 'diario', icon: '📖', label: 'Diario' },
+          { id: 'messaggi', icon: '💬', label: 'Messaggi' }
+        ] as const).map(tab => {
+          const isActive = activeTab === tab.id;
+          const showDot = hasTabNovelty(tab.id);
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              data-testid={`live-tab-${tab.id}`}
+              onClick={() => handleSelectTab(tab.id)}
+              className={`relative flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-bold transition cursor-pointer ${
+                isActive
+                  ? 'bg-[#172033] text-white shadow-xs dark:bg-white dark:text-[#172033]'
+                  : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
+              }`}
+            >
+              <span aria-hidden="true" className="text-sm leading-none">{tab.icon}</span>
+              <span className="truncate">{tab.label}</span>
+              {showDot && (
+                <span
+                  data-testid={`live-tab-dot-${tab.id}`}
+                  className="hounigo-live-tab-dot absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#FF6B5F]"
+                  aria-hidden="true"
+                />
+              )}
+            </button>
+          );
+        })}
       </nav>
 
       {!isOnline && (
@@ -664,10 +742,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </div>
       )}
 
-      {/* C + D: Griglia 2 colonne su Desktop / iPad mini landscape (lg:), flusso verticale C -> D su mobile e tablet */}
-      <div className="mt-3 lg:grid lg:grid-cols-12 lg:gap-6 xl:gap-8 lg:items-start">
-        {/* C. MAPPA LIVE + ULTIMA POSIZIONE GPS RILEVATA */}
-        <div className="lg:col-span-7 min-w-0">
+      {/* B. TAB MAPPA (Mappa protagonista + Trasporti accessibili + Controlli GPS) */}
+      {activeTab === 'mappa' && (
+      <div className="mt-3 flex-1 space-y-4">
+        <LiveNextTransportCard item={props.nextImportantTransport} items={props.upcomingTransports} />
+        <div className="min-w-0">
           <section id="live-position" data-testid="live-section-position" aria-labelledby="live-position-title" className="scroll-mt-20 md:scroll-mt-4">
         <div className="mb-2 flex items-end justify-between gap-2">
           <div>
@@ -818,16 +897,113 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </div>
       </section>
     </div>
+    </div>
+      )}
 
-    {/* D. DIARIO DI VIAGGIO E INTERAZIONI DEGLI OSPITI */}
-    <div data-testid="live-section-diary-interactions" className="lg:col-span-5 min-w-0 space-y-5 mt-5 lg:mt-0">
-      <section id="live-diary" aria-labelledby="live-diary-title" className="scroll-mt-20 md:scroll-mt-4 border-t border-slate-200 pt-4 dark:border-slate-800 lg:border-t-0 lg:pt-0">
+    {/* C. TAB FOTO (Solo ultima foto pubblicata, cliccabile per galleria a schermo intero) */}
+    {activeTab === 'foto' && (
+      <section data-testid="live-section-photos" aria-labelledby="live-photos-title" className="mt-3 flex-1 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-[#FF6B5F]">Fotografie</p>
+            <h2 id="live-photos-title" className="text-xl sm:text-2xl font-black tracking-tight text-[#172033] dark:text-white">
+              {displayPhotos.length ? `Ultimo scatto (${displayPhotos.length} totali)` : 'Galleria del viaggio'}
+            </h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {displayPhotos.length > 0 && (
+              <button
+                type="button"
+                data-testid="live-open-gallery-btn"
+                onClick={() => setActiveLightboxIndex(0)}
+                className="min-h-10 rounded-full bg-[#172033] px-3.5 text-xs font-bold text-white dark:bg-white dark:text-[#172033] cursor-pointer"
+              >
+                Apri galleria ({displayPhotos.length})
+              </button>
+            )}
+            {props.canPublish && !props.isExternal && (
+              <>
+                <input ref={fileUploadInputRef} type="file" accept={IMAGE_FILE_ACCEPT} multiple className="hidden" onChange={handlePhotoFileSelected} />
+                <button type="button" onClick={() => fileUploadInputRef.current?.click()} className="min-h-10 rounded-full bg-[#FF6B5F] px-3.5 text-xs font-bold text-white cursor-pointer">
+                  Aggiungi foto
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {latestPhoto ? (
+          <figure
+            key={`latest-photo-${photoRevealVersion}`}
+            className={`mx-auto max-w-3xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900 ${photoRevealVersion > 0 ? 'hounigo-photo-saved-reveal' : ''}`}
+          >
+            <div className="relative aspect-[4/3] max-h-[58vh] w-full bg-slate-100 dark:bg-slate-950">
+              <button
+                type="button"
+                data-testid="live-latest-photo-trigger"
+                onClick={() => setActiveLightboxIndex(0)}
+                className="h-full w-full cursor-pointer"
+                aria-label="Apri galleria fotografica a schermo intero"
+              >
+                <img
+                  src={latestPhoto.url}
+                  alt={latestPhoto.caption || 'Ultima foto del viaggio'}
+                  className="h-full w-full object-cover"
+                  onError={event => { event.currentTarget.style.display = 'none'; }}
+                />
+              </button>
+              {latestPhoto.pendingSync && !props.isExternal && (
+                <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-white shadow-xs">
+                  Solo sul dispositivo
+                </span>
+              )}
+              {props.canPublish && !props.isExternal && props.onDeletePhoto && (
+                <button
+                  type="button"
+                  onClick={() => window.confirm('Eliminare questa foto dal dispositivo?') && props.onDeletePhoto?.(latestPhoto.id)}
+                  className="absolute right-3 top-3 min-h-9 rounded-full bg-black/65 px-3 text-xs font-bold text-white cursor-pointer"
+                  aria-label="Elimina foto"
+                >
+                  Elimina
+                </button>
+              )}
+              <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-xs">
+                Tocca per sfogliare ({displayPhotos.length})
+              </span>
+            </div>
+            <figcaption className="p-3.5 sm:p-4">
+              <p className="break-words text-sm sm:text-base font-extrabold text-[#172033] dark:text-white">{latestPhoto.caption || 'Momento dal viaggio'}</p>
+              <p className="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">
+                {latestPhoto.location ? `${latestPhoto.location} · ` : ''}
+                <time title={formatUpdateDate(latestPhoto.timestamp)}>{formatRelativeTime(new Date(latestPhoto.timestamp), effectiveNowMs)}</time>
+              </p>
+            </figcaption>
+          </figure>
+        ) : (
+          <div className="rounded-3xl border border-dashed border-slate-300 py-12 text-center dark:border-slate-700">
+            <p className="text-base font-bold">Nessuno scatto ancora.</p>
+            {props.canPublish && <p className="mt-1 text-xs text-slate-500">Puoi aggiungerne quando vuoi con il pulsante in alto.</p>}
+          </div>
+        )}
+
+        {props.canPublish && !props.isExternal && (
+          <div className="mx-auto max-w-3xl rounded-xl border border-slate-200/60 bg-slate-50 px-3 py-2 text-[11px] leading-snug text-slate-500 dark:border-slate-700/60 dark:bg-slate-800/60 dark:text-slate-400">
+            📷 Foto salvate sul dispositivo locale. La condivisione su cloud storage non è attiva in questa versione.
+          </div>
+        )}
+      </section>
+    )}
+
+    {/* D. TAB DIARIO DI VIAGGIO */}
+    {activeTab === 'diario' && (
+    <div data-testid="live-section-diary-interactions" className="mt-3 flex-1 space-y-5">
+      <section id="live-diary" data-testid="live-section-diary" aria-labelledby="live-diary-title">
         <div className="flex items-end justify-between gap-3">
           <div>
             <p className="text-xs font-bold text-[#FF6B5F]">Diario</p>
             <h2 id="live-diary-title" className="text-xl sm:text-2xl font-black tracking-tight text-[#172033] dark:text-white">Ricordi dal viaggio</h2>
           </div>
-          {props.canPublish && !props.isExternal && <button type="button" onClick={() => setIsComposerOpen(open => !open)} className="min-h-10 rounded-full bg-[#FF6B5F] px-3.5 text-xs font-bold text-white">Nuovo ricordo</button>}
+          {props.canPublish && !props.isExternal && <button type="button" onClick={() => setIsComposerOpen(open => !open)} className="min-h-10 rounded-full bg-[#FF6B5F] px-3.5 text-xs font-bold text-white cursor-pointer">Nuovo ricordo</button>}
         </div>
 
         <article className="mt-3.5 rounded-2xl border border-slate-200 border-l-[3px] border-l-[#FF6B5F] bg-white p-3.5 dark:border-slate-800 dark:border-l-[#FF6B5F] dark:bg-slate-900/70">
@@ -866,40 +1042,6 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </form>
         )}
 
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <div><p className="text-[11px] font-bold text-slate-400">Fotografie</p><p className="text-sm font-extrabold">{displayPhotos.length ? `${displayPhotos.length} scatti` : 'Nessuno scatto'}</p></div>
-          {props.canPublish && !props.isExternal && (
-            <><input ref={fileUploadInputRef} type="file" accept={IMAGE_FILE_ACCEPT} multiple className="hidden" onChange={handlePhotoFileSelected} /><button type="button" onClick={() => fileUploadInputRef.current?.click()} className="min-h-10 rounded-full border border-slate-300 px-3.5 text-xs font-bold dark:border-slate-700">Aggiungi foto</button></>
-          )}
-        </div>
-
-        {displayPhotos.length ? (
-          <div className="mt-2.5">
-            <div key={`photo-grid-${photoRevealVersion}`} className={`grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 ${photoRevealVersion > 0 ? 'hounigo-photo-saved-reveal' : ''}`}>
-              {visiblePhotos.map((photo) => {
-                const fullIndex = displayPhotos.findIndex(item => item.id === photo.id);
-                return (
-                  <figure key={photo.id} className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-                    <div className="relative aspect-[4/3] bg-slate-100 dark:bg-slate-950"><button type="button" onClick={() => setActiveLightboxIndex(fullIndex)} className="h-full w-full"><img src={photo.url} alt={photo.caption || 'Foto del viaggio'} className="h-full w-full object-cover" loading="lazy" onError={event => { event.currentTarget.style.display = 'none'; }} /></button>
-                    {props.canPublish && !props.isExternal && props.onDeletePhoto && <button type="button" onClick={() => window.confirm('Eliminare questa foto dal dispositivo?') && props.onDeletePhoto?.(photo.id)} className="absolute right-2 top-2 min-h-9 rounded-full bg-black/65 px-2.5 text-[11px] font-bold text-white" aria-label="Elimina foto">Elimina</button>}
-                    </div>
-                    <figcaption className="p-2.5"><p className="break-words text-xs font-bold leading-5">{photo.caption || 'Momento dal viaggio'}</p><p className="mt-1 break-words text-[11px] leading-4 text-slate-500 dark:text-slate-400">{photo.location ? `${photo.location} · ` : ''}<time title={formatUpdateDate(photo.timestamp)}>{formatRelativeTime(new Date(photo.timestamp), effectiveNowMs)}</time></p></figcaption>
-                  </figure>
-                );
-              })}
-            </div>
-            {displayPhotos.length > 5 && <button type="button" onClick={() => setShowAllPhotos(show => !show)} className="mt-2 min-h-9 text-xs font-bold text-[#FF6B5F]">{showAllPhotos ? 'Mostra meno' : `Vedi tutti gli scatti (${displayPhotos.length})`}</button>}
-          </div>
-        ) : (
-          <div className="mt-3 border-y border-dashed border-slate-300 py-4 text-center dark:border-slate-700"><p className="text-sm font-bold">Nessuno scatto ancora.</p>{props.canPublish && <p className="mt-0.5 text-xs text-slate-500">Puoi aggiungerne quando vuoi.</p>}</div>
-        )}
-
-        {props.canPublish && !props.isExternal && (
-          <div className="mt-2.5 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
-            📷 Foto salvate sul dispositivo locale. La condivisione su cloud storage non è attiva in questa versione.
-          </div>
-        )}
-
         <div className="mt-5 space-y-3">
           {sortedUpdates.length === 0 ? (
             <div className="py-5 text-center"><p className="text-sm font-bold">Il diario è ancora vuoto.</p><p className="mt-0.5 text-xs text-slate-500">Gli aggiornamenti pubblici compariranno qui.</p></div>
@@ -913,8 +1055,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           )}
         </div>
       </section>
+    </div>
+    )}
 
-      <section id="live-interactions" aria-labelledby="live-interactions-title" className="scroll-mt-20 md:scroll-mt-4 border-t border-slate-200 pt-4 dark:border-slate-800">
+    {/* E. TAB MESSAGGI E INTERAZIONI */}
+    {activeTab === 'messaggi' && (
+      <section id="live-interactions" data-testid="live-section-messages" aria-labelledby="live-interactions-title" className="mt-3 flex-1 space-y-4">
         <p className="text-xs font-bold text-[#FF6B5F]">Interazioni</p>
         <h2 id="live-interactions-title" className="text-xl sm:text-2xl font-black tracking-tight text-[#172033] dark:text-white">Vicini, anche da lontano</h2>
         <div className="mt-3 grid grid-cols-3 gap-2 xl:gap-4 border-y border-slate-200 py-2.5 dark:border-slate-800">
@@ -1044,10 +1190,10 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           )}
         </div>
       </section>
-    </div>
-  </div>
+      )}
 
-      {/* E. INFORMAZIONI SECONDARIE E CONTROLLI LIVE */}
+      {/* E. INFORMAZIONI SECONDARIE E CONTROLLI LIVE (visibile nel tab Mappa) */}
+      {activeTab === 'mappa' && (
       <section
         data-testid="live-section-secondary"
         aria-label="Informazioni secondarie e controlli LIVE"
@@ -1287,6 +1433,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </button>
         </div>
       </section>
+      )}
 
       {pendingUploadItems.length > 0 && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9998] flex items-end justify-center bg-black/70 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label="Aggiungi fotografie">
