@@ -19,6 +19,7 @@ self.addEventListener('push', event => {
         body: typeof parsed.body === 'string' ? parsed.body : data.body,
         url: typeof parsed.url === 'string' ? parsed.url : data.url,
         tag: typeof parsed.tag === 'string' ? parsed.tag : undefined,
+        renotify: typeof parsed.renotify === 'boolean' ? parsed.renotify : undefined,
         type: typeof parsed.type === 'string' ? parsed.type : undefined,
       };
     } catch {
@@ -32,20 +33,33 @@ self.addEventListener('push', event => {
     icon: new URL('pwa-192x192.png', scopeUrl).href,
     badge: new URL('pwa-192x192.png', scopeUrl).href,
     tag: data.tag || 'hounigo-update',
-    renotify: false,
+    renotify: data.renotify ?? true,
     data: { url: appUrl(data.url), type: data.type || 'generic' },
   }));
 });
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
+  const scopeUrl = new URL(self.registration.scope);
   const targetUrl = appUrl(event.notification.data?.url);
   event.waitUntil((async () => {
     const windowClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const client of windowClients) {
-      if (new URL(client.url).origin === new URL(targetUrl).origin && 'focus' in client) {
-        if ('navigate' in client) await client.navigate(targetUrl);
-        return client.focus();
+      try {
+        const clientUrl = new URL(client.url);
+        if (clientUrl.origin === scopeUrl.origin && clientUrl.pathname.startsWith(scopeUrl.pathname) && 'focus' in client) {
+          if ('navigate' in client && clientUrl.href !== targetUrl) {
+            try {
+              await client.navigate(targetUrl);
+            } catch {
+              // Alcune PWA iOS rifiutano navigate su client sospesi: tenta comunque focus o openWindow.
+            }
+          }
+          const focused = await client.focus();
+          if (focused) return focused;
+        }
+      } catch {
+        // Fallback al client successivo o a openWindow se il client corrente fallisce.
       }
     }
     return clients.openWindow ? clients.openWindow(targetUrl) : undefined;

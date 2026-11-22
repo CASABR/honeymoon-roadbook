@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { Shopping } from '../../types';
 import { storageService } from '../../storage/storageService';
-import ShoppingForm from '../../components/forms/ShoppingForm';
+import ShoppingForm, { type ShoppingFormHandle } from '../../components/forms/ShoppingForm';
+import { persistExistingShoppingEdit, type ShoppingSavePayload } from '../../utils/shoppingSave';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
@@ -37,6 +38,7 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
   // Modali Form
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingShopping, setEditingShopping] = useState<Shopping | null>(null);
+  const shoppingFormActionsRef = useRef<ShoppingFormHandle | null>(null);
 
   // Dialog eliminazione
   const [deleteTarget, setDeleteTarget] = useState<Shopping | null>(null);
@@ -162,15 +164,37 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
     setIsModalOpen(true);
   };
 
+  const isExistingShoppingEdit = Boolean(
+    editingShopping?.id && shoppingList.some((item) => item.id === editingShopping.id)
+  );
+
+  const closeShoppingModalImmediate = () => {
+    setIsModalOpen(false);
+    setEditingShopping(null);
+  };
+
+  const handleAttemptCloseShoppingModal = async () => {
+    const canClose = await shoppingFormActionsRef.current?.requestClose();
+    if (canClose === false) return;
+    closeShoppingModalImmediate();
+  };
+
+  const handleAutoSaveShopping = async (data: ShoppingSavePayload): Promise<Shopping> => {
+    const saved = await persistExistingShoppingEdit(editingShopping, data);
+    setShoppingList((prev) => prev.map((s) => (s.id === saved.id ? saved : s)));
+    setEditingShopping(saved);
+    await loadData(true);
+    return saved;
+  };
+
   const handleSave = async (data: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     if (data.id) {
       await storageService.updateShopping(data.id, data);
     } else {
       await storageService.addShopping(data);
     }
-    setIsModalOpen(false);
-    setEditingShopping(null);
-    await loadData();
+    closeShoppingModalImmediate();
+    await loadData(true);
   };
 
   const handleConfirmDelete = async () => {
@@ -384,14 +408,18 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
       {/* Modale Form Shopping */}
       <Modal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={handleAttemptCloseShoppingModal}
         title={editingShopping ? 'Modifica Shopping' : 'Nuovo Shopping'}
         accentVariant="rose"
       >
         <ShoppingForm
           initialData={editingShopping}
           onSave={handleSave}
-          onCancel={() => setIsModalOpen(false)}
+          onAutoSave={isExistingShoppingEdit ? handleAutoSaveShopping : undefined}
+          onAutoSaveCompleteClose={closeShoppingModalImmediate}
+          onDiscardInvalidClose={closeShoppingModalImmediate}
+          formActionsRef={shoppingFormActionsRef}
+          onCancel={handleAttemptCloseShoppingModal}
         />
       </Modal>
 
@@ -409,7 +437,7 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
 
       {/* Popup Comparativo Shopping Duplicati / Sovrapposti */}
       <TimeCollisionModal
-        collision={activeCollision}
+        collision={isModalOpen ? null : activeCollision}
         onKeepBoth={() => {
           if (activeCollision) {
             const rawA = activeCollision.itemA.originalData || activeCollision.itemA;

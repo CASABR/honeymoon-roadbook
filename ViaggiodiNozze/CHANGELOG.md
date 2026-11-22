@@ -2,12 +2,17 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
-## 1.6.39 ? 2026-11-21
+## 1.6.40 — 2026-11-22
+
+- Budget obiettivo: persistenza privata sincronizzata tra dispositivi autorizzati tramite raccolta note.
+- Conversioni multivaluta, budget locale esistente e vista LIVE ospiti preservati.
+
+## 1.6.39 — 2026-11-21
 
 - LIVE: centratura automatica al primo GPS valido, una sola volta per apertura.
 - Navigazione manuale, ricentratura GPS e vista ospiti preservate.
 
-## 1.6.38 ? 2026-11-21
+## 1.6.38 — 2026-11-21
 
 - Spese e Budget: caricamenti affidabili, importi originali e riepilogo multivaluta.
 - Allegati PDF: messaggio chiaro quando il documento non e disponibile.
@@ -18,62 +23,32 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - Note Copilota indipendenti per ciascun giorno del viaggio.
 - LIVE riordinata con mappa in evidenza e diario più leggibile.
 
-## 1.6.7 — 2026-11-17
+## 1.6.36 — 2026-11-20
 
-- Apertura immediata del form di modifica al clic sulle card per ruoli autorizzati
-- Rafforzata sicurezza permessi: blocco modifiche non autorizzate su viaggio condiviso 0000
-- Preservata scheda informativa per visualizzatori ed editing isolato su viaggi locali
+- Notifiche Push: promemoria automatici 60 min prima degli eventi confermati con fusi IANA attendibili, eventi imminenti e backfill idempotente
+- Agenda Oggi: evidenziazione della card attiva e selezione automatica una-tantum del giorno locale durante il viaggio
+- Vista LIVE: frecce nella mini-card trasporti, eta reale GPS in minuti, doppio orologio Italia/locale sole-luna e layout compatto
 
-## 1.6.6 — 2026-11-16
+## 1.6.35 — 2026-11-20
 
-- Cartella preferita e selezione documenti Google Drive con scope minimo drive.file
-- Card compatte, orari a due campi, piattaforma e tasto Duplica desktop con retro mobile
-- Restyling LIVE con hero map, ripresa automatica GPS Owner e menu Altro riorganizzato in griglia 2x2
+- Aggiunta mini-card compatta Prossimo Spostamento nella vista LIVE interna ed esterna per voli, treni a lunga percorrenza e traghetti con link Flightradar24 solo sui voli
+- Proiettati nel feed LIVE pubblico i soli campi pubblici delle tratte future (zero PNR o dati privati) con avanzamento automatico anche a PWA Owner chiusa
 
-## 1.6.5 — 2026-11-11
+## 1.6.34 — 2026-11-19
 
-- Pagine pubbliche di presentazione, Privacy Policy GDPR e Termini di utilizzo su GitHub Pages
-- Collegamenti pubblici in onboarding, modale Informazioni ed esclusione PWA per i documenti statici
+- Ottimizzato il layout responsive della vista LIVE su iPad mini 6 orizzontale evitando colonne interne troppo strette senza modificare GPS, dati o vista iPhone
 
-## 1.6.4 — 2026-11-11
+## 1.6.33 — 2026-11-19
 
-- Aggiornata CSP per consentire Google Picker tramite docs.google.com
-- Gestione condivisa di checkPendingRedirectResult al rientro dal login OAuth
+- Evitata la sovrapposizione tra la freccia sinistra e la pillola TUTTI in DayPickerStrip mostrando le frecce solo in presenza di scorrimento
+- Aggiunti indicatori di scorrimento laterale con sfumatura e pulsanti sulle barre filtri orizzontali di TrasportiView su iPad, iPhone e desktop
 
-## 1.6.3 — 2026-11-11
+## 1.6.32 — 2026-11-19
 
-- Risolto blocco primo avvio PWA iPhone con card onboarding visibile sopra la piega
-- Aggiunto test automatico di primo accesso con storage vuoto e controllo anti-regressione
+- Resi accessibili su iPad mini 6 campo di testo, allegati e pulsanti di SmartInsertModal anche con tastiera aperta
+- Ottimizzati Modal e fogli informativi con layout flex/dvh, adattamento visualViewport e scroll interno sopra la tastiera senza alterare iPhone e desktop
 
-## 1.6.2 — 2026-11-11
+## 1.6.31 — 2026-11-19
 
-- Stabilizzazione scroll timeline e coalescenza verifiche ruoli e listener cloud
-- Rimosso manifest duplicato per estensione Dynamic Island su nuova icona PWA iPhone
-- Diagnostica iPhone discreta con 5 tocchi sulla versione in Informazioni (Avvia/Ferma/Copia)
-
-## 1.6.1 — 2026-11-11
-
-- Copertura Dynamic Island iPhone in PWA/Safari e contrasto barra di stato
-- Eliminato ritorno involontario verso l'alto durante scroll e sync cloud
-
-## 1.6.0 — 2026-11-11
-
-- Integrazione Google Picker, data di rilascio locale nella modale info e rifiniture iPhone/Dynamic Island
-- Sistema budget interamente in EUR con conversione automatica verificabile e metadati privati protetti
-- Separazione dati riservati schema v2, regole Firestore/Storage potenziate e sincronizzazione offline/LIVE sicura
-
-## 1.5.16 — 2026-11-09
-
-- Gestione rate-limit notifiche push con countdown e protezione invii multipli
-- Distinzione esplicita invio simulato dry-run rispetto a broadcast reale in Admin
-
-## 1.5.15 — 2026-11-09
-
-- Onboarding con accesso Google in evidenza nella schermata iniziale
-- Percorso dedicato per accesso con account e credenziali preesistenti
-
-## 1.5.14 — 2026-11-09
-
-- Correzione overflow orizzontale Documenti su iPhone e layout responsive pulsanti
-- Distinzione comandi Google Drive esterno e collegamento protetto documenti con categorie
-- Card foto pre-partenza compatta e orario effettivo di pubblicazione nel fuso locale utente
+- Migliorata la barra laterale su iPad mini orizzontale con larghezza compatta e scorrimento evidente per raggiungere tutte le sezioni
+- Ottimizzata l'area Prenotazioni su schermi medi a 2 colonne con filtri e titoli leggibili senza alterare iPhone e desktop

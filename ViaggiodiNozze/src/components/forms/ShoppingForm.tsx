@@ -1,44 +1,92 @@
 import CurrencyAmountInput from '../common/CurrencyAmountInput';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useImperativeHandle } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import type { Shopping, TimeStatus } from '../../types';
 import { extractFromText } from '../../services/aiExtractor';
 import TimePickerInput from '../common/TimePickerInput';
-import { buildEurSavePatch } from '../../services/currencyService';
+import { useCardAutoSave, type AutoSaveSyncStatus } from '../../hooks/useCardAutoSave';
+import {
+  buildShoppingFormInitialState,
+  buildShoppingSavePayload,
+  serializeShoppingDraftFingerprint,
+  SHOPPING_SUBCATEGORIES,
+  validateShoppingDraft,
+  type CachedMoneyPatch,
+  type ShoppingSavePayload
+} from '../../utils/shoppingSave';
+
+export interface ShoppingFormHandle {
+  requestClose: () => Promise<boolean>;
+}
 
 interface ShoppingFormProps {
   initialData?: Shopping | null;
   defaultDate?: string;
   defaultTime?: string;
-  onSave: (data: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
+  onSave: (data: ShoppingSavePayload) => void;
+  onAutoSave?: (data: ShoppingSavePayload) => Promise<Shopping | void>;
+  onAutoSaveCompleteClose?: () => void;
+  onDiscardInvalidClose?: () => void;
+  formActionsRef?: React.Ref<ShoppingFormHandle>;
   onCancel: () => void;
 }
 
-export default function ShoppingForm({ initialData, defaultDate, defaultTime, onSave, onCancel }: ShoppingFormProps) {
-  const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
+const AUTO_SAVE_STATUS_LABELS: Record<AutoSaveSyncStatus, { text: string; tone: string } | null> = {
+  idle: { text: 'Autosalvataggio attivo', tone: 'text-slate-400' },
+  pending: { text: 'Modifiche in sospeso...', tone: 'text-amber-600' },
+  invalid: { text: 'Completa il nome obbligatorio per salvare', tone: 'text-rose-600' },
+  saving_local: { text: 'Salvataggio sul dispositivo...', tone: 'text-slate-500' },
+  saved_local_offline: { text: 'Salvato in locale · in attesa di sync', tone: 'text-amber-700' },
+  syncing_cloud: { text: 'Salvato in locale · sincronizzazione cloud...', tone: 'text-sky-700' },
+  synced: { text: '✓ Sincronizzato', tone: 'text-emerald-700' },
+  error: { text: 'Errore salvataggio locale · usa Aggiorna Shopping', tone: 'text-rose-600' },
+  conflict: { text: 'Conflitto cloud rilevato · verifica nella diagnostica', tone: 'text-amber-700' },
+};
 
-  const [sottocategoria, setSottocategoria] = useState('');
-  const [nome, setNome] = useState('');
-  const [scopo, setScopo] = useState('');
-  const [data, setData] = useState('');
-  const [orario, setOrario] = useState('');
-  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialData?.timeStatus || 'confermato');
-  const [indirizzo, setIndirizzo] = useState('');
-  const [budget, setBudget] = useState('');
-  const [link, setLink] = useState('');
-  const [noteCopilota, setNoteCopilota] = useState('');
-  const [copilota, setCopilota] = useState(false);
-  
+export default function ShoppingForm({
+  initialData,
+  defaultDate,
+  defaultTime,
+  onSave,
+  onAutoSave,
+  onAutoSaveCompleteClose,
+  onDiscardInvalidClose,
+  formActionsRef,
+  onCancel
+}: ShoppingFormProps) {
+  const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
+  const initialDraft = useMemo(
+    () => buildShoppingFormInitialState(initialData, defaultDate, defaultTime),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [initialData?.id, defaultDate, defaultTime]
+  );
+
+  const [sottocategoria, setSottocategoria] = useState(initialDraft.sottocategoria);
+  const [nome, setNome] = useState(initialDraft.nome);
+  const [scopo, setScopo] = useState(initialDraft.scopo);
+  const [data, setData] = useState(initialDraft.data);
+  const [orario, setOrario] = useState(initialDraft.orario);
+  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialDraft.timeStatus);
+  const [indirizzo, setIndirizzo] = useState(initialDraft.indirizzo);
+  const [budget, setBudget] = useState(initialDraft.budget);
+  const [link, setLink] = useState(initialDraft.link);
+  const [noteCopilota, setNoteCopilota] = useState(initialDraft.noteCopilota);
+  const [copilota, setCopilota] = useState(initialDraft.copilota);
+
   const [error, setError] = useState('');
-  
+  const [showInvalidCloseActions, setShowInvalidCloseActions] = useState(false);
+
   // AI State
   const [showAiBox, setShowAiBox] = useState(false);
   const [aiText, setAiText] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
 
-  const SOTTOCATEGORIE = ['Abbigliamento', 'Souvenir', 'Alimentari', 'Elettronica', 'Carburante', 'Altro'];
+  const SOTTOCATEGORIE = SHOPPING_SUBCATEGORIES;
 
-  const initializedIdRef = useRef<string | null | undefined>(undefined);
+  const initializedIdRef = useRef<string | null | undefined>(initialData?.id || '__new__');
+  const latestInitialDataRef = useRef<Shopping | null | undefined>(initialData);
+  latestInitialDataRef.current = initialData;
+  const cachedMoneyRef = useRef<CachedMoneyPatch | null>(null);
 
   useEffect(() => {
     const currentId = initialData?.id || '__new__';
@@ -46,34 +94,103 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       return;
     }
     initializedIdRef.current = currentId;
-
-    if (initialData) {
-      setSottocategoria(initialData.sottocategoria || '');
-      setNome(initialData.nome || '');
-      setScopo(initialData.scopo || '');
-      setData(initialData.data || (initialData as any).date || '');
-      setOrario(initialData.orario || (initialData as any).time || '');
-      setTimeStatus(initialData.timeStatus || 'indicativo');
-      setIndirizzo(initialData.indirizzo || '');
-      setBudget(initialData.budget || (initialData as any).cost || '');
-      setLink(initialData.link || '');
-      const existingNotes = [initialData.noteCopilota, initialData.nota, (initialData as any).notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
-      setNoteCopilota(existingNotes);
-      setCopilota(Boolean(existingNotes.trim()) || initialData.copilota || false);
-    } else {
-      setSottocategoria('');
-      setNome('');
-      setScopo('');
-      setData(defaultDate || '');
-      setOrario(defaultTime || '');
-      setTimeStatus('indicativo');
-      setIndirizzo('');
-      setBudget('');
-      setLink('');
-      setNoteCopilota('');
-      setCopilota(false);
-    }
+    cachedMoneyRef.current = null;
+    const nextDraft = buildShoppingFormInitialState(initialData, defaultDate, defaultTime);
+    setSottocategoria(nextDraft.sottocategoria);
+    setNome(nextDraft.nome);
+    setScopo(nextDraft.scopo);
+    setData(nextDraft.data);
+    setOrario(nextDraft.orario);
+    setTimeStatus(nextDraft.timeStatus);
+    setIndirizzo(nextDraft.indirizzo);
+    setBudget(nextDraft.budget);
+    setLink(nextDraft.link);
+    setNoteCopilota(nextDraft.noteCopilota);
+    setCopilota(nextDraft.copilota);
+    setError('');
+    setShowInvalidCloseActions(false);
   }, [defaultDate, defaultTime, initialData]);
+
+  const isAutoSaveEnabled = Boolean(initialData?.id && onAutoSave);
+  const currentDraft = useMemo(
+    () => ({
+      sottocategoria,
+      nome,
+      scopo,
+      data,
+      orario,
+      timeStatus,
+      indirizzo,
+      budget,
+      link,
+      noteCopilota,
+      copilota,
+    }),
+    [sottocategoria, nome, scopo, data, orario, timeStatus, indirizzo, budget, link, noteCopilota, copilota]
+  );
+  const draftFingerprint = useMemo(
+    () => serializeShoppingDraftFingerprint(currentDraft),
+    [currentDraft]
+  );
+  const baselineFingerprint = useMemo(
+    () => serializeShoppingDraftFingerprint(initialDraft),
+    [initialDraft]
+  );
+  const validationError = useMemo(
+    () => validateShoppingDraft(currentDraft),
+    [currentDraft]
+  );
+
+  const performAutoSave = useCallback(async (): Promise<boolean> => {
+    if (!onAutoSave || !latestInitialDataRef.current?.id) return false;
+    const { payload, moneyCache } = await buildShoppingSavePayload({
+      draft: currentDraft,
+      initialData: latestInitialDataRef.current,
+      cachedMoney: cachedMoneyRef.current,
+    });
+    cachedMoneyRef.current = moneyCache;
+    const saved = await onAutoSave(payload);
+    if (saved) {
+      latestInitialDataRef.current = saved;
+    }
+    return true;
+  }, [currentDraft, onAutoSave]);
+
+  const autoSave = useCardAutoSave({
+    enabled: isAutoSaveEnabled,
+    entityType: 'shopping',
+    entityId: initialData?.id,
+    draftFingerprint,
+    baselineFingerprint,
+    validationError,
+    debounceMs: 1000,
+    performSave: performAutoSave,
+  });
+
+  useEffect(() => {
+    if (!validationError && showInvalidCloseActions) {
+      setShowInvalidCloseActions(false);
+    }
+    if (!validationError && error) {
+      setError('');
+    }
+  }, [validationError, showInvalidCloseActions, error]);
+
+  useImperativeHandle(
+    formActionsRef,
+    () => ({
+      requestClose: async () => {
+        if (!isAutoSaveEnabled) return true;
+        const ok = await autoSave.flushBeforeClose();
+        if (!ok && validationError) {
+          setError(validationError);
+          setShowInvalidCloseActions(true);
+        }
+        return ok;
+      },
+    }),
+    [autoSave, isAutoSaveEnabled, validationError]
+  );
 
   const handleAiExtraction = async () => {
     if (!aiText.trim()) return;
@@ -91,7 +208,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
         if (d.budget) setBudget(d.budget);
         const extNote = (d as any).noteCopilota || d.nota || (d as any).notes;
         if (extNote) setNoteCopilota(extNote);
-        if (d.sottocategoria && SOTTOCATEGORIE.includes(d.sottocategoria)) {
+        if (d.sottocategoria && (SOTTOCATEGORIE as readonly string[]).includes(d.sottocategoria)) {
           setSottocategoria(d.sottocategoria);
         }
         setShowAiBox(false);
@@ -108,40 +225,29 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome.trim()) {
-      setError('Il nome del negozio o centro commerciale è obbligatorio.');
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     setError('');
-    const normalizedMoney = await buildEurSavePatch({
-      costRaw: budget.trim() || undefined,
-      existingItem: initialData
-    });
-    const { cost: normCost, depositPaid: _dp, acconto: _ac, ...normMeta } = normalizedMoney;
-    const finalBudget = normCost ?? (budget.trim() || undefined);
+    setShowInvalidCloseActions(false);
 
-    onSave({
-      id: initialData?.id,
-      sottocategoria: sottocategoria || undefined,
-      nome: nome.trim(),
-      scopo: scopo.trim() || undefined,
-      data: data || undefined,
-      date: data || undefined,
-      orario: orario || undefined,
-      time: orario || undefined,
-      timeStatus: orario ? timeStatus : undefined,
-      indirizzo: indirizzo.trim() || undefined,
-      ...normMeta,
-      budget: finalBudget,
-      cost: finalBudget,
-      link: link.trim() || undefined,
-      coordinate: initialData?.coordinate,
-      noteCopilota: noteCopilota.trim() || undefined,
-      nota: noteCopilota.trim() || undefined,
-      notes: noteCopilota.trim() || undefined,
-      copilota: Boolean(noteCopilota.trim()) || copilota || undefined
-    } as any);
+    if (isAutoSaveEnabled) {
+      const ok = await autoSave.flushManualSave();
+      if (ok) {
+        (onAutoSaveCompleteClose || onCancel)();
+      }
+      return;
+    }
+
+    const { payload, moneyCache } = await buildShoppingSavePayload({
+      draft: currentDraft,
+      initialData,
+      cachedMoney: cachedMoneyRef.current,
+    });
+    cachedMoneyRef.current = moneyCache;
+    onSave(payload);
   };
 
   return (
@@ -198,8 +304,24 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
         )}
 
         {error && (
-          <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
-            {error}
+          <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700 space-y-2">
+            <div>{error}</div>
+            {showInvalidCloseActions && isAutoSaveEnabled && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    autoSave.resetDirtyToSaved();
+                    setShowInvalidCloseActions(false);
+                    setError('');
+                    (onDiscardInvalidClose || onCancel)();
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-rose-300 text-rose-700 font-bold hover:bg-rose-100 transition-colors cursor-pointer"
+                >
+                  Scarta modifiche e chiudi
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -362,17 +484,30 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
           />
         </div>
 
+        {isAutoSaveEnabled && AUTO_SAVE_STATUS_LABELS[autoSave.status] && (
+          <div
+            data-testid="shopping-autosave-status"
+            data-autosave-status={autoSave.status}
+            className={`text-[11px] font-semibold text-right pt-1 ${AUTO_SAVE_STATUS_LABELS[autoSave.status]?.tone || 'text-slate-400'}`}
+          >
+            {autoSave.status === 'error' && autoSave.errorMessage
+              ? autoSave.errorMessage
+              : AUTO_SAVE_STATUS_LABELS[autoSave.status]?.text}
+          </div>
+        )}
+
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
           <button
             type="button"
             onClick={onCancel}
             className="min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
           >
-            Annulla
+            {isAutoSaveEnabled ? 'Chiudi' : 'Annulla'}
           </button>
           <button
             type="submit"
-            className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-rose-500 hover:bg-rose-400 active:scale-95 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer"
+            disabled={autoSave.isSaving}
+            className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-rose-500 hover:bg-rose-400 active:scale-95 disabled:opacity-60 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer"
           >
             {initialData ? 'Aggiorna Shopping' : 'Salva Shopping'}
           </button>

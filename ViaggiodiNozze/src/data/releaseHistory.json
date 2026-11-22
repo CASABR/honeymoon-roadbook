@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.40",
+      "publishedAt": "2026-11-22",
+      "sourceCommit": "96d60139f78fb310e82cf130e297ab7849a90b36",
+      "changes": [
+        "Budget obiettivo: persistenza privata sincronizzata tra dispositivi autorizzati tramite raccolta note.",
+        "Conversioni multivaluta, budget locale esistente e vista LIVE ospiti preservati."
+      ],
+      "publishedAtIso": "2026-11-22T07:26:07.928Z"
+    },
+    {
       "version": "1.6.39",
       "publishedAt": "2026-11-21",
       "sourceCommit": "cc2c866f373d5e7634dccd37d3cbdde375d591f2",
@@ -91,169 +101,6 @@
         "Ottimizzata l'area Prenotazioni su schermi medi a 2 colonne con filtri e titoli leggibili senza alterare iPhone e desktop"
       ],
       "publishedAtIso": "2026-11-19T10:51:23.528Z"
-    },
-    {
-      "version": "1.6.30",
-      "publishedAt": "2026-11-19",
-      "sourceCommit": "51a1a66",
-      "changes": [
-        "Riportati gli orari di tutte e 6 le categorie nell'header superiore delle card, rimuovendo la duplicazione accanto al titolo",
-        "Migliorata la leggibilità degli header lunghi su iPhone e iPad e consolidati i vincoli anti-regressione su card, Alloggi e swipe Oggi"
-      ],
-      "publishedAtIso": "2026-11-19T10:23:20.660Z"
-    },
-    {
-      "version": "1.6.29",
-      "publishedAt": "2026-11-19",
-      "sourceCommit": "a86470d",
-      "changes": [
-        "Ripristinata la ripresa automatica del GPS LIVE alla riapertura della PWA su iPhone gestendo stato prompt iOS e consenso pregresso senza richiedere clic nell’app",
-        "Aggiunta sincronizzazione ottimistica della lease al rinnovo preservando Pausa/Stop volontari, delega Copilota e rifiuto di sistema OS"
-      ],
-      "publishedAtIso": "2026-11-19T09:44:54.131Z"
-    },
-    {
-      "version": "1.6.28",
-      "publishedAt": "2026-11-19",
-      "sourceCommit": "6caa2f6",
-      "changes": [
-        "Unificate e deduplicate le verifiche di stato delle notifiche push con single-flight, cache TTL e montaggio modale on-demand",
-        "Migliorata la gestione delle risposte Worker distinguendo gli errori temporanei 503 dalle negazioni di accesso reali"
-      ],
-      "publishedAtIso": "2026-11-19T08:10:00.000Z"
-    },
-    {
-      "version": "1.6.27",
-      "publishedAt": "2026-11-18",
-      "sourceCommit": "ab98bb4",
-      "changes": [
-        "Ridotte drasticamente le letture Firestore con single-flight, cooldown di 10 minuti su resume PWA ed eliminazione del doppio aggancio listener al boot",
-        "Introdotto backoff esponenziale su errori di quota 429 preservando integralmente la coda locale e i listener realtime tra Owner e Copilota"
-      ],
-      "publishedAtIso": "2026-11-18T20:10:00.000Z"
-    },
-    {
-      "version": "1.6.26",
-      "publishedAt": "2026-11-18",
-      "sourceCommit": "ab056db",
-      "changes": [
-        "LIVE GPS continuo tra tutte le sezioni dell'app con un solo watchPosition condiviso e nessuna interruzione cambiando schermata",
-        "Ripresa automatica alla riapertura della PWA solo con consenso attivo e permesso già concesso, nel pieno rispetto di Pausa/Stop e delega Copilota"
-      ],
-      "publishedAtIso": "2026-11-18T18:10:00.000Z"
-    },
-    {
-      "version": "1.6.25",
-      "publishedAt": "2026-11-18",
-      "sourceCommit": "34193d3",
-      "changes": [
-        "Schermata Oggi: swipe orizzontale per passare al giorno precedente (destra) o successivo (sinistra) entro i limiti del viaggio",
-        "Navigazione iPhone: swipe giorno isolato da cambio sezione, calendario orizzontale, card, pulsanti, modali e bordi Safari"
-      ],
-      "publishedAtIso": "2026-11-18T17:18:00.000Z"
-    },
-    {
-      "version": "1.6.24",
-      "publishedAt": "2026-11-18",
-      "sourceCommit": "a56ba87",
-      "changes": [
-        "Card Alloggi: nascosto sul fronte il pulsante check-in quando non ancora effettuato, preservando «✓ Check-in fatto», orari e retro invariati"
-      ],
-      "publishedAtIso": "2026-11-18T16:00:00.000Z"
-    },
-    {
-      "version": "1.6.23",
-      "publishedAt": "2026-11-18",
-      "sourceCommit": "36575ae",
-      "changes": [
-        "Fronte card itinerario: orario mostrato subito dopo il titolo su tutte le categorie con leggibilità iPhone",
-        "Card Alloggi: eliminata la dicitura «Check-in da fare» mantenendo comando discreto «Segna check-in», «✓ Check-in fatto» e Check-out"
-      ],
-      "publishedAtIso": "2026-11-18T15:30:00.000Z"
-    },
-    {
-      "version": "1.6.22",
-      "publishedAt": "2026-11-18",
-      "sourceCommit": "202310d",
-      "changes": [
-        "Card pre-partenza iPhone: controllo «Non mostrare più» allineato su riga unica nel footer con spaziature e gerarchia migliorate",
-        "Leggibilità mobile e iPhone SE: rimosso troncamento testi, pulsanti ad alta accessibilità e visibilità completa azioni LIVE"
-      ],
-      "publishedAtIso": "2026-11-18T12:08:00.000Z"
-    },
-    {
-      "version": "1.6.21",
-      "publishedAt": "2026-11-18",
-      "sourceCommit": "959545b",
-      "changes": [
-        "Safe area iPhone e Dynamic Island: adeguati toast, dock categorie, menu azioni e barra laterale landscape con inset di sistema",
-        "Header sticky e viste itinerario: posizionamento corretto dei titoli paese e navigazione LIVE sotto la testata mobile",
-        "Modali, lightbox e tastiera: rimosso doppio padding, migliorato scorrimento su schermi compatti e resa a schermo intero"
-      ],
-      "publishedAtIso": "2026-11-18T11:15:00.000Z"
-    },
-    {
-      "version": "1.6.20",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "aea1b7b",
-      "changes": [
-        "Account: visualizzazione dinamica e corretta del ruolo Owner/Copilota nel badge profilo attivo",
-        "Diagnostica di sincronizzazione: ispezione sicura della struttura schema delle mutazioni in coda (solo nomi e tipi campi, zero valori esposti)",
-        "Integrita dati: salvaguardia totale di batch atomico, coda locale, regole Firestore e dati del viaggio 0000"
-      ],
-      "publishedAtIso": "2026-11-17T22:15:00.000Z"
-    },
-    {
-      "version": "1.6.19",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "5b62e11",
-      "changes": [
-        "Sincronizzazione Firestore P0: tracciamento dettagliato fasi di errore per batch atomico, cassaforte e documenti pubblici",
-        "Diagnostica: eliminata falsa segnalazione di sincronizzazione operativa in presenza di errori attivi o permessi insufficienti",
-        "Integrita coda e performance: rimozione sicura da coda solo su equivalenza confermata, caching in-flight e parallelizzazione letture"
-      ],
-      "publishedAtIso": "2026-11-17T21:15:00.000Z"
-    },
-    {
-      "version": "1.6.18",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "f7dc794",
-      "changes": [
-        "Diagnostica Sincronizzazione: classificazione chiara dei 4 stati (non autenticato, non autorizzato, errore rete, conflitto dati)",
-        "Traduzione amichevole dei conflitti timestamp/tombstone e indicazione dell'azione richiesta senza esporre credenziali"
-      ],
-      "publishedAtIso": "2026-11-17T19:15:00.000Z"
-    },
-    {
-      "version": "1.6.17",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "b289d24",
-      "changes": [
-        "Console Admin: audit storage con rilevamento live feed, normalizzazione timestamp e inclusione inviti",
-        "Card: rimozione pulsante Duplica su smartphone con visibilita conservata su layout desktop"
-      ],
-      "publishedAtIso": "2026-11-17T18:25:00.000Z"
-    },
-    {
-      "version": "1.6.16",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "b1a5874",
-      "changes": [
-        "Card Prenotazioni e Spese: rimossa icona a matita ridondante dal fronte delle card cliccabili",
-        "Preservata apertura immediata in modifica su tocco della card per Owner/Copilota e vista dettaglio per Viewer"
-      ],
-      "publishedAtIso": "2026-11-17T17:48:00.000Z"
-    },
-    {
-      "version": "1.6.15",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "68afac5",
-      "changes": [
-        "Sincronizzazione: risoluzione conflitto timestamp sui tombstone con estrazione da deletedAt/timestamp annidati",
-        "Allineamento equivalenza settings/tombstone (ignorato flag locale pending) e risoluzione conflitti residui",
-        "Sincronizzazione cancellazioni pendenti autorizzate preservando la coda locale senza perdita di dati"
-      ],
-      "publishedAtIso": "2026-11-17T17:20:00.000Z"
     }
   ]
 }

@@ -79,6 +79,10 @@ Distinguere SEMPRE **implementato**, **test automatici superati**, **pubblicato*
 13. **P4 — LIVE doppio orologio minimale Italia + locale con giorno/notte:** **pubblicato in `1.6.36` (`ae30cf2`)** (ora italiana e locale viaggio con `☀️`/`🌙`, offset esatti es. `+9h 30m` e cambio data senza nuove API, fallback discreto ospiti; superato `test_live_p3_p4_p5_p6.cjs` su `320`/`393`/`744`/`1024`/`1280px`). **Da verificare visivamente su dispositivo reale.**
 14. **P5 — LIVE frecce discrete prossimi trasporti nella mini-card:** **pubblicato in `1.6.36` (`ae30cf2`)** (frecce `‹ ›` su tratte multiple, max 2 righe, link `Stato volo ↗` dinamico, nascoste su tratta singola; superati `test_live_p3_p4_p5_p6.cjs` e `test_live_next_transport.cjs`). **Da verificare visivamente su dispositivo reale.**
 15. **P6 — LIVE testi più semplici e meno spazio verticale:** **pubblicato in `1.6.36` (`ae30cf2`)** (diciture semplificate e ingombro verticale ridotto senza riprogettare la vista LIVE; superati `test_live_p3_p4_p5_p6.cjs`, `test_card_ui_invariants.cjs`, `oxlint` e `build`). **Da verificare visivamente su iPhone/iPad mini reali.**
+16. **Copilota giornaliero + riordino sezione LIVE (intervento locale NON committato/NON pubblicato su baseline `1.6.36`):** **implementato e verificato in locale** (`dailyCopilot.ts`, `OggiView.tsx`, `UniversalCopilotaModal.tsx`, `NoteViaggioView.tsx`, `LiveEditorialExperience.tsx`, `test_daily_copilot_and_live_order.cjs`):
+   - **Copilota giornaliero:** isolato strettamente alla singola `selectedDate` con reload su cambio giorno, guard anti-race e protezione da ID stale; nessun fallback al ruolo permanente Owner/Copilota o a note di viaggio generiche; nessuna modifica a permessi, proprietà, GPS o `0000` (Shopping locale preservato).
+   - **Ordine LIVE (`A -> B -> C -> D -> E`):** `A` header essenziale + doppio orologio Italia/locale, `B` mini-card prossimo trasporto con frecce, `C` mappa LIVE + GPS rilevato/da programma, `D` diario e interazioni ospiti, `E` controlli/banner/privacy secondari; rimossi `sticky app-sticky-subheader` e `lg:sticky lg:top-14` per evitare coperture durante lo scroll.
+   - **Test automatici superati dopo l'ultima modifica:** `oxlint` (`0` errori), `tsc -b && vite build` (`2.13s`), `test_daily_copilot_and_live_order.cjs` (`PASS`: 6 unit test + E2E Copilota 1/2/3+sync/4 + Owner/Ospite su `393×852`, `744×1133`, `1133×744`, `1280×800`), `test_live_p3_p4_p5_p6.cjs` (`PASS`), `test_live_next_transport.cjs` (`PASS`), `test_card_ui_invariants.cjs` (`13/13`), `test_live_restyling_gps_auto.cjs` (`5/5`). **Non ancora committato/deployato né verificato su hardware iPhone/iPad reali.**
 
 ## Verifiche Safe Area iPhone / Dynamic Island (18/11/2026 — v1.6.21 pubblicata)
 
@@ -153,3 +157,37 @@ Vincoli anti-regressione non modificabili in interventi futuri senza richiesta e
 - Non copiare in questa baseline UID integrali, dati prenotazione, credenziali, PIN, token, link privati.
 
 > I file storici `docs/HOUNIGO_PROJECT_STATE.md` e `docs/HOUNIGO_BACKLOG.md` risultano datati 26/10/2026 e possono descrivere branch, deploy o priorità precedenti. Usare questo documento per la **situazione corrente**, preservando i documenti storici come archivio.
+
+
+## Sprint finale pre-partenza ? 21/11/2026, baseline pubblicata 1.6.38
+
+- **Baseline confermata:** release 1.6.38 (sorgente d86abd5, release b2be806), GitHub Actions 44920032988 riuscita; versione/commit, manifest e service worker verificati online nel precedente intervento. Questo sprint non pubblica nulla.
+- **Push, sola lettura di produzione:** due iscrizioni D1 abilitate dello stesso Owner, una APNs; nessuna iscrizione Copilota. 284 job futuri (142 per iscrizione), tutti con anticipo effettivo 60 minuti, zero scaduti e zero tentativi. Primo promemoria 28/11 09:05 UTC per evento 10:05 UTC (Europe/Rome: 10:05 / 11:05). Hobbiton: 02/12 21:00 UTC / 22:00 UTC (Pacific/Auckland: 03/12 10:00 / 11:00). D1 conserva epoch UTC, non il fuso IANA sorgente: gli esempi sono compatibili con i fusi indicati; non equivalgono a una nuova verifica di tutte le prenotazioni.
+- **Cron osservato in produzione:** */5 * * * *, Worker b6066345, esecuzione 21/11 15:45:33 UTC con outcome ok, nessuna eccezione e nessun log di errore. Nessun job era dovuto durante l'osservazione; il successo del cron vuoto non certifica un invio.
+- **Diagnosi A/B/C:** A: sul dispositivo Copilota manca l'iscrizione, quindi non risultano job a lui destinati. B: nessuna evidenza di mancato invio Owner, i job sono ancora futuri. C: D1 conserva dispatch/deduplicazione e contatori di tentativi, non risposte HTTP APNs o ricevute di visualizzazione; i contatori non provano accettazione APNs. Ricezione a schermo bloccato ancora da verificare. Nessun invio, modifica Push/Worker o dato 0000 eseguito da Codex.
+- **Centratura LIVE, solo locale:** useLiveMapInitialCenter.ts e integrazione circoscritta in LiveView.tsx: primo GPS valido centra una volta per montaggio/apertura, centro fissato sui successivi aggiornamenti, scelta manuale precedente al GPS rispettata, selettori GPS/Programma/Insieme ancora espliciti. Stesso percorso per Owner, Copilota e pubblico; raccolta/condivisione GPS e provider tile invariati. Nessuna posizione o posizione ritirata: fallback precedente senza conservare il centro GPS fissato; coordinate zero accettate.
+- **Verifiche automatiche nuove:** test_live_initial_map_center.cjs PASS (primo fix, invalidi/zero, aggiornamenti, navigazione manuale prima/dopo GPS, pulsante GPS e riapertura in StrictMode); lint 0 errori con warning preesistenti, build PASS. Nessuna ripetizione delle suite Budget/PDF/Piattaforma gi? superate. Test simulati, non prove su iPhone fisico.
+
+### Aggiunte alla coda ? tutte le voci precedenti restano valide
+
+17. **P1 ? Centratura iniziale LIVE:** implementata e testata solo localmente; resta in coda la verifica su iPhone/PWA e LIVE pubblica con GPS reale, prima di un'eventuale release autorizzata separatamente.
+18. **P1 massimo ? Push Owner/Copilota a schermo bloccato:** mantenere aperti i task 4 e 10. Attivare/verificare l'iscrizione sul secondo iPhone, poi distinguere programmazione, invio e visualizzazione con una singola prova autorizzata su viaggio sintetico. Nessuna prova reale effettuata in questo sprint.
+19. **P1 ? Checklist Giusy:** pronta in [HOUNIGO_TEST_DUE_IPHONE.md](HOUNIGO_TEST_DUE_IPHONE.md): accesso/permessi, tappa bidirezionale, offline/recupero, Push bloccato e GPS condiviso/passivo. Esecuzione su due iPhone ancora DA FARE; nessuna prova distruttiva su 0000. Preservati tutti gli altri task, inclusi allegati reali, Shopping autosave rinviato e revoca chiave Push post-viaggio.
+
+
+## Release 1.6.39 - GPS LIVE (21/11/2026)
+
+- Pubblicata la sola centratura LIVE: source cc2c866, release 7e15ca1, Actions 44921628424 conclusa success. Commit selettivo: LiveView.tsx, useLiveMapInitialCenter.ts, relativo test, checklist e metadati di rilascio; Shopping autosave, Push, Worker, Rules, Sync, documenti e budget esclusi.
+- Test mirati PASS: test_live_initial_map_center.cjs, test_live_restyling_gps_auto.cjs (5/5), versionamento (24), lint 0 errori e build finale PASS. Primo fix una volta per apertura, scelta manuale anche prima del GPS rispettata, pulsante GPS operativo, fallback senza posizione e vista ospiti preservati. Nessun cambiamento alla raccolta/condivisione GPS o al provider tile.
+- Online verificati HTTP 200, versione 1.6.39, commit 7e15ca1, manifest e service worker con il nuovo bundle index-8yp6pstT.js. Browser temporaneo 393x852: LIVE pubblica 0000 apre posizione e diario, badge Vista Ospiti, zero eccezioni JavaScript; richieste di scrittura bloccate e nessuna tentata. Nessuna posizione GPS pubblica disponibile e nessuna tile richiesta durante il controllo: centratura con GPS reale e rendering tile non certificati da questa prova. Nessun dato 0000 modificato.
+- Coda 17 aggiornata: correzione ora pubblicata, resta verifica GPS reale su iPhone/PWA e LIVE ospiti. Coda 4/10/18/19 e tutte le altre voci conservate: Giusy deve abilitare le Push sul suo iPhone; verificare ricezione a -60 minuti con PWA chiusa/iPhone bloccato e sincronizzazione Owner/Copilota anche offline. Checklist HOUNIGO_TEST_DUE_IPHONE.md aggiornata, nessun test reale dichiarato superato.
+
+## Release 1.6.40 — Chiusura Budget privato (22/11/2026)
+
+- **Test manuali preservati in coda (rinviati dall'utente):** mantenuti invariati nella baseline e nella coda i punti 4, 10, 17, 18, 19 per GPS reale, Push a schermo bloccato e verifica bidirezionale Copilota su due iPhone.
+- **Persistenza budget privato tra dispositivi (`96d6013`):** `storageService.ts` + `SpeseBudgetView.tsx` salvano/leggono `PRIVATE_TRIP_BUDGET_ID` (`__hounigo_trip_budget_goal_v1`, `recordKind: 'budget_goal'`) nel canale privato `note` già protetto da Firestore Rules (Owner/Copilota, escluso da LIVE e da `Note di Viaggio`/`Scadenze`), senza alterare `SyncService`, preservando il budget locale `13.000 EUR` e le `31` voci valuta incerta su `0000`.
+- **Verifiche pre-rilascio (`1.6.40`):** `oxlint` (`0` errori), `tsc -b && vite build`, `test_budget_private_sync.cjs` (`PASS`: accesso autorizzato, offline, modifica, rimozione, sync dispositivi, `13.000 EUR` preservato, zero leak LIVE), `test_budget_currency_projection.cjs` (`12/12`), `test_budget_loading_integrity.cjs` (`PASS`), `test_multicurrency_display.cjs` (`PASS`), `test_release_versioning.cjs` (`24/24`).
+
+### Aggiunta alla coda — tutte le voci precedenti restano valide
+
+20. **P1 — Chiusura Budget (`1.6.40`):** pubblicata in `1.6.40`; resta in coda la conferma manuale delle `31` voci con valuta incerta su `0000` oltre ai test manuali GPS, Push e Copilota su iPhone reali.

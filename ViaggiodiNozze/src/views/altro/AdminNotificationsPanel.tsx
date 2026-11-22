@@ -193,7 +193,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
         if (!res.ok) {
           throw new Error(data.error || `Errore server Cloudflare (${res.status})`);
         }
-        recipientsSent = data.recipientsCount ?? 0;
+        recipientsSent = data.recipientCount ?? data.recipientsCount ?? 0;
       } else {
         // Fallback locale sicuro se non autenticato in locale
         recipientsSent = estimatedRecipients;
