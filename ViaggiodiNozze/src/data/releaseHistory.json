@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.7",
+      "publishedAt": "2026-11-23",
+      "sourceCommit": "db2166bce19a04a17f84d6cf2a15a250491b9050",
+      "changes": [
+        "Diagnostica Push iPhone: storico ultime 10 mutazioni, evidenza dedicata all'ultima Attività e conferma D1 esplicita.",
+        "Pulsante Copia diagnostica senza dati personali né credenziali."
+      ],
+      "publishedAtIso": "2026-11-23T10:34:15.000Z"
+    },
+    {
       "version": "1.7.6",
       "publishedAt": "2026-11-23",
       "sourceCommit": "647feed812a16f6c9151a5a6d4ee5d70e8846e83",
