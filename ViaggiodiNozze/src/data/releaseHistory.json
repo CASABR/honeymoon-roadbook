@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.8",
+      "publishedAt": "2026-11-23",
+      "sourceCommit": "09d388c976ce8fff285b4679e8f494e639fa0f4f",
+      "changes": [
+        "Fusi orari automatici per promemoria Push: priorità card/luogo/tappa e fallback fuso dispositivo registrato in diagnostica.",
+        "Rilevamento cambio fuso dispositivo e recupero limitato (max 2, deduplicato) per soli eventi futuri."
+      ],
+      "publishedAtIso": "2026-11-23T10:53:30.000Z"
+    },
+    {
       "version": "1.7.7",
       "publishedAt": "2026-11-23",
       "sourceCommit": "db2166bce19a04a17f84d6cf2a15a250491b9050",
