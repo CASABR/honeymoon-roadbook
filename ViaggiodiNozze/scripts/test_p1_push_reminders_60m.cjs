@@ -562,13 +562,15 @@ class InMemoryD1 {
     assert.equal(nzDayDiag.reminders[0].eventAt, Date.UTC(2026, 11, 4, 21, 0, 0)); // 10:00 NZDT (+13)
 
     // 6b. Cambio fuso telefono (Europe/Rome -> Asia/Shanghai -> Pacific/Auckland):
-    // Le prenotazioni con destinazione certa restano ancorate; solo le card senza fuso usano device_fallback
+    // Le prenotazioni con destinazione certa restano ancorate; solo card odierna senza fuso usa device_fallback,
+    // mentre una card futura senza fuso in contesto estero non riceve un fuso arbitrario del telefono.
     const collections = {
       giorni: [{ data: '2026-12-03', luogo: 'Pechino' }],
       attivita: [
         { id: 'act_pek_fixed', date: '2026-12-03', orarioInizio: '18:00', timeStatus: 'confermato', location: 'Pechino' },
         { id: 'act_nz_fixed', date: '2026-12-06', orarioInizio: '11:00', timeStatus: 'confermato', location: 'Auckland' },
-        { id: 'act_generic', date: '2026-12-08', orarioInizio: '12:00', timeStatus: 'confermato', location: 'Ritrovo' },
+        { id: 'act_today_generic', date: '2026-12-02', orarioInizio: '22:00', timeStatus: 'confermato', location: 'Ritrovo' },
+        { id: 'act_future_unknown', date: '2026-12-08', orarioInizio: '12:00', timeStatus: 'confermato', location: 'Ritrovo' },
       ],
     };
     const itemsFromRome = remindersMod.collectTripPushReminderItems(collections, nowMs, { deviceTimeZone: 'Europe/Rome', recoverIfMissed: false });
@@ -578,8 +580,10 @@ class InMemoryD1 {
     const byIdAkl = new Map(itemsFromAuckland.map(i => [i.entityId, i]));
     assert.equal(byIdRome.get('act_pek_fixed').reminders[0].eventAt, byIdAkl.get('act_pek_fixed').reminders[0].eventAt, 'Pechino non deve cambiare con fuso telefono');
     assert.equal(byIdRome.get('act_nz_fixed').reminders[0].eventAt, byIdAkl.get('act_nz_fixed').reminders[0].eventAt, 'Auckland non deve cambiare con fuso telefono');
-    assert.notEqual(byIdRome.get('act_generic').reminders[0].eventAt, byIdAkl.get('act_generic').reminders[0].eventAt, 'Card senza fuso usa fallback dispositivo');
-    assert.equal(byIdAkl.get('act_generic').reminders[0].recoverIfMissed, true);
+    assert.ok(byIdRome.has('act_today_generic'), 'Card odierna senza fuso usa fallback dispositivo');
+    assert.equal(byIdRome.has('act_future_unknown'), false, 'Card futura estera senza fuso non deve usare fallback Europe/Rome');
+    assert.equal(byIdAkl.has('act_future_unknown'), false, 'Card futura estera senza fuso non deve usare fallback Pacific/Auckland');
+    assert.equal(byIdRome.get('act_today_generic').reminders[0].eventAt, Date.UTC(2026, 11, 2, 21, 0, 0));
 
     // 6c. Recupero Worker: futuri recuperati con cap=2, passati ignorati, duplicati bloccati da push_dispatches
     const db = new InMemoryD1();
@@ -626,6 +630,94 @@ class InMemoryD1 {
       assert.equal(db.jobs.filter(j => j.entity_key === 'attivita:act_rec_3').length, 0, 'Terzo recupero oltre il cap deve essere saltato');
       const rec1Job = db.jobs.find(j => j.entity_key === 'attivita:act_rec_1');
       assert.equal(rec1Job.due_at, nowMs, 'Il recupero deve schedulare due_at = now');
+    } finally {
+      Date.now = realDateNow;
+    }
+  });
+
+  await asyncCheck('7. Destinazione prima: TAO 03/01 Asia/Manila, Imbarco 09/01 Asia/Taipei, 01/12 multi-fuso senza fallback, coerenza Owner/Copilota e riconciliazione D1', async () => {
+    const remindersMod = loadTsGraph('src/utils/pushReminders.ts');
+    const nowMs = Date.UTC(2026, 10, 23, 12, 0, 0); // 2026-11-23 13:00 Europe/Rome
+
+    const tripCollections = {
+      giorni: [
+        { date: '2026-12-01', location: 'Pechino -> Auckland' },
+        { date: '2027-01-03', location: 'El Nido' },
+        { date: '2027-01-09', location: 'Cebu -> Taipei -> Roma' },
+      ],
+      trasporti: [
+        { id: 'trn_03_volo_ca783', date: '2026-12-01', departureTime: '00:25', departureIata: 'PEK', timeStatus: 'confermato' },
+        { id: 'trn_20270103_desert_rose_tao', date: '2027-01-03', departureTime: '06:45', departureLocation: 'El Nido, Palawan', timeStatus: 'confermato' },
+        { id: 'trn_16_ceb_tpe_ci706', date: '2027-01-09', departureTime: '12:10', departureIata: 'CEB', timeStatus: 'confermato' },
+        { id: 'trn_16_ceb_tpe_fco', date: '2027-01-09', departureTime: '23:25', departureIata: 'TPE', arrivalIata: 'FCO', timeStatus: 'confermato' },
+      ],
+      tappe: [
+        { id: 'tappa_20270103_ritrovo_tao', data: '2027-01-03', orario: '07:30', titolo: 'Ritrovo TAO', indirizzo: 'Palawan', timeStatus: 'confermato' },
+        { id: 'tappa_20270109_imbarco_fco', data: '2027-01-09', orario: '20:55', titolo: 'Imbarco volo TPE -> FCO', indirizzo: 'Taoyuan', timeStatus: 'confermato' },
+      ],
+      attivita: [
+        { id: 'attivita_1793365094188_qlzg2', date: '2026-12-01', orarioInizio: '21:00', titolo: 'Attività senza luogo', timeStatus: 'confermato' },
+      ],
+    };
+
+    const ownerItems = remindersMod.collectTripPushReminderItems(tripCollections, nowMs, { deviceTimeZone: 'Europe/Rome' });
+    const copilotaItems = remindersMod.collectTripPushReminderItems(tripCollections, nowMs, { deviceTimeZone: 'Pacific/Auckland' });
+
+    const ownerMap = new Map(ownerItems.map(i => [`${i.entityType}:${i.entityId}`, i]));
+    const copMap = new Map(copilotaItems.map(i => [`${i.entityType}:${i.entityId}`, i]));
+
+    // 7a. TAO 03/01 07:30 -> Asia/Manila (2027-01-02 23:30 UTC), identico tra Owner e Copilota
+    const expectedTaoUtc = Date.UTC(2027, 0, 2, 23, 30, 0);
+    assert.equal(ownerMap.get('tappe:tappa_20270103_ritrovo_tao').reminders[0].eventAt, expectedTaoUtc, 'TAO 03/01 deve essere 07:30 Asia/Manila');
+    assert.equal(copMap.get('tappe:tappa_20270103_ritrovo_tao').reminders[0].eventAt, expectedTaoUtc, 'Owner e Copilota devono avere identico UTC per TAO');
+
+    // 7b. Imbarco 09/01 20:55 -> Asia/Taipei (2027-01-09 12:55 UTC), non FCO/Europe/Rome
+    const expectedImbarcoUtc = Date.UTC(2027, 0, 9, 12, 55, 0);
+    assert.equal(ownerMap.get('tappe:tappa_20270109_imbarco_fco').reminders[0].eventAt, expectedImbarcoUtc, 'Imbarco 09/01 deve essere 20:55 Asia/Taipei');
+    assert.equal(copMap.get('tappe:tappa_20270109_imbarco_fco').reminders[0].eventAt, expectedImbarcoUtc, 'Owner e Copilota devono avere identico UTC per Imbarco Taipei');
+
+    // 7c. Attività 01/12 senza luogo su giorno multi-fuso non deve usare Europe/Rome né Auckland
+    assert.equal(ownerMap.has('attivita:attivita_1793365094188_qlzg2'), false, 'Attività 01/12 senza luogo su giorno multi-fuso non va programmata in Europe/Rome');
+    assert.equal(copMap.has('attivita:attivita_1793365094188_qlzg2'), false, 'Attività 01/12 senza luogo non va programmata nemmeno dal Copilota');
+
+    // 7d. Verifica riconciliazione D1 tramite sync-reminders: corregge i job errati e rimuove quello spurio senza toccare altri job
+    const db = new InMemoryD1();
+    const env = { RATE_LIMITS: db };
+    const realDateNow = Date.now;
+    Date.now = () => nowMs;
+    try {
+      const uid = 'owner_reconcile';
+      const tripId = 'trip_reconcile';
+      const subId = crypto.createHash('sha256').update(`${uid}\n${tripId}\ndev_rec_1`).digest('hex').slice(0, 48);
+      await workerPush.handlePushRequest('/v1/push/register', uid, tripId, {
+        deviceId: 'dev_rec_1', subscriberId: subId,
+        subscription: { endpoint: 'https://web.push.apple.com/rec1', keys: { p256dh: 'x'.repeat(40), auth: 'y'.repeat(16) } },
+        preferences: { transports: true, activities: true, lodging: true, deadlines: true, collaboration: true, reminderMinutes: 60 },
+      }, env);
+
+      // Simula stato D1 pre-fix con TAO e Imbarco sballati di +7h e attivita_01_12 spuria
+      await workerPush.handlePushRequest('/v1/push/sync-reminders', uid, tripId, {
+        tripId,
+        items: [
+          { entityType: 'tappe', entityId: 'tappa_20270103_ritrovo_tao', reminders: [{ kind: 'activity_start', eventAt: Date.UTC(2027, 0, 3, 6, 30, 0) }] },
+          { entityType: 'tappe', entityId: 'tappa_20270109_imbarco_fco', reminders: [{ kind: 'activity_start', eventAt: Date.UTC(2027, 0, 9, 19, 55, 0) }] },
+          { entityType: 'attivita', entityId: 'attivita_1793365094188_qlzg2', reminders: [{ kind: 'activity_start', eventAt: Date.UTC(2026, 11, 1, 20, 0, 0) }] },
+          { entityType: 'trasporti', entityId: 'trn_20270103_desert_rose_tao', reminders: [{ kind: 'transport_departure', eventAt: Date.UTC(2027, 0, 2, 22, 45, 0) }] },
+        ],
+      }, env);
+
+      // Riconciliazione tramite normale sync-reminders post-fix
+      const recRes = await workerPush.handlePushRequest('/v1/push/sync-reminders', uid, tripId, {
+        tripId,
+        items: ownerItems,
+        pruneRemoved: true,
+      }, env);
+
+      assert.equal(db.jobs.find(j => j.entity_key === 'tappe:tappa_20270103_ritrovo_tao').event_at, expectedTaoUtc, 'TAO riconciliato in D1 a Asia/Manila');
+      assert.equal(db.jobs.find(j => j.entity_key === 'tappe:tappa_20270109_imbarco_fco').event_at, expectedImbarcoUtc, 'Imbarco riconciliato in D1 a Asia/Taipei');
+      assert.equal(db.jobs.filter(j => j.entity_key === 'attivita:attivita_1793365094188_qlzg2').length, 0, 'Job spurio 01/12 rimosso in riconciliazione');
+      assert.equal(db.jobs.find(j => j.entity_key === 'trasporti:trn_20270103_desert_rose_tao').event_at, Date.UTC(2027, 0, 2, 22, 45, 0), 'Job valido preesistente preservato');
+      assert.ok(recRes.removedCount >= 1);
     } finally {
       Date.now = realDateNow;
     }

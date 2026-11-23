@@ -48,7 +48,7 @@ const PLACE_TIMEZONE_HINTS: Array<[RegExp, string]> = [
   [/\b(sydney|kingsford\s*smith|circular\s*quay|manly|blue\s*mountains|katoomba|bondi|hyams\s*beach|jervis\s*bay|wilsons\s*promontory)\b/i, 'Australia/Sydney'],
   [/\b(brisbane|cairns|gold\s*coast|queensland)\b/i, 'Australia/Brisbane'],
   [/\b(perth|fremantle)\b/i, 'Australia/Perth'],
-  [/\b(filippine|philippines|manila|ninoy\s*aquino|caticlan|boracay|el\s*nido|coron|busuanga|cebu|mactan|bohol|panglao|siargao)\b/i, 'Asia/Manila'],
+  [/\b(filippine|philippines|manila|ninoy\s*aquino|caticlan|boracay|el\s*nido|coron|busuanga|cebu|mactan|bohol|panglao|siargao|palawan|taytay|nacpan|port\s*barton|puerto\s*princesa|san\s*vicente|tao\s*expedition|tao\s*philippines|ritrovo\s*tao|desert\s*rose)\b/i, 'Asia/Manila'],
   [/\b(rarotonga|aitutaki|cook\s*islands|isole\s*cook)\b/i, 'Pacific/Rarotonga'],
   [/\b(taipei|taoyuan)\b/i, 'Asia/Taipei'],
 ];
@@ -79,6 +79,7 @@ export function getStrictTimeZoneFromCoordinates(lat: number, lng: number): stri
     if (lat < -34 && lng < 150) return 'Australia/Melbourne';
     return 'Australia/Sydney';
   }
+  if (lat > 21.8 && lat < 25.4 && lng > 120 && lng < 122.1) return 'Asia/Taipei';
   if (lat > 18 && lat < 54 && lng > 73 && lng < 135) return 'Asia/Shanghai';
   if (lat > 35 && lat < 48 && lng > 6 && lng < 19) return 'Europe/Rome';
   return null;
@@ -94,8 +95,9 @@ export function resolveUnambiguousPlaceTimeZone(text: unknown): string | null {
 
   const matched = new Set<string>();
 
-  const parenthesizedIatas = [...clean.matchAll(/\(([A-Z]{3})\)/g)].map(m => m[1]);
-  const bareIatas = (clean.match(/\b[A-Z]{3}\b/g) || []).filter(code => code !== 'PER');
+  const textForIata = clean.replace(/(?:->|→|=>|\b(?:per|verso|to)\b)\s*\(?[A-Z]{3}\)?/g, ' ');
+  const parenthesizedIatas = [...textForIata.matchAll(/\(([A-Z]{3})\)/g)].map(m => m[1]);
+  const bareIatas = (textForIata.match(/\b[A-Z]{3}\b/g) || []).filter(code => code !== 'PER');
   for (const code of [...parenthesizedIatas, ...bareIatas]) {
     if (IATA_TIMEZONE_MAP[code]) matched.add(IATA_TIMEZONE_MAP[code]);
   }

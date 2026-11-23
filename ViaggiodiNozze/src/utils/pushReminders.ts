@@ -1,4 +1,5 @@
 import {
+  getLocalIsoDate,
   getStrictTimeZoneFromCoordinates,
   isValidIanaTimeZone,
   resolveReliableIataTimeZone,
@@ -31,6 +32,8 @@ export interface ClientPushSyncItem {
 
 export interface PushReminderResolutionContext {
   dayLocationsByDate?: Record<string, string>;
+  multiTzDates?: Set<string>;
+  hasForeignTripContext?: boolean;
   nowMs?: number;
   deviceTimeZone?: string | null;
 }
@@ -74,51 +77,144 @@ function isConfirmedCardTime(data: Record<string, unknown>, allowLegacyBookedWit
   return false;
 }
 
-export function buildDayLocationsMap(
-  days: Array<Record<string, unknown>> = [],
-  tappe: Array<Record<string, unknown>> = [],
-): Record<string, string> {
-  const map: Record<string, string> = {};
-  for (const day of days) {
+const TZ_HINT_LABELS: Record<string, string> = {
+  'Europe/Rome': 'Roma, Italia',
+  'Asia/Shanghai': 'Pechino',
+  'Pacific/Auckland': 'Auckland',
+  'Australia/Sydney': 'Sydney',
+  'Australia/Melbourne': 'Melbourne',
+  'Australia/Adelaide': 'Adelaide',
+  'Australia/Brisbane': 'Brisbane',
+  'Australia/Perth': 'Perth',
+  'Asia/Manila': 'Manila',
+  'Pacific/Rarotonga': 'Rarotonga',
+  'Asia/Taipei': 'Taipei',
+};
+
+export function buildPushDayContext(
+  collections: TripReminderCollections,
+  deviceTimeZone?: string | null,
+): {
+  dayLocationsByDate: Record<string, string>;
+  multiTzDates: Set<string>;
+  hasForeignTripContext: boolean;
+} {
+  const tzByDate = new Map<string, Set<string>>();
+  const addTz = (date: string | undefined, tz: string | null | undefined) => {
+    if (!date || !tz || !isValidIanaTimeZone(tz)) return;
+    let set = tzByDate.get(date);
+    if (!set) {
+      set = new Set<string>();
+      tzByDate.set(date, set);
+    }
+    set.add(tz.trim());
+  };
+
+  for (const day of collections.giorni || []) {
     const date = typeof day?.date === 'string'
       ? day.date.trim()
       : (typeof day?.data === 'string' ? day.data.trim() : '');
-    const place = [day?.location, day?.title].filter(v => typeof v === 'string' && v.trim()).join(' · ');
-    if (date && place) {
-      map[date] = place;
-    }
-  }
-  for (const tappa of tappe) {
-    const date = readEntityDate(tappa, 'tappe');
     if (!date) continue;
-    const coordTz = coordTimeZone(tappa?.coordinate);
-    const place = [tappa?.indirizzo, tappa?.address, tappa?.location, tappa?.titolo, tappa?.title]
-      .filter(v => typeof v === 'string' && v.trim())
-      .join(' · ');
-    const resolvedFromPlace = place ? resolveUnambiguousPlaceTimeZone(place) : null;
-    if (!map[date] || !resolveUnambiguousPlaceTimeZone(map[date])) {
-      if (resolvedFromPlace && place) {
-        map[date] = place;
-      } else if (coordTz) {
-        // Esponi una label riconosciuta solo se il fuso della tappa è determinabile dalle coordinate
-        const tzHint: Record<string, string> = {
-          'Europe/Rome': 'Roma, Italia',
-          'Asia/Shanghai': 'Pechino',
-          'Pacific/Auckland': 'Auckland',
-          'Australia/Sydney': 'Sydney',
-          'Australia/Melbourne': 'Melbourne',
-          'Australia/Adelaide': 'Adelaide',
-          'Australia/Brisbane': 'Brisbane',
-          'Australia/Perth': 'Perth',
-          'Asia/Manila': 'Manila',
-          'Pacific/Rarotonga': 'Rarotonga',
-          'Asia/Taipei': 'Taipei',
-        };
-        if (tzHint[coordTz]) map[date] = tzHint[coordTz];
+    if (isValidIanaTimeZone(day?.timeZone)) {
+      addTz(date, day.timeZone.trim());
+    } else {
+      const place = [day?.location, day?.luogo, day?.title].filter(v => typeof v === 'string' && v.trim()).join(' · ');
+      const singleTz = resolveUnambiguousPlaceTimeZone(place);
+      if (singleTz) {
+        addTz(date, singleTz);
+      } else if (place) {
+        for (const seg of place.split(/->|→|\/|·|\|/)) {
+          addTz(date, resolveUnambiguousPlaceTimeZone(seg));
+        }
       }
     }
   }
-  return map;
+
+  for (const tappa of collections.tappe || []) {
+    const date = readEntityDate(tappa, 'tappe');
+    if (!date) continue;
+    if (isValidIanaTimeZone(tappa?.timeZone)) {
+      addTz(date, tappa.timeZone.trim());
+      continue;
+    }
+    const coordTz = coordTimeZone(tappa?.coordinate);
+    if (coordTz) {
+      addTz(date, coordTz);
+      continue;
+    }
+    const addrPlace = [tappa?.indirizzo, tappa?.address, tappa?.location]
+      .filter(v => typeof v === 'string' && v.trim())
+      .join(' · ');
+    const addrTz = addrPlace ? resolveUnambiguousPlaceTimeZone(addrPlace) : null;
+    if (addrTz) {
+      addTz(date, addrTz);
+      continue;
+    }
+    const titleText = [tappa?.titolo, tappa?.title].filter(v => typeof v === 'string' && v.trim()).join(' · ');
+    if (titleText && !/\b(imbarco|boarding)\b/i.test(titleText)) {
+      addTz(date, resolveUnambiguousPlaceTimeZone(titleText));
+    }
+  }
+
+  for (const trasporto of collections.trasporti || []) {
+    const date = readEntityDate(trasporto, 'trasporti');
+    if (!date) continue;
+    const explicitTz = trasporto?.departureTimeZone || trasporto?.timeZone;
+    if (isValidIanaTimeZone(explicitTz)) {
+      addTz(date, explicitTz.trim());
+      continue;
+    }
+    const coordTz = coordTimeZone(trasporto?.coordinate);
+    if (coordTz) {
+      addTz(date, coordTz);
+      continue;
+    }
+    const iataTz = resolveReliableIataTimeZone(trasporto?.departureIata);
+    if (iataTz) {
+      addTz(date, iataTz);
+      continue;
+    }
+    addTz(date, resolveTimeZoneFromTextList([trasporto?.departureLocation, trasporto?.location, trasporto?.address]));
+  }
+
+  for (const alloggio of collections.alloggi || []) {
+    const tz = isValidIanaTimeZone(alloggio?.timeZone)
+      ? alloggio.timeZone.trim()
+      : (coordTimeZone(alloggio?.coordinate)
+        || resolveTimeZoneFromTextList([alloggio?.indirizzo, alloggio?.address, alloggio?.location, alloggio?.name, alloggio?.nome, alloggio?.title]));
+    if (!tz) continue;
+    if (typeof alloggio?.checkIn === 'string' && alloggio.checkIn.trim()) addTz(alloggio.checkIn.trim(), tz);
+    if (typeof alloggio?.checkOut === 'string' && alloggio.checkOut.trim()) addTz(alloggio.checkOut.trim(), tz);
+  }
+
+  const dayLocationsByDate: Record<string, string> = {};
+  const multiTzDates = new Set<string>();
+  const allObservedTzs = new Set<string>();
+
+  for (const [date, set] of tzByDate.entries()) {
+    set.forEach(tz => allObservedTzs.add(tz));
+    if (set.size === 1) {
+      const onlyTz = set.values().next().value as string;
+      dayLocationsByDate[date] = TZ_HINT_LABELS[onlyTz] || onlyTz;
+    } else if (set.size > 1) {
+      multiTzDates.add(date);
+    }
+  }
+
+  const cleanDevTz = isValidIanaTimeZone(deviceTimeZone) ? deviceTimeZone.trim() : null;
+  const hasForeignTripContext = allObservedTzs.size > 0
+    && (!cleanDevTz || [...allObservedTzs].some(tz => tz !== cleanDevTz));
+
+  return { dayLocationsByDate, multiTzDates, hasForeignTripContext };
+}
+
+export function buildDayLocationsMap(
+  days: Array<Record<string, unknown>> = [],
+  tappe: Array<Record<string, unknown>> = [],
+  trasporti: Array<Record<string, unknown>> = [],
+  alloggi: Array<Record<string, unknown>> = [],
+): Record<string, string> {
+  return buildPushDayContext({ giorni: days, tappe, trasporti, alloggi }).dayLocationsByDate;
 }
 
 function coordTimeZone(coord: unknown): string | null {
@@ -152,6 +248,9 @@ export function resolveEntityTimeZoneWithSource(
   const primaryCoordTz = coordTimeZone(data.coordinate);
   if (primaryCoordTz) return { timeZone: primaryCoordTz, source: 'card_coordinates' };
 
+  const dateKey = options.dateHint || readEntityDate(data, entityType) || (typeof data.checkIn === 'string' ? data.checkIn : undefined) || (typeof data.dueDate === 'string' ? data.dueDate : undefined);
+  const isMultiTzDay = Boolean(dateKey && options.context?.multiTzDates?.has(dateKey));
+
   if (entityType === 'trasporto' || entityType === 'trasporti') {
     const iataTz = resolveReliableIataTimeZone(options.isDropoff ? data.arrivalIata : data.departureIata);
     if (iataTz) return { timeZone: iataTz, source: 'card_iata' };
@@ -162,27 +261,36 @@ export function resolveEntityTimeZoneWithSource(
     ]);
     if (locTz) return { timeZone: locTz, source: 'card_place' };
   } else {
-    const placeTz = resolveTimeZoneFromTextList([
+    const addrTz = resolveTimeZoneFromTextList([
       data.indirizzo,
       data.address,
       data.location,
-      data.title,
-      data.titolo,
-      data.nome,
-      data.name,
     ]);
-    if (placeTz) return { timeZone: placeTz, source: 'card_place' };
+    if (addrTz) return { timeZone: addrTz, source: 'card_place' };
   }
 
-  const dateKey = options.dateHint || readEntityDate(data, entityType) || (typeof data.checkIn === 'string' ? data.checkIn : undefined) || (typeof data.dueDate === 'string' ? data.dueDate : undefined);
-  if (dateKey && options.context?.dayLocationsByDate?.[dateKey]) {
-    const dayTz = resolveUnambiguousPlaceTimeZone(options.context.dayLocationsByDate[dateKey]);
+  if (dateKey && !isMultiTzDay && options.context?.dayLocationsByDate?.[dateKey]) {
+    const dayVal = options.context.dayLocationsByDate[dateKey];
+    const dayTz = isValidIanaTimeZone(dayVal) ? dayVal.trim() : resolveUnambiguousPlaceTimeZone(dayVal);
     if (dayTz) return { timeZone: dayTz, source: 'day_or_stage' };
   }
 
+  if (entityType !== 'trasporto' && entityType !== 'trasporti') {
+    const titleCandidates = [data.title, data.titolo, data.nome, data.name];
+    const titleTz = resolveTimeZoneFromTextList(
+      titleCandidates.filter((t) => !(typeof t === 'string' && /\b(imbarco|boarding)\b/i.test(t) && /\b(FCO|MXP|LIN|BGY|VCE|NAP)\b/.test(t))),
+    );
+    if (titleTz) return { timeZone: titleTz, source: 'card_place' };
+  }
+
   const devTz = options.context?.deviceTimeZone;
-  if (isValidIanaTimeZone(devTz)) {
-    return { timeZone: devTz.trim(), source: 'device_fallback' };
+  if (isValidIanaTimeZone(devTz) && !isMultiTzDay) {
+    const cleanDevTz = devTz.trim();
+    const todayIso = getLocalIsoDate(new Date(options.context?.nowMs ?? Date.now()), cleanDevTz);
+    const isForeignFuture = Boolean(options.context?.hasForeignTripContext && dateKey && dateKey > todayIso);
+    if (!isForeignFuture) {
+      return { timeZone: cleanDevTz, source: 'device_fallback' };
+    }
   }
 
   return { timeZone: null, source: 'none' };
@@ -362,8 +470,11 @@ export function collectTripPushReminderItems(
   nowMs: number = Date.now(),
   options: { deviceTimeZone?: string | null; recoverIfMissed?: boolean } = {},
 ): ClientPushSyncItem[] {
+  const dayCtx = buildPushDayContext(collections, options.deviceTimeZone);
   const context: PushReminderResolutionContext = {
-    dayLocationsByDate: buildDayLocationsMap(collections.giorni || [], collections.tappe || []),
+    dayLocationsByDate: dayCtx.dayLocationsByDate,
+    multiTzDates: dayCtx.multiTzDates,
+    hasForeignTripContext: dayCtx.hasForeignTripContext,
     nowMs,
     deviceTimeZone: options.deviceTimeZone,
   };

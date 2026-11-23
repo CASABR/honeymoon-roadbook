@@ -4,7 +4,7 @@ import { getOrCreateDeviceId } from '../utils/deviceSession';
 import { getTripConfig } from '../utils/tripConfig';
 import { BACKGROUND_PUSH_ENABLED, PUSH_WORKER_URL } from '../config/freeArchitecture';
 import {
-  buildDayLocationsMap,
+  buildPushDayContext,
   collectTripPushReminderItems,
   diagnoseClientPushReminders,
   type ClientPushSyncItem,
@@ -323,19 +323,23 @@ function appendPushDiagnostic(entry: PushDiagnosticEntry): void {
   }
 }
 
-async function buildMutationDayLocationsMap(): Promise<Record<string, string>> {
+async function buildMutationDayContext(deviceTimeZone: string | null) {
   try {
     const { storageService } = await import('../storage/storageService');
-    const [days, tappe] = await Promise.all([
+    const [giorni, tappe, trasporti, alloggi] = await Promise.all([
       storageService.getDays(),
       storageService.getTappe().catch(() => []),
+      storageService.getTransports().catch(() => []),
+      storageService.getAccommodations().catch(() => []),
     ]);
-    return buildDayLocationsMap(
-      days as unknown as Array<Record<string, unknown>>,
-      tappe as unknown as Array<Record<string, unknown>>,
-    );
+    return buildPushDayContext({
+      giorni: giorni as unknown as Array<Record<string, unknown>>,
+      tappe: tappe as unknown as Array<Record<string, unknown>>,
+      trasporti: trasporti as unknown as Array<Record<string, unknown>>,
+      alloggi: alloggi as unknown as Array<Record<string, unknown>>,
+    }, deviceTimeZone);
   } catch {
-    return {};
+    return { dayLocationsByDate: {}, multiTzDates: new Set<string>(), hasForeignTripContext: false };
   }
 }
 
@@ -371,11 +375,16 @@ export async function recordPushMutation(input: {
     return;
   }
   const deviceTimeZone = getDeviceTimeZone();
-  const dayLocationsByDate = input.action === 'save' && input.data
-    ? await buildMutationDayLocationsMap()
+  const dayContext = input.action === 'save' && input.data
+    ? await buildMutationDayContext(deviceTimeZone)
     : undefined;
   const diagnosis = input.action === 'save' && input.data
-    ? diagnoseClientPushReminders(input.entityType, input.data, { dayLocationsByDate, deviceTimeZone })
+    ? diagnoseClientPushReminders(input.entityType, input.data, {
+        dayLocationsByDate: dayContext?.dayLocationsByDate,
+        multiTzDates: dayContext?.multiTzDates,
+        hasForeignTripContext: dayContext?.hasForeignTripContext,
+        deviceTimeZone,
+      })
     : { reminders: [], skipReason: 'ok' as PushReminderSkipReason, appliedTimeZone: null as string | null, timeZoneSource: 'none' as TimeZoneSource };
   const reminders = diagnosis.reminders;
   try {
