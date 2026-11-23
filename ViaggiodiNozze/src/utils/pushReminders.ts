@@ -7,10 +7,20 @@ import {
   zonedDateTimeToEpochMs,
 } from './reliableTimeZone';
 
+export type TimeZoneSource =
+  | 'card_explicit'
+  | 'card_coordinates'
+  | 'card_iata'
+  | 'card_place'
+  | 'day_or_stage'
+  | 'device_fallback'
+  | 'none';
+
 export interface ClientPushReminder {
   kind: 'transport_departure' | 'rental_return' | 'activity_start' | 'lodging_checkin' | 'lodging_checkout' | 'deadline_due';
   eventAt: number;
   leadMinutes?: number;
+  recoverIfMissed?: boolean;
 }
 
 export interface ClientPushSyncItem {
@@ -22,6 +32,7 @@ export interface ClientPushSyncItem {
 export interface PushReminderResolutionContext {
   dayLocationsByDate?: Record<string, string>;
   nowMs?: number;
+  deviceTimeZone?: string | null;
 }
 
 export interface TripReminderCollections {
@@ -117,39 +128,39 @@ function coordTimeZone(coord: unknown): string | null {
   return getStrictTimeZoneFromCoordinates(lat, lng);
 }
 
-export function resolveReliableEntityTimeZone(
+export function resolveEntityTimeZoneWithSource(
   entityType: string,
   data: Record<string, unknown>,
   options: { isDropoff?: boolean; dateHint?: string; context?: PushReminderResolutionContext } = {},
-): string | null {
+): { timeZone: string | null; source: TimeZoneSource } {
   const explicitZone = options.isDropoff
     ? (data.dropoffTimeZone || data.timeZone || data.departureTimeZone)
     : (entityType === 'trasporto' || entityType === 'trasporti'
       ? (data.departureTimeZone || data.timeZone)
       : data.timeZone);
   if (isValidIanaTimeZone(explicitZone)) {
-    return explicitZone.trim();
+    return { timeZone: explicitZone.trim(), source: 'card_explicit' };
   }
 
   if (options.isDropoff) {
     const dropoffCoordTz = coordTimeZone(data.dropoffCoordinate);
-    if (dropoffCoordTz) return dropoffCoordTz;
+    if (dropoffCoordTz) return { timeZone: dropoffCoordTz, source: 'card_coordinates' };
     const dropoffPlaceTz = resolveTimeZoneFromTextList([data.dropoffLocation, data.arrivalLocation]);
-    if (dropoffPlaceTz) return dropoffPlaceTz;
+    if (dropoffPlaceTz) return { timeZone: dropoffPlaceTz, source: 'card_place' };
   }
 
   const primaryCoordTz = coordTimeZone(data.coordinate);
-  if (primaryCoordTz) return primaryCoordTz;
+  if (primaryCoordTz) return { timeZone: primaryCoordTz, source: 'card_coordinates' };
 
   if (entityType === 'trasporto' || entityType === 'trasporti') {
     const iataTz = resolveReliableIataTimeZone(options.isDropoff ? data.arrivalIata : data.departureIata);
-    if (iataTz) return iataTz;
+    if (iataTz) return { timeZone: iataTz, source: 'card_iata' };
     const locTz = resolveTimeZoneFromTextList([
       options.isDropoff ? data.dropoffLocation : data.departureLocation,
       data.location,
       data.address,
     ]);
-    if (locTz) return locTz;
+    if (locTz) return { timeZone: locTz, source: 'card_place' };
   } else {
     const placeTz = resolveTimeZoneFromTextList([
       data.indirizzo,
@@ -160,16 +171,29 @@ export function resolveReliableEntityTimeZone(
       data.nome,
       data.name,
     ]);
-    if (placeTz) return placeTz;
+    if (placeTz) return { timeZone: placeTz, source: 'card_place' };
   }
 
   const dateKey = options.dateHint || readEntityDate(data, entityType) || (typeof data.checkIn === 'string' ? data.checkIn : undefined) || (typeof data.dueDate === 'string' ? data.dueDate : undefined);
   if (dateKey && options.context?.dayLocationsByDate?.[dateKey]) {
     const dayTz = resolveUnambiguousPlaceTimeZone(options.context.dayLocationsByDate[dateKey]);
-    if (dayTz) return dayTz;
+    if (dayTz) return { timeZone: dayTz, source: 'day_or_stage' };
   }
 
-  return null;
+  const devTz = options.context?.deviceTimeZone;
+  if (isValidIanaTimeZone(devTz)) {
+    return { timeZone: devTz.trim(), source: 'device_fallback' };
+  }
+
+  return { timeZone: null, source: 'none' };
+}
+
+export function resolveReliableEntityTimeZone(
+  entityType: string,
+  data: Record<string, unknown>,
+  options: { isDropoff?: boolean; dateHint?: string; context?: PushReminderResolutionContext } = {},
+): string | null {
+  return resolveEntityTimeZoneWithSource(entityType, data, options).timeZone;
 }
 
 export type PushReminderSkipReason =
@@ -184,6 +208,8 @@ export type PushReminderSkipReason =
 export interface PushReminderDiagnosis {
   reminders: ClientPushReminder[];
   skipReason: PushReminderSkipReason;
+  appliedTimeZone?: string | null;
+  timeZoneSource?: TimeZoneSource;
 }
 
 function futureUtcCandidate(
@@ -206,35 +232,54 @@ export function diagnoseClientPushReminders(
   context: PushReminderResolutionContext = {},
 ): PushReminderDiagnosis {
   const reminders = buildClientPushReminders(entityType, data, context);
-  if (reminders.length > 0) return { reminders, skipReason: 'ok' };
-  if (!data || typeof data !== 'object') return { reminders: [], skipReason: 'invalid_data' };
+  if (!data || typeof data !== 'object') return { reminders: [], skipReason: 'invalid_data', appliedTimeZone: null, timeZoneSource: 'none' };
   const nowMs = context.nowMs ?? Date.now();
+  const dateHint =
+    readEntityDate(data, entityType) ||
+    (typeof data.checkIn === 'string' ? data.checkIn : undefined) ||
+    (typeof data.dueDate === 'string' ? data.dueDate : undefined);
+  const tzInfo = resolveEntityTimeZoneWithSource(entityType, data, { dateHint, context });
+  if (reminders.length > 0) {
+    return {
+      reminders,
+      skipReason: 'ok',
+      appliedTimeZone: tzInfo.timeZone,
+      timeZoneSource: tzInfo.source,
+    };
+  }
 
   if (entityType === 'note' || entityType === 'nota' || entityType === 'scadenza' || entityType === 'scadenze') {
     if (data.recordKind !== 'scadenza' || data.dateVerified !== true || data.status === 'completata') {
-      return { reminders: [], skipReason: 'unconfirmed_time' };
+      return { reminders: [], skipReason: 'unconfirmed_time', appliedTimeZone: tzInfo.timeZone, timeZoneSource: tzInfo.source };
     }
     const dueDate = typeof data.dueDate === 'string' ? data.dueDate : '';
     const dueTime = typeof data.dueTime === 'string' ? data.dueTime : '';
-    if (!dueDate || !dueTime) return { reminders: [], skipReason: 'missing_date_or_time' };
-    const tz = resolveReliableEntityTimeZone(entityType, data, { dateHint: dueDate, context });
-    if (!tz) return { reminders: [], skipReason: 'missing_timezone' };
-    const eventAt = zonedDateTimeToEpochMs(dueDate, dueTime, tz);
-    return { reminders: [], skipReason: !eventAt ? 'missing_date_or_time' : (eventAt <= nowMs ? 'past_event' : 'invalid_data') };
+    if (!dueDate || !dueTime) return { reminders: [], skipReason: 'missing_date_or_time', appliedTimeZone: tzInfo.timeZone, timeZoneSource: tzInfo.source };
+    if (!tzInfo.timeZone) return { reminders: [], skipReason: 'missing_timezone', appliedTimeZone: null, timeZoneSource: 'none' };
+    const eventAt = zonedDateTimeToEpochMs(dueDate, dueTime, tzInfo.timeZone);
+    return {
+      reminders: [],
+      skipReason: !eventAt ? 'missing_date_or_time' : (eventAt <= nowMs ? 'past_event' : 'invalid_data'),
+      appliedTimeZone: tzInfo.timeZone,
+      timeZoneSource: tzInfo.source,
+    };
   }
 
   const isLegacyAllowed = ['trasporto', 'trasporti', 'attivita', 'activity', 'alloggio', 'alloggi'].includes(entityType);
   const isSimpleCard = ['ristorante', 'ristoranti', 'tappa', 'tappe', 'shopping'].includes(entityType);
-  if (!isLegacyAllowed && !isSimpleCard) return { reminders: [], skipReason: 'unsupported_entity' };
-  if (!isConfirmedCardTime(data, isLegacyAllowed)) return { reminders: [], skipReason: 'unconfirmed_time' };
+  if (!isLegacyAllowed && !isSimpleCard) return { reminders: [], skipReason: 'unsupported_entity', appliedTimeZone: null, timeZoneSource: 'none' };
+  if (!isConfirmedCardTime(data, isLegacyAllowed)) return { reminders: [], skipReason: 'unconfirmed_time', appliedTimeZone: tzInfo.timeZone, timeZoneSource: tzInfo.source };
 
-  const dateHint = readEntityDate(data, entityType) || (typeof data.checkIn === 'string' ? data.checkIn : undefined);
   const timeHint = data.orarioInizio || data.time || data.orario || data.orarioRitrovo || data.departureTime || data.arrivalTime || data.checkInTime || data.checkOutTime;
-  if (!dateHint || !timeHint) return { reminders: [], skipReason: 'missing_date_or_time' };
-  const tz = resolveReliableEntityTimeZone(entityType, data, { dateHint, context });
-  if (!tz) return { reminders: [], skipReason: 'missing_timezone' };
-  const eventAt = zonedDateTimeToEpochMs(dateHint, timeHint, tz);
-  return { reminders: [], skipReason: !eventAt ? 'missing_date_or_time' : (eventAt <= nowMs ? 'past_event' : 'invalid_data') };
+  if (!dateHint || !timeHint) return { reminders: [], skipReason: 'missing_date_or_time', appliedTimeZone: tzInfo.timeZone, timeZoneSource: tzInfo.source };
+  if (!tzInfo.timeZone) return { reminders: [], skipReason: 'missing_timezone', appliedTimeZone: null, timeZoneSource: 'none' };
+  const eventAt = zonedDateTimeToEpochMs(dateHint, timeHint, tzInfo.timeZone);
+  return {
+    reminders: [],
+    skipReason: !eventAt ? 'missing_date_or_time' : (eventAt <= nowMs ? 'past_event' : 'invalid_data'),
+    appliedTimeZone: tzInfo.timeZone,
+    timeZoneSource: tzInfo.source,
+  };
 }
 
 export function buildClientPushReminders(
@@ -315,10 +360,12 @@ export function buildClientPushReminders(
 export function collectTripPushReminderItems(
   collections: TripReminderCollections,
   nowMs: number = Date.now(),
+  options: { deviceTimeZone?: string | null; recoverIfMissed?: boolean } = {},
 ): ClientPushSyncItem[] {
   const context: PushReminderResolutionContext = {
     dayLocationsByDate: buildDayLocationsMap(collections.giorni || [], collections.tappe || []),
     nowMs,
+    deviceTimeZone: options.deviceTimeZone,
   };
   const sources: Array<[string, Array<Record<string, unknown>> | undefined]> = [
     ['trasporti', collections.trasporti],
@@ -337,7 +384,11 @@ export function collectTripPushReminderItems(
       if (!entityId) continue;
       const reminders = buildClientPushReminders(entityType, record, context);
       if (reminders.length === 0) continue;
-      items.push({ entityType, entityId, reminders });
+      items.push({
+        entityType,
+        entityId,
+        reminders: options.recoverIfMissed ? reminders.map(r => ({ ...r, recoverIfMissed: true })) : reminders,
+      });
     }
   }
   const earliestEventAt = (item: ClientPushSyncItem) =>

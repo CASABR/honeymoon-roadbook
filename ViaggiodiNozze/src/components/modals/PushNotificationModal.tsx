@@ -40,6 +40,21 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   past_event: 'Orario evento già passato',
 };
 
+const TIMEZONE_SOURCE_LABELS: Record<string, string> = {
+  card_explicit: 'fuso card',
+  card_coordinates: 'coordinate card',
+  card_iata: 'aeroporto IATA',
+  card_place: 'luogo card',
+  day_or_stage: 'tappa/giorno',
+  device_fallback: 'fuso dispositivo (fallback)',
+  none: 'non determinato',
+};
+
+const RECOVERY_REASON_LABELS: Record<string, string> = {
+  device_tz_changed: 'cambio fuso dispositivo',
+  rescheduled: 'riprogrammazione',
+};
+
 function formatDiagTime(ts: number | null | undefined): string {
   if (!ts) return 'Mai';
   try {
@@ -290,18 +305,22 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
                     typeof m.scheduledCount === 'number'
                       ? (m.scheduledCount > 0 ? `Job D1 confermati: ${m.scheduledCount}` : '0 job D1')
                       : 'Conferma D1 non ricevuta';
+                  const formatTz = (m: PushDiagnosticEntry) =>
+                    m.appliedTimeZone
+                      ? ` | tz=${m.appliedTimeZone} (${TIMEZONE_SOURCE_LABELS[m.timeZoneSource || 'none'] || m.timeZoneSource || 'n/d'})`
+                      : '';
                   const lines = [
                     `Auth: ${diag.isAuth ? 'OK' : 'NO'} | Editor: ${diag.isAuthorized ? 'OK' : 'NO'} | Rete: ${diag.isOnline ? 'Online' : 'Offline'} | Sync: ${formatDiagTime(diag.lastCloudSyncAt)}${diag.lastCloudSyncErr ? ` | ErrSync: ${diag.lastCloudSyncErr.slice(0, 60)}` : ''}`,
                     `Preferenza card: ${push.preferences.reminderMinutes} min | Stato push: ${push.state}`,
                     diag.lastActivityMutation
-                      ? `Ultima Attivita: ${formatDiagTime(diag.lastActivityMutation.ts)} | rem=${diag.lastActivityMutation.reminderCount} | ${formatD1(diag.lastActivityMutation)} | skip=${diag.lastActivityMutation.skipReason || 'ok'}${diag.lastActivityMutation.error ? ` | err=${diag.lastActivityMutation.error}` : ''}`
+                      ? `Ultima Attivita: ${formatDiagTime(diag.lastActivityMutation.ts)} | rem=${diag.lastActivityMutation.reminderCount} | ${formatD1(diag.lastActivityMutation)}${formatTz(diag.lastActivityMutation)} | skip=${diag.lastActivityMutation.skipReason || 'ok'}${diag.lastActivityMutation.error ? ` | err=${diag.lastActivityMutation.error}` : ''}`
                       : 'Ultima Attivita: nessuna',
                     diag.lastSyncPush
-                      ? `Backfill (${formatDiagTime(diag.lastSyncPush.ts)}): ${diag.lastSyncPush.error ? `err=${diag.lastSyncPush.error}` : `${diag.lastSyncPush.reminderCount} elem, schedulati=${diag.lastSyncPush.scheduledCount ?? 0}, rimossi=${diag.lastSyncPush.removedCount ?? 0}`}`
+                      ? `Backfill (${formatDiagTime(diag.lastSyncPush.ts)}): ${diag.lastSyncPush.error ? `err=${diag.lastSyncPush.error}` : `${diag.lastSyncPush.reminderCount} elem, schedulati=${diag.lastSyncPush.scheduledCount ?? 0}, recuperati=${diag.lastSyncPush.recoveredCount ?? 0}, rimossi=${diag.lastSyncPush.removedCount ?? 0}`}${diag.lastSyncPush.appliedTimeZone ? ` | tz=${diag.lastSyncPush.appliedTimeZone}` : ''}${diag.lastSyncPush.recoveryReason ? ` | recupero=${RECOVERY_REASON_LABELS[diag.lastSyncPush.recoveryReason] || diag.lastSyncPush.recoveryReason}` : ''}`
                       : 'Backfill: nessuno',
                     `Ultime ${diag.recentMutations.length} mutazioni:`,
                     ...diag.recentMutations.map((m, idx) =>
-                      `${idx + 1}. ${formatDiagTime(m.ts)} | ${m.entityType || '—'} | rem=${m.reminderCount} | ${formatD1(m)} | skip=${m.skipReason || 'ok'}${m.error ? ` | err=${m.error}` : ''}`
+                      `${idx + 1}. ${formatDiagTime(m.ts)} | ${m.entityType || '—'} | rem=${m.reminderCount} | ${formatD1(m)}${formatTz(m)} | skip=${m.skipReason || 'ok'}${m.error ? ` | err=${m.error}` : ''}`
                     ),
                   ];
                   if (navigator.clipboard?.writeText) {
@@ -342,6 +361,9 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
                     ? `Job D1 confermati: ${diag.lastActivityMutation.scheduledCount}`
                     : '0 job D1')
                   : 'Conferma D1 non ricevuta'}
+                {diag.lastActivityMutation.appliedTimeZone
+                  ? ` · Fuso: ${diag.lastActivityMutation.appliedTimeZone} (${TIMEZONE_SOURCE_LABELS[diag.lastActivityMutation.timeZoneSource || 'none'] || diag.lastActivityMutation.timeZoneSource || 'n/d'})`
+                  : ''}
                 {diag.lastActivityMutation.skipReason && diag.lastActivityMutation.skipReason !== 'ok'
                   ? ` · ${SKIP_REASON_LABELS[diag.lastActivityMutation.skipReason] || diag.lastActivityMutation.skipReason}`
                   : ''}
@@ -356,7 +378,9 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
               <strong>Backfill ({formatDiagTime(diag.lastSyncPush.ts)}):</strong>{' '}
               {diag.lastSyncPush.error
                 ? `Errore ${diag.lastSyncPush.error}`
-                : `${diag.lastSyncPush.reminderCount} elementi, schedulati: ${diag.lastSyncPush.scheduledCount ?? 0}, rimossi: ${diag.lastSyncPush.removedCount ?? 0}`}
+                : `${diag.lastSyncPush.reminderCount} elementi, schedulati: ${diag.lastSyncPush.scheduledCount ?? 0}, recuperati: ${diag.lastSyncPush.recoveredCount ?? 0}, rimossi: ${diag.lastSyncPush.removedCount ?? 0}`}
+              {diag.lastSyncPush.appliedTimeZone ? ` · Fuso: ${diag.lastSyncPush.appliedTimeZone}` : ''}
+              {diag.lastSyncPush.recoveryReason ? ` · Recupero: ${RECOVERY_REASON_LABELS[diag.lastSyncPush.recoveryReason] || diag.lastSyncPush.recoveryReason}` : ''}
             </div>
           )}
           <div>
@@ -382,6 +406,9 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
                       <span>{formatDiagTime(m.ts)}</span> ·{' '}
                       <span className="uppercase">{isAct ? 'Attività' : (m.entityType || '—')}</span> ·{' '}
                       <span>Rem: {m.reminderCount}</span> · <span>{d1Label}</span>
+                      {m.appliedTimeZone && (
+                        <span> · {m.appliedTimeZone} ({TIMEZONE_SOURCE_LABELS[m.timeZoneSource || 'none'] || m.timeZoneSource || 'n/d'})</span>
+                      )}
                       {m.skipReason && m.skipReason !== 'ok' && (
                         <span className="text-amber-700 dark:text-amber-300">
                           {' '}· {SKIP_REASON_LABELS[m.skipReason] || m.skipReason}

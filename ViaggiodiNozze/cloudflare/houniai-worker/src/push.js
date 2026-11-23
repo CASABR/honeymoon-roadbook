@@ -264,8 +264,11 @@ async function runD1Statements(database, statements) {
   }
 }
 
-async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, existingJobsMap, sentKeysSet, pendingStatements, now, env }) {
+const MAX_RECOVERY_JOBS_PER_SYNC = 2;
+
+async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, existingJobsMap, sentKeysSet, pendingStatements, recoveredBySubscriber, now, env }) {
   let scheduledCount = 0;
+  let recoveredCount = 0;
   let skippedAlreadySentCount = 0;
   let skippedPastLeadCount = 0;
   const desiredJobIds = new Set();
@@ -276,35 +279,48 @@ async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, e
       if (!preferenceAllows(preferences, reminder.kind)) continue;
       const eventAt = Number(reminder.eventAt);
       if (eventAt <= now) continue;
-      let leadMinutes = reminder.kind === 'deadline_due'
-        ? Math.max(0, Math.min(Number(reminder.leadMinutes || 0), 43_200))
-        : preferences.reminderMinutes;
-      let dueAt = eventAt - leadMinutes * 60_000;
-      if (dueAt <= now) {
-        if (reminder.kind === 'deadline_due') {
-          const fallbackDueAt = eventAt - 60 * 60_000;
-          if (fallbackDueAt > now) {
-            dueAt = fallbackDueAt;
-            leadMinutes = 60;
-          } else {
-            skippedPastLeadCount += 1;
-            continue;
-          }
-        } else {
-          skippedPastLeadCount += 1;
-          continue;
-        }
-      }
+
       const sentKey = await sentReminderDispatchKey(subscriber.subscriber_id, entityKey, reminder.kind, eventAt);
       const alreadySent = sentKeysSet
         ? sentKeysSet.has(sentKey)
         : Boolean(await env.RATE_LIMITS.prepare('SELECT dispatch_key FROM push_dispatches WHERE dispatch_key = ?1')
           .bind(sentKey).first());
-      const jobId = (await sha256(`reminder|${subscriber.subscriber_id}|${entityKey}|${reminder.kind}`)).slice(0, 56);
       if (alreadySent) {
         skippedAlreadySentCount += 1;
         continue;
       }
+
+      let leadMinutes = reminder.kind === 'deadline_due'
+        ? Math.max(0, Math.min(Number(reminder.leadMinutes || 0), 43_200))
+        : preferences.reminderMinutes;
+      let dueAt = eventAt - leadMinutes * 60_000;
+      let isRecovery = false;
+      if (dueAt <= now) {
+        const recoveredSoFar = recoveredBySubscriber?.get(subscriber.subscriber_id) || 0;
+        if (reminder.kind === 'deadline_due') {
+          const fallbackDueAt = eventAt - 60 * 60_000;
+          if (fallbackDueAt > now) {
+            dueAt = fallbackDueAt;
+            leadMinutes = 60;
+          } else if (reminder.recoverIfMissed === true && recoveredSoFar < MAX_RECOVERY_JOBS_PER_SYNC) {
+            dueAt = now;
+            leadMinutes = Math.max(1, Math.round((eventAt - now) / 60_000));
+            isRecovery = true;
+          } else {
+            skippedPastLeadCount += 1;
+            continue;
+          }
+        } else if (reminder.recoverIfMissed === true && recoveredSoFar < MAX_RECOVERY_JOBS_PER_SYNC) {
+          dueAt = now;
+          leadMinutes = Math.max(1, Math.round((eventAt - now) / 60_000));
+          isRecovery = true;
+        } else {
+          skippedPastLeadCount += 1;
+          continue;
+        }
+      }
+
+      const jobId = (await sha256(`reminder|${subscriber.subscriber_id}|${entityKey}|${reminder.kind}`)).slice(0, 56);
       desiredJobIds.add(jobId);
 
       const existing = existingJobsMap?.get(jobId);
@@ -315,6 +331,11 @@ async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, e
         && (Number(existing.due_at) === dueAt || Number(existing.attempts || 0) > 0)
       ) {
         continue;
+      }
+
+      if (isRecovery) {
+        recoveredCount += 1;
+        recoveredBySubscriber?.set(subscriber.subscriber_id, (recoveredBySubscriber.get(subscriber.subscriber_id) || 0) + 1);
       }
 
       const stmt = env.RATE_LIMITS.prepare(`
@@ -328,7 +349,7 @@ async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, e
     }
   }
 
-  return { desiredJobIds, scheduledCount, skippedAlreadySentCount, skippedPastLeadCount };
+  return { desiredJobIds, scheduledCount, recoveredCount, skippedAlreadySentCount, skippedPastLeadCount };
 }
 
 async function scheduleMutationJobs(uid, tripId, payload, env) {
@@ -352,6 +373,7 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
     .bind(tripId, entityKey).run();
 
   let scheduledCount = 0;
+  let recoveredCount = 0;
   let skippedPastLeadCount = 0;
   if (action === 'save') {
     const reminders = Array.isArray(payload.reminders) ? payload.reminders.filter(validReminder).slice(0, 3) : [];
@@ -367,6 +389,7 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
       env,
     });
     scheduledCount = res.scheduledCount;
+    recoveredCount = res.recoveredCount;
     skippedPastLeadCount = res.skippedPastLeadCount;
   }
 
@@ -376,8 +399,8 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
     VALUES (?1, ?2, NULL, ?3, ?4, 'collaboration', NULL, NULL, ?5, 0, ?6)
     ON CONFLICT(job_id) DO UPDATE SET due_at = MIN(push_jobs.created_at + 300000, excluded.due_at)
   `).bind(collaborationId, tripId, uid, entityKey, Date.now() + 90_000, Date.now()).run();
-  console.info('[push-mutation]', { entityType, action, scheduledCount, skippedPastLeadCount });
-  return { accepted: true, duplicate: false, scheduledCount, skippedPastLeadCount };
+  console.info('[push-mutation]', { entityType, action, scheduledCount, recoveredCount, skippedPastLeadCount });
+  return { accepted: true, duplicate: false, scheduledCount, recoveredCount, skippedPastLeadCount };
 }
 
 async function syncTripReminders(tripId, payload, env) {
@@ -406,7 +429,9 @@ async function syncTripReminders(tripId, payload, env) {
 
   const desiredAll = new Set();
   const pendingStatements = [];
+  const recoveredBySubscriber = new Map();
   let scheduledCount = 0;
+  let recoveredCount = 0;
   let skippedAlreadySentCount = 0;
   let skippedPastLeadCount = 0;
 
@@ -424,11 +449,13 @@ async function syncTripReminders(tripId, payload, env) {
       existingJobsMap,
       sentKeysSet,
       pendingStatements,
+      recoveredBySubscriber,
       now,
       env,
     });
     res.desiredJobIds.forEach(id => desiredAll.add(id));
     scheduledCount += res.scheduledCount;
+    recoveredCount += res.recoveredCount;
     skippedAlreadySentCount += res.skippedAlreadySentCount;
     skippedPastLeadCount += res.skippedPastLeadCount;
   }
@@ -444,9 +471,9 @@ async function syncTripReminders(tripId, payload, env) {
   }
 
   await runD1Statements(env.RATE_LIMITS, pendingStatements);
-  console.info('[push-sync]', { itemsCount: rawItems.length, scheduledCount, skippedAlreadySentCount, skippedPastLeadCount, removedCount });
+  console.info('[push-sync]', { itemsCount: rawItems.length, scheduledCount, recoveredCount, skippedAlreadySentCount, skippedPastLeadCount, removedCount });
 
-  return { synced: true, scheduledCount, skippedAlreadySentCount, skippedPastLeadCount, removedCount };
+  return { synced: true, scheduledCount, recoveredCount, skippedAlreadySentCount, skippedPastLeadCount, removedCount };
 }
 
 export async function handlePushRequest(path, uid, tripId, payload, env) {

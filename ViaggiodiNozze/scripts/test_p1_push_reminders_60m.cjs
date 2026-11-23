@@ -535,6 +535,102 @@ class InMemoryD1 {
     assert.ok(syncSrc.includes("stage: 'sync_deferred'") && syncSrc.includes("stage: 'cloud_sync_error'"), 'SyncService deve tracciare errori/differimenti');
   });
 
+  await asyncCheck('6. Fusi automatici (Italia, Pechino, NZ), cambio fuso, recupero eventi futuri con cap/dedup e zero recupero passati', async () => {
+    const remindersMod = loadTsGraph('src/utils/pushReminders.ts');
+    const nowMs = Date.UTC(2026, 11, 2, 7, 0, 0); // 2026-12-02 07:00 UTC
+
+    // 6a. Priorità fusi: card_explicit > card_place > day_or_stage > device_fallback
+    const explicitDiag = remindersMod.diagnoseClientPushReminders('attivita', {
+      id: 'act_rome_exp', date: '2026-12-02', orarioInizio: '10:00', timeStatus: 'confermato', timeZone: 'Europe/Rome', location: 'Pechino',
+    }, { nowMs, deviceTimeZone: 'Pacific/Auckland' });
+    assert.equal(explicitDiag.appliedTimeZone, 'Europe/Rome');
+    assert.equal(explicitDiag.timeZoneSource, 'card_explicit');
+    assert.equal(explicitDiag.reminders[0].eventAt, Date.UTC(2026, 11, 2, 9, 0, 0));
+
+    const pechinoDiag = remindersMod.diagnoseClientPushReminders('attivita', {
+      id: 'act_pek_place', date: '2026-12-02', orarioInizio: '18:00', timeStatus: 'confermato', location: 'Città Proibita, Pechino',
+    }, { nowMs, deviceTimeZone: 'Europe/Rome' });
+    assert.equal(pechinoDiag.appliedTimeZone, 'Asia/Shanghai');
+    assert.equal(pechinoDiag.timeZoneSource, 'card_place');
+    assert.equal(pechinoDiag.reminders[0].eventAt, Date.UTC(2026, 11, 2, 10, 0, 0)); // 18:00 CST (+8)
+
+    const nzDayDiag = remindersMod.diagnoseClientPushReminders('attivita', {
+      id: 'act_nz_day', date: '2026-12-05', orarioInizio: '10:00', timeStatus: 'confermato', location: 'Parco locale',
+    }, { nowMs, dayLocationsByDate: { '2026-12-05': 'Auckland, Nuova Zelanda' }, deviceTimeZone: 'Europe/Rome' });
+    assert.equal(nzDayDiag.appliedTimeZone, 'Pacific/Auckland');
+    assert.equal(nzDayDiag.timeZoneSource, 'day_or_stage');
+    assert.equal(nzDayDiag.reminders[0].eventAt, Date.UTC(2026, 11, 4, 21, 0, 0)); // 10:00 NZDT (+13)
+
+    // 6b. Cambio fuso telefono (Europe/Rome -> Asia/Shanghai -> Pacific/Auckland):
+    // Le prenotazioni con destinazione certa restano ancorate; solo le card senza fuso usano device_fallback
+    const collections = {
+      giorni: [{ data: '2026-12-03', luogo: 'Pechino' }],
+      attivita: [
+        { id: 'act_pek_fixed', date: '2026-12-03', orarioInizio: '18:00', timeStatus: 'confermato', location: 'Pechino' },
+        { id: 'act_nz_fixed', date: '2026-12-06', orarioInizio: '11:00', timeStatus: 'confermato', location: 'Auckland' },
+        { id: 'act_generic', date: '2026-12-08', orarioInizio: '12:00', timeStatus: 'confermato', location: 'Ritrovo' },
+      ],
+    };
+    const itemsFromRome = remindersMod.collectTripPushReminderItems(collections, nowMs, { deviceTimeZone: 'Europe/Rome', recoverIfMissed: false });
+    const itemsFromAuckland = remindersMod.collectTripPushReminderItems(collections, nowMs, { deviceTimeZone: 'Pacific/Auckland', recoverIfMissed: true });
+
+    const byIdRome = new Map(itemsFromRome.map(i => [i.entityId, i]));
+    const byIdAkl = new Map(itemsFromAuckland.map(i => [i.entityId, i]));
+    assert.equal(byIdRome.get('act_pek_fixed').reminders[0].eventAt, byIdAkl.get('act_pek_fixed').reminders[0].eventAt, 'Pechino non deve cambiare con fuso telefono');
+    assert.equal(byIdRome.get('act_nz_fixed').reminders[0].eventAt, byIdAkl.get('act_nz_fixed').reminders[0].eventAt, 'Auckland non deve cambiare con fuso telefono');
+    assert.notEqual(byIdRome.get('act_generic').reminders[0].eventAt, byIdAkl.get('act_generic').reminders[0].eventAt, 'Card senza fuso usa fallback dispositivo');
+    assert.equal(byIdAkl.get('act_generic').reminders[0].recoverIfMissed, true);
+
+    // 6c. Recupero Worker: futuri recuperati con cap=2, passati ignorati, duplicati bloccati da push_dispatches
+    const db = new InMemoryD1();
+    const env = { RATE_LIMITS: db };
+    const realDateNow = Date.now;
+    Date.now = () => nowMs;
+    try {
+      const uid = 'owner_tz_rec';
+      const tripId = 'trip_tz_rec';
+      const subId = crypto.createHash('sha256').update(`${uid}\n${tripId}\ndev_tz_1`).digest('hex').slice(0, 48);
+      await workerPush.handlePushRequest('/v1/push/register', uid, tripId, {
+        deviceId: 'dev_tz_1', subscriberId: subId,
+        subscription: { endpoint: 'https://web.push.apple.com/tz1', keys: { p256dh: 'x'.repeat(40), auth: 'y'.repeat(16) } },
+        preferences: { transports: true, activities: true, lodging: true, deadlines: true, collaboration: true, reminderMinutes: 60 },
+      }, env);
+
+      const future20m = nowMs + 20 * 60_000;
+      const future25m = nowMs + 25 * 60_000;
+      const future30m = nowMs + 30 * 60_000;
+      const future35mAlreadySent = nowMs + 35 * 60_000;
+      const pastEvent = nowMs - 10 * 60_000;
+
+      // Pre-popola push_dispatches per future35mAlreadySent per verificare deduplica
+      const sentDispatchKey = crypto.createHash('sha256')
+        .update(`sent-rem|${subId}|attivita:act_dup|activity_start|${future35mAlreadySent}`)
+        .digest('hex').slice(0, 56);
+      db.dispatches.set(sentDispatchKey, { dispatch_key: sentDispatchKey, trip_id: tripId, created_at: nowMs - 5000 });
+
+      const syncRes = await workerPush.handlePushRequest('/v1/push/sync-reminders', uid, tripId, {
+        tripId,
+        items: [
+          { entityType: 'attivita', entityId: 'act_past', reminders: [{ kind: 'activity_start', eventAt: pastEvent, recoverIfMissed: true }] },
+          { entityType: 'attivita', entityId: 'act_dup', reminders: [{ kind: 'activity_start', eventAt: future35mAlreadySent, recoverIfMissed: true }] },
+          { entityType: 'attivita', entityId: 'act_rec_1', reminders: [{ kind: 'activity_start', eventAt: future20m, recoverIfMissed: true }] },
+          { entityType: 'attivita', entityId: 'act_rec_2', reminders: [{ kind: 'activity_start', eventAt: future25m, recoverIfMissed: true }] },
+          { entityType: 'attivita', entityId: 'act_rec_3', reminders: [{ kind: 'activity_start', eventAt: future30m, recoverIfMissed: true }] },
+        ],
+      }, env);
+
+      assert.equal(syncRes.recoveredCount, 2, 'Il recupero deve essere limitato a max 2 reminder per sync');
+      assert.equal(syncRes.skippedAlreadySentCount, 1, 'Il reminder già inviato non deve essere recuperato');
+      assert.equal(db.jobs.filter(j => j.entity_key === 'attivita:act_past').length, 0, 'Eventi passati mai recuperati');
+      assert.equal(db.jobs.filter(j => j.entity_key === 'attivita:act_dup').length, 0, 'Duplicati già inviati mai rischedulati');
+      assert.equal(db.jobs.filter(j => j.entity_key === 'attivita:act_rec_3').length, 0, 'Terzo recupero oltre il cap deve essere saltato');
+      const rec1Job = db.jobs.find(j => j.entity_key === 'attivita:act_rec_1');
+      assert.equal(rec1Job.due_at, nowMs, 'Il recupero deve schedulare due_at = now');
+    } finally {
+      Date.now = realDateNow;
+    }
+  });
+
   console.log(`\n=== TEST P1 COMPLETATI: ${passed}/${passed} PASS ===`);
 })().catch((err) => {
   console.error(err);

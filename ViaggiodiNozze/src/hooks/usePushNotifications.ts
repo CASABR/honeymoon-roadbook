@@ -3,6 +3,7 @@ import {
   DEFAULT_PUSH_PREFERENCES,
   checkPushOnServer,
   clearStoredPushRegistration,
+  detectDeviceTimeZoneChange,
   readStoredPushRegistration,
   registerPushOnServer,
   sendPushTestOnServer,
@@ -331,6 +332,14 @@ function attachSharedListeners(): void {
     const now = Date.now();
     if (now - lastEventTriggerAt < FOCUS_VISIBILITY_DEBOUNCE_MS) return;
     lastEventTriggerAt = now;
+    const tzCheck = detectDeviceTimeZoneChange();
+    if (tzCheck.changed && snapshot.state === 'active') {
+      void syncPushRemindersFromStorage({
+        force: true,
+        preferences: snapshot.preferences,
+        recoveryReason: 'device_tz_changed',
+      });
+    }
     void refreshStatusShared(false);
   };
 

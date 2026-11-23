@@ -9,6 +9,7 @@ import {
   diagnoseClientPushReminders,
   type ClientPushSyncItem,
   type PushReminderSkipReason,
+  type TimeZoneSource,
 } from '../utils/pushReminders';
 import { isCloudAuthorized } from '../utils/useAuthIdentity';
 
@@ -235,8 +236,43 @@ export async function sendPushTestOnServer(subscriberId: string) {
 
 const REMINDER_SYNC_STORAGE_PREFIX = 'hounigo_push_reminders_sync_v1_';
 const PUSH_DIAGNOSTICS_KEY = 'hounigo_push_diagnostics_v1';
+const LAST_DEVICE_TZ_KEY = 'hounigo_last_device_tz_v1';
 const REMINDER_SYNC_TTL_MS = 12 * 60 * 60 * 1000;
 let inFlightReminderSync: Promise<void> | null = null;
+
+export function getDeviceTimeZone(): string | null {
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return typeof tz === 'string' && tz.includes('/') ? tz : null;
+  } catch {
+    return null;
+  }
+}
+
+export function detectDeviceTimeZoneChange(): {
+  currentTz: string | null;
+  previousTz: string | null;
+  changed: boolean;
+} {
+  const currentTz = getDeviceTimeZone();
+  if (!currentTz || typeof localStorage === 'undefined') {
+    return { currentTz, previousTz: null, changed: false };
+  }
+  try {
+    const previousTz = localStorage.getItem(LAST_DEVICE_TZ_KEY);
+    if (!previousTz) {
+      localStorage.setItem(LAST_DEVICE_TZ_KEY, currentTz);
+      return { currentTz, previousTz: null, changed: false };
+    }
+    if (previousTz !== currentTz) {
+      localStorage.setItem(LAST_DEVICE_TZ_KEY, currentTz);
+      return { currentTz, previousTz, changed: true };
+    }
+    return { currentTz, previousTz, changed: false };
+  } catch {
+    return { currentTz, previousTz: null, changed: false };
+  }
+}
 
 export interface PushDiagnosticEntry {
   ts: number;
@@ -245,8 +281,12 @@ export interface PushDiagnosticEntry {
   skipReason?: PushReminderSkipReason;
   reminderCount: number;
   scheduledCount?: number;
+  recoveredCount?: number;
   skippedPastLeadCount?: number;
   removedCount?: number;
+  appliedTimeZone?: string | null;
+  timeZoneSource?: TimeZoneSource;
+  recoveryReason?: string;
   error?: string;
 }
 
@@ -330,15 +370,16 @@ export async function recordPushMutation(input: {
     console.warn(`[PushService] Mutazione push ignorata per ${input.entityType}: permessi di scrittura assenti per viaggio ${input.tripId}.`);
     return;
   }
+  const deviceTimeZone = getDeviceTimeZone();
   const dayLocationsByDate = input.action === 'save' && input.data
     ? await buildMutationDayLocationsMap()
     : undefined;
   const diagnosis = input.action === 'save' && input.data
-    ? diagnoseClientPushReminders(input.entityType, input.data, { dayLocationsByDate })
-    : { reminders: [], skipReason: 'ok' as PushReminderSkipReason };
+    ? diagnoseClientPushReminders(input.entityType, input.data, { dayLocationsByDate, deviceTimeZone })
+    : { reminders: [], skipReason: 'ok' as PushReminderSkipReason, appliedTimeZone: null as string | null, timeZoneSource: 'none' as TimeZoneSource };
   const reminders = diagnosis.reminders;
   try {
-    const res = await callPush<{ scheduledCount?: number; skippedPastLeadCount?: number }>('mutation', { ...input, reminders });
+    const res = await callPush<{ scheduledCount?: number; recoveredCount?: number; skippedPastLeadCount?: number }>('mutation', { ...input, reminders });
     appendPushDiagnostic({
       ts: Date.now(),
       stage: 'mutation',
@@ -346,7 +387,10 @@ export async function recordPushMutation(input: {
       skipReason: diagnosis.skipReason,
       reminderCount: reminders.length,
       scheduledCount: res?.scheduledCount,
+      recoveredCount: res?.recoveredCount,
       skippedPastLeadCount: res?.skippedPastLeadCount,
+      appliedTimeZone: diagnosis.appliedTimeZone ?? null,
+      timeZoneSource: diagnosis.timeZoneSource,
     });
   } catch (err: any) {
     appendPushDiagnostic({
@@ -355,13 +399,18 @@ export async function recordPushMutation(input: {
       entityType: input.entityType,
       skipReason: diagnosis.skipReason,
       reminderCount: reminders.length,
+      appliedTimeZone: diagnosis.appliedTimeZone ?? null,
+      timeZoneSource: diagnosis.timeZoneSource,
       error: String(err?.code || err?.message || 'PUSH_MUTATION_FAILED').slice(0, 60),
     });
     throw err;
   }
 }
 
-export async function collectLocalTripPushSyncItems(): Promise<ClientPushSyncItem[]> {
+export async function collectLocalTripPushSyncItems(options: {
+  recoverIfMissed?: boolean;
+  deviceTimeZone?: string | null;
+} = {}): Promise<ClientPushSyncItem[]> {
   const { storageService } = await import('../storage/storageService');
   const [giorni, trasporti, attivita, alloggi, ristoranti, tappe, shopping, scadenze] = await Promise.all([
     storageService.getDays(),
@@ -373,6 +422,7 @@ export async function collectLocalTripPushSyncItems(): Promise<ClientPushSyncIte
     storageService.getShopping(),
     storageService.getScadenze(),
   ]);
+  const deviceTimeZone = options.deviceTimeZone !== undefined ? options.deviceTimeZone : getDeviceTimeZone();
   return collectTripPushReminderItems({
     giorni: giorni as unknown as Array<Record<string, unknown>>,
     trasporti: trasporti as unknown as Array<Record<string, unknown>>,
@@ -382,12 +432,16 @@ export async function collectLocalTripPushSyncItems(): Promise<ClientPushSyncIte
     tappe: tappe as unknown as Array<Record<string, unknown>>,
     shopping: shopping as unknown as Array<Record<string, unknown>>,
     note: scadenze as unknown as Array<Record<string, unknown>>,
+  }, Date.now(), {
+    deviceTimeZone,
+    recoverIfMissed: options.recoverIfMissed,
   });
 }
 
 export async function syncPushRemindersFromStorage(options: {
   force?: boolean;
   preferences?: PushPreferences;
+  recoveryReason?: string;
 } = {}): Promise<void> {
   if (!BACKGROUND_PUSH_ENABLED || typeof localStorage === 'undefined') return;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
@@ -399,12 +453,20 @@ export async function syncPushRemindersFromStorage(options: {
   if (inFlightReminderSync) return inFlightReminderSync;
 
   inFlightReminderSync = (async () => {
+    const tzCheck = detectDeviceTimeZoneChange();
+    const effectiveRecoveryReason = options.recoveryReason || (tzCheck.changed ? 'device_tz_changed' : undefined);
+    const shouldForce = Boolean(options.force || tzCheck.changed);
+    const currentDeviceTz = tzCheck.currentTz || getDeviceTimeZone();
     try {
-      const items = await collectLocalTripPushSyncItems();
+      const items = await collectLocalTripPushSyncItems({
+        deviceTimeZone: currentDeviceTz,
+        recoverIfMissed: Boolean(effectiveRecoveryReason),
+      });
       const prefs = options.preferences || stored.preferences || DEFAULT_PUSH_PREFERENCES;
       const fingerprintPayload = JSON.stringify({
         tripId,
         subscriberId: stored.subscriberId,
+        deviceTz: currentDeviceTz,
         prefs: {
           transports: prefs.transports,
           activities: prefs.activities,
@@ -416,7 +478,7 @@ export async function syncPushRemindersFromStorage(options: {
       });
       const fingerprint = await sha256(fingerprintPayload);
       const cacheKey = `${REMINDER_SYNC_STORAGE_PREFIX}${tripId}_${stored.subscriberId}`;
-      if (!options.force) {
+      if (!shouldForce) {
         try {
           const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null') as { fingerprint?: string; syncedAt?: number } | null;
           if (cached && cached.fingerprint === fingerprint && Date.now() - Number(cached.syncedAt || 0) < REMINDER_SYNC_TTL_MS) {
@@ -427,7 +489,7 @@ export async function syncPushRemindersFromStorage(options: {
         }
       }
       const syncPayload = items.slice(0, 200);
-      const res = await callPush<{ scheduledCount?: number; skippedPastLeadCount?: number; removedCount?: number }>('sync-reminders', {
+      const res = await callPush<{ scheduledCount?: number; recoveredCount?: number; skippedPastLeadCount?: number; removedCount?: number }>('sync-reminders', {
         tripId,
         subscriberId: stored.subscriberId,
         items: syncPayload,
@@ -438,8 +500,11 @@ export async function syncPushRemindersFromStorage(options: {
         stage: 'sync_reminders',
         reminderCount: syncPayload.length,
         scheduledCount: res?.scheduledCount,
+        recoveredCount: res?.recoveredCount,
         skippedPastLeadCount: res?.skippedPastLeadCount,
         removedCount: res?.removedCount,
+        appliedTimeZone: currentDeviceTz,
+        recoveryReason: effectiveRecoveryReason,
       });
       try {
         localStorage.setItem(cacheKey, JSON.stringify({ fingerprint, syncedAt: Date.now() }));
@@ -451,6 +516,8 @@ export async function syncPushRemindersFromStorage(options: {
         ts: Date.now(),
         stage: 'sync_reminders',
         reminderCount: 0,
+        appliedTimeZone: currentDeviceTz,
+        recoveryReason: effectiveRecoveryReason,
         error: String(err?.code || err?.message || 'SYNC_REMINDERS_FAILED').slice(0, 60),
       });
     }
