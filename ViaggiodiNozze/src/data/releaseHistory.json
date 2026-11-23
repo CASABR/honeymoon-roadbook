@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.3",
+      "publishedAt": "2026-11-23",
+      "sourceCommit": "d5bc3355a1fb694021beb9f9bd11c23eb0456145",
+      "changes": [
+        "Promemoria Push: priorità al campo data aggiornato rispetto a date legacy su tappe, ristoranti e shopping.",
+        "Test di regressione esteso alla modifica di card esistenti a +65 min senza duplicazione dei job."
+      ],
+      "publishedAtIso": "2026-11-23T08:08:00.000Z"
+    },
+    {
       "version": "1.7.2",
       "publishedAt": "2026-11-22",
       "sourceCommit": "278a2086d714bb0ea9719a8d27057f7740550185",
