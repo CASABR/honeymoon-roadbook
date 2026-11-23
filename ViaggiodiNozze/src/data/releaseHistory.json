@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.10",
+      "publishedAt": "2026-11-23",
+      "sourceCommit": "e2e5151cd526007b294e8d2f292b0bfc8917ae78",
+      "changes": [
+        "Push multi-fuso: associazione automatica imbarco→aeroporto di partenza del volo e checkout→località dell'alloggio collegato.",
+        "Preservato orario locale su tappe del 09/01 (Taipei e Cebu) senza eccezioni per ID e senza inventare fusi su casi ambigui."
+      ],
+      "publishedAtIso": "2026-11-23T12:41:45.000Z"
+    },
+    {
       "version": "1.7.9",
       "publishedAt": "2026-11-23",
       "sourceCommit": "5b85d2b3342a0669d17ec978c1522c232d94d19a",

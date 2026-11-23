@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.7.9-202611231228",
-  "requestedAt": "2026-11-23T12:28:40.000Z",
+  "requestId": "release-1.7.10-202611231241",
+  "requestedAt": "2026-11-23T12:41:45.000Z",
   "requestedBy": "CASABR",
   "action": "deploy",
   "ref": "main",
   "confirm": "CONFERMA",
-  "note": "Release 1.7.9 fix fusi Destinazione Prima (senza deploy Worker; esclusi 6 file estranei)."
+  "note": "Release 1.7.10 associazione imbarco->volo e checkout->alloggio su giorni multi-fuso (senza deploy Worker; esclusi 6 file estranei)."
 }
