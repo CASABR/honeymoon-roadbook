@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.7.5-202611231005",
-  "requestedAt": "2026-11-23T10:05:30.000Z",
+  "requestId": "release-1.7.6-202611231015",
+  "requestedAt": "2026-11-23T10:15:10.000Z",
   "requestedBy": "CASABR",
   "action": "deploy",
   "ref": "main",
   "confirm": "CONFERMA",
-  "note": "Release 1.7.5 pannello Diagnostica Push su iPhone (esclusi file locali estranei; senza ridistribuzione Worker)."
+  "note": "Release 1.7.6 sync push idempotente post-flush, fuso da tappa e diagnostica 4 fasi (esclusi file estranei; senza deploy Worker)."
 }
