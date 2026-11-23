@@ -287,9 +287,26 @@ export async function recordPushMutation(input: {
   mutationId: string;
   data?: Record<string, unknown>;
 }): Promise<void> {
-  if (!BACKGROUND_PUSH_ENABLED || !auth.currentUser || !COLLABORATION_ENTITIES.has(input.entityType)) return;
+  if (!BACKGROUND_PUSH_ENABLED || !COLLABORATION_ENTITIES.has(input.entityType)) return;
+  if (!auth.currentUser) {
+    appendPushDiagnostic({
+      ts: Date.now(),
+      stage: 'mutation',
+      entityType: input.entityType,
+      reminderCount: 0,
+      error: 'auth_missing',
+    });
+    return;
+  }
   // Non consentire broadcast di notifiche di mutazione a viewer, ospiti sola lettura o non autorizzati
   if (!isCloudAuthorized(input.tripId)) {
+    appendPushDiagnostic({
+      ts: Date.now(),
+      stage: 'mutation',
+      entityType: input.entityType,
+      reminderCount: 0,
+      error: 'not_authorized',
+    });
     console.warn(`[PushService] Mutazione push ignorata per ${input.entityType}: permessi di scrittura assenti per viaggio ${input.tripId}.`);
     return;
   }

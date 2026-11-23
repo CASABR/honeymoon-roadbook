@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BACKGROUND_PUSH_DISABLED_MESSAGE, BACKGROUND_PUSH_ENABLED } from '../../config/freeArchitecture';
+import { auth } from '../../firebase';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import {
+  type PushDiagnosticEntry,
   type PushPreferences,
   getPushTestRemainingSeconds,
+  readPushDiagnostics,
   recordPushTestSent,
 } from '../../services/pushNotificationService';
+import { getActiveTripId } from '../../storage/indexedDB';
+import { getLastSyncError, getLastSyncTimestamp } from '../../storage/syncService';
+import { isCloudAuthorized } from '../../utils/useAuthIdentity';
 import Modal from '../common/Modal';
 
 interface PushNotificationModalProps {
@@ -24,10 +30,54 @@ const STATUS_LABELS: Record<string, string> = {
   error: 'Configurazione non completata',
 };
 
+const SKIP_REASON_LABELS: Record<string, string> = {
+  ok: 'Reminder calcolato',
+  invalid_data: 'Dati incompleti',
+  unsupported_entity: 'Categoria senza reminder',
+  unconfirmed_time: 'Orario non confermato / scadenza non verificata',
+  missing_date_or_time: 'Data o orario mancante',
+  missing_timezone: 'Fuso orario non determinabile',
+  past_event: 'Orario evento già passato',
+};
+
+function formatDiagTime(ts: number | null | undefined): string {
+  if (!ts) return 'Mai';
+  try {
+    return new Date(ts).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch {
+    return '—';
+  }
+}
+
 export default function PushNotificationModal({ isOpen, onClose }: PushNotificationModalProps) {
   const push = usePushNotifications();
   const [draft, setDraft] = useState<PushPreferences>(push.preferences);
   const [feedback, setFeedback] = useState('');
+  const [diagRefreshTick, setDiagRefreshTick] = useState(0);
+
+  const readSnapshot = useCallback(() => {
+    const tripId = getActiveTripId() || '0000';
+    const entries = readPushDiagnostics();
+    const lastMutation: PushDiagnosticEntry | undefined = [...entries].reverse().find(e => e.stage === 'mutation');
+    const lastSyncPush: PushDiagnosticEntry | undefined = [...entries].reverse().find(e => e.stage === 'sync_reminders');
+    return {
+      isAuth: Boolean(auth.currentUser && !auth.currentUser.isAnonymous),
+      isAuthorized: isCloudAuthorized(tripId),
+      isOnline: typeof navigator === 'undefined' ? true : navigator.onLine !== false,
+      lastCloudSyncAt: getLastSyncTimestamp(tripId),
+      lastCloudSyncErr: getLastSyncError(tripId),
+      lastMutation,
+      lastSyncPush,
+    };
+  }, []);
+
+  const [diag, setDiag] = useState(readSnapshot);
+
+  useEffect(() => {
+    if (isOpen) {
+      setDiag(readSnapshot());
+    }
+  }, [isOpen, diagRefreshTick, push.state, push.preferences, readSnapshot]);
   const [testCooldown, setTestCooldown] = useState(() => getPushTestRemainingSeconds());
   const [isSendingTest, setIsSendingTest] = useState(false);
 
@@ -214,6 +264,55 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
         {/* Guida iPhone PWA */}
         <div className="rounded-xl bg-amber-50/80 px-3 py-2.5 text-[11px] leading-relaxed text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
           💡 Su iPhone e iPad le notifiche push richiedono che HOUNIGO sia aggiunta alla schermata Home come PWA (pulsante Condividi › Aggiungi a schermata Home).
+        </div>
+
+        {/* Diagnostica Push iPhone (nessun dato personale) */}
+        <div data-testid="push-diagnostics-panel" className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 text-[11px] leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200 space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Diagnostica Push
+            </span>
+            <button
+              type="button"
+              onClick={() => setDiagRefreshTick(t => t + 1)}
+              className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 cursor-pointer"
+            >
+              Aggiorna
+            </button>
+          </div>
+          <div>
+            <strong>Auth &amp; Sync:</strong> {diag.isAuth ? 'Autenticato' : 'Non autenticato'} · {diag.isAuthorized ? 'Editor autorizzato' : 'Non autorizzato'} · {diag.isOnline ? 'Online' : 'Offline'} · Sync {formatDiagTime(diag.lastCloudSyncAt)}
+            {diag.lastCloudSyncErr ? ` (Errore sync: ${diag.lastCloudSyncErr.slice(0, 60)})` : ''}
+          </div>
+          <div>
+            <strong>Preferenza card effettiva:</strong> {push.preferences.reminderMinutes} minuti prima · Stato: {push.state}
+          </div>
+          <div>
+            <strong>Ultima mutazione:</strong>{' '}
+            {diag.lastMutation ? (
+              <>
+                {diag.lastMutation.entityType || '—'} ({formatDiagTime(diag.lastMutation.ts)}) ·{' '}
+                {diag.lastMutation.error
+                  ? `Errore: ${diag.lastMutation.error}`
+                  : `Reminder: ${diag.lastMutation.reminderCount}, Job D1: ${diag.lastMutation.scheduledCount ?? '—'}${diag.lastMutation.skippedPastLeadCount ? `, Scartati preavviso passato: ${diag.lastMutation.skippedPastLeadCount}` : ''}`}
+              </>
+            ) : (
+              'Nessuna mutazione registrata su questo dispositivo'
+            )}
+          </div>
+          {diag.lastMutation?.skipReason && diag.lastMutation.skipReason !== 'ok' && (
+            <div className="text-amber-700 dark:text-amber-300 font-semibold">
+              <strong>Motivo esclusione reminder:</strong> {SKIP_REASON_LABELS[diag.lastMutation.skipReason] || diag.lastMutation.skipReason}
+            </div>
+          )}
+          {diag.lastSyncPush && (
+            <div className="text-slate-500 dark:text-slate-400">
+              <strong>Backfill ({formatDiagTime(diag.lastSyncPush.ts)}):</strong>{' '}
+              {diag.lastSyncPush.error
+                ? `Errore ${diag.lastSyncPush.error}`
+                : `${diag.lastSyncPush.reminderCount} elementi, ${diag.lastSyncPush.scheduledCount ?? 0} schedulati, ${diag.lastSyncPush.removedCount ?? 0} rimossi`}
+            </div>
+          )}
         </div>
 
         {feedback && (
