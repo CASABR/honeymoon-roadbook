@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.5",
+      "publishedAt": "2026-11-23",
+      "sourceCommit": "ea2c9dc01a882c0164bd86ed38126237e9eeaaa6",
+      "changes": [
+        "Notifiche Push: pannello Diagnostica Push su iPhone con stato Auth/Sync, ultima mutazione, motivo esclusione e preferenza effettiva.",
+        "Tracciamento locale non-PII anche su uscite anticipate auth/permessi senza credenziali esposte."
+      ],
+      "publishedAtIso": "2026-11-23T10:05:30.000Z"
+    },
+    {
       "version": "1.7.4",
       "publishedAt": "2026-11-23",
       "sourceCommit": "7133cc53b4d34b10b263c7ea5bbc7534a33119aa",
