@@ -54,11 +54,17 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
   const [draft, setDraft] = useState<PushPreferences>(push.preferences);
   const [feedback, setFeedback] = useState('');
   const [diagRefreshTick, setDiagRefreshTick] = useState(0);
+  const [diagCopied, setDiagCopied] = useState(false);
 
   const readSnapshot = useCallback(() => {
     const tripId = getActiveTripId() || '0000';
     const entries = readPushDiagnostics();
-    const lastMutation: PushDiagnosticEntry | undefined = [...entries].reverse().find(e => e.stage === 'mutation');
+    const allMutations = entries.filter(e => e.stage === 'mutation');
+    const recentMutations = [...allMutations].slice(-10).reverse();
+    const lastMutation: PushDiagnosticEntry | undefined = recentMutations[0];
+    const lastActivityMutation: PushDiagnosticEntry | undefined = recentMutations.find(
+      e => e.entityType === 'attivita' || e.entityType === 'activity',
+    ) || [...allMutations].reverse().find(e => e.entityType === 'attivita' || e.entityType === 'activity');
     const lastSyncPush: PushDiagnosticEntry | undefined = [...entries].reverse().find(e => e.stage === 'sync_reminders');
     const lastCloudSyncDiag: PushDiagnosticEntry | undefined = [...entries].reverse().find(e => e.stage === 'sync_deferred' || e.stage === 'cloud_sync_error');
     return {
@@ -69,6 +75,8 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
       lastCloudSyncErr: getLastSyncError(tripId),
       lastCloudSyncDiag,
       lastMutation,
+      lastActivityMutation,
+      recentMutations,
       lastSyncPush,
     };
   }, []);
@@ -270,17 +278,51 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
 
         {/* Diagnostica Push iPhone (nessun dato personale) */}
         <div data-testid="push-diagnostics-panel" className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 text-[11px] leading-relaxed text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200 space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Diagnostica Push
             </span>
-            <button
-              type="button"
-              onClick={() => setDiagRefreshTick(t => t + 1)}
-              className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 cursor-pointer"
-            >
-              Aggiorna
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const formatD1 = (m: PushDiagnosticEntry) =>
+                    typeof m.scheduledCount === 'number'
+                      ? (m.scheduledCount > 0 ? `Job D1 confermati: ${m.scheduledCount}` : '0 job D1')
+                      : 'Conferma D1 non ricevuta';
+                  const lines = [
+                    `Auth: ${diag.isAuth ? 'OK' : 'NO'} | Editor: ${diag.isAuthorized ? 'OK' : 'NO'} | Rete: ${diag.isOnline ? 'Online' : 'Offline'} | Sync: ${formatDiagTime(diag.lastCloudSyncAt)}${diag.lastCloudSyncErr ? ` | ErrSync: ${diag.lastCloudSyncErr.slice(0, 60)}` : ''}`,
+                    `Preferenza card: ${push.preferences.reminderMinutes} min | Stato push: ${push.state}`,
+                    diag.lastActivityMutation
+                      ? `Ultima Attivita: ${formatDiagTime(diag.lastActivityMutation.ts)} | rem=${diag.lastActivityMutation.reminderCount} | ${formatD1(diag.lastActivityMutation)} | skip=${diag.lastActivityMutation.skipReason || 'ok'}${diag.lastActivityMutation.error ? ` | err=${diag.lastActivityMutation.error}` : ''}`
+                      : 'Ultima Attivita: nessuna',
+                    diag.lastSyncPush
+                      ? `Backfill (${formatDiagTime(diag.lastSyncPush.ts)}): ${diag.lastSyncPush.error ? `err=${diag.lastSyncPush.error}` : `${diag.lastSyncPush.reminderCount} elem, schedulati=${diag.lastSyncPush.scheduledCount ?? 0}, rimossi=${diag.lastSyncPush.removedCount ?? 0}`}`
+                      : 'Backfill: nessuno',
+                    `Ultime ${diag.recentMutations.length} mutazioni:`,
+                    ...diag.recentMutations.map((m, idx) =>
+                      `${idx + 1}. ${formatDiagTime(m.ts)} | ${m.entityType || '—'} | rem=${m.reminderCount} | ${formatD1(m)} | skip=${m.skipReason || 'ok'}${m.error ? ` | err=${m.error}` : ''}`
+                    ),
+                  ];
+                  if (navigator.clipboard?.writeText) {
+                    void navigator.clipboard.writeText(lines.join('\n')).then(() => {
+                      setDiagCopied(true);
+                      setTimeout(() => setDiagCopied(false), 2000);
+                    }).catch(() => {});
+                  }
+                }}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 cursor-pointer"
+              >
+                {diagCopied ? 'Copiato' : 'Copia diagnostica'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDiagRefreshTick(t => t + 1)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 cursor-pointer"
+              >
+                Aggiorna
+              </button>
+            </div>
           </div>
           <div>
             <strong>1. Salvataggio &amp; Sync Cloud:</strong> {diag.isAuth ? 'Auth OK' : 'Non autenticato'} · {diag.isAuthorized ? 'Editor OK' : 'Non autorizzato'} · {diag.isOnline ? 'Online' : 'Offline'} · Sync {formatDiagTime(diag.lastCloudSyncAt)}
@@ -288,44 +330,72 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
             {diag.lastCloudSyncDiag?.error ? ` · ${diag.lastCloudSyncDiag.stage === 'sync_deferred' ? 'Differito' : 'Errore'} (${diag.lastCloudSyncDiag.entityType || '—'} ${formatDiagTime(diag.lastCloudSyncDiag.ts)}): ${diag.lastCloudSyncDiag.error}` : ''}
           </div>
           <div>
-            <strong>2. Mutazione Push (Worker):</strong>{' '}
-            {diag.lastMutation ? (
+            <strong>2. Preferenza card effettiva:</strong> {push.preferences.reminderMinutes} minuti prima · Stato: {push.state}
+          </div>
+          <div className="rounded-xl border border-sky-200 bg-sky-50/70 px-2.5 py-1.5 dark:border-sky-800/60 dark:bg-sky-950/30">
+            <strong>3. Ultima Attività:</strong>{' '}
+            {diag.lastActivityMutation ? (
               <>
-                {diag.lastMutation.entityType || '—'} ({formatDiagTime(diag.lastMutation.ts)}) ·{' '}
-                {diag.lastMutation.error ? `Errore: ${diag.lastMutation.error}` : 'Ricevuta dal Worker'}
+                {formatDiagTime(diag.lastActivityMutation.ts)} · Reminder: {diag.lastActivityMutation.reminderCount} ·{' '}
+                {typeof diag.lastActivityMutation.scheduledCount === 'number'
+                  ? (diag.lastActivityMutation.scheduledCount > 0
+                    ? `Job D1 confermati: ${diag.lastActivityMutation.scheduledCount}`
+                    : '0 job D1')
+                  : 'Conferma D1 non ricevuta'}
+                {diag.lastActivityMutation.skipReason && diag.lastActivityMutation.skipReason !== 'ok'
+                  ? ` · ${SKIP_REASON_LABELS[diag.lastActivityMutation.skipReason] || diag.lastActivityMutation.skipReason}`
+                  : ''}
+                {diag.lastActivityMutation.error ? ` · Errore: ${diag.lastActivityMutation.error}` : ''}
               </>
             ) : (
-              'Nessuna mutazione registrata su questo dispositivo'
+              'Nessuna mutazione Attività registrata su questo dispositivo'
             )}
-          </div>
-          <div>
-            <strong>3. Reminder &amp; Job D1:</strong>{' '}
-            {diag.lastMutation ? (
-              diag.lastMutation.skipReason && diag.lastMutation.skipReason !== 'ok' ? (
-                <span className="text-amber-700 dark:text-amber-300 font-semibold">
-                  {SKIP_REASON_LABELS[diag.lastMutation.skipReason] || diag.lastMutation.skipReason}
-                </span>
-              ) : (
-                <>
-                  Reminder: {diag.lastMutation.reminderCount} · Job D1: {diag.lastMutation.scheduledCount ?? '—'}
-                  {diag.lastMutation.skippedPastLeadCount ? ` · Scartati (preavviso passato): ${diag.lastMutation.skippedPastLeadCount}` : ''}
-                </>
-              )
-            ) : (
-              '—'
-            )}
-          </div>
-          <div>
-            <strong>4. Preferenza card effettiva:</strong> {push.preferences.reminderMinutes} minuti prima · Stato: {push.state}
           </div>
           {diag.lastSyncPush && (
             <div className="text-slate-500 dark:text-slate-400">
               <strong>Backfill ({formatDiagTime(diag.lastSyncPush.ts)}):</strong>{' '}
               {diag.lastSyncPush.error
                 ? `Errore ${diag.lastSyncPush.error}`
-                : `${diag.lastSyncPush.reminderCount} elementi, ${diag.lastSyncPush.scheduledCount ?? 0} schedulati, ${diag.lastSyncPush.removedCount ?? 0} rimossi`}
+                : `${diag.lastSyncPush.reminderCount} elementi, schedulati: ${diag.lastSyncPush.scheduledCount ?? 0}, rimossi: ${diag.lastSyncPush.removedCount ?? 0}`}
             </div>
           )}
+          <div>
+            <strong>4. Ultime {diag.recentMutations.length} mutazioni:</strong>
+            {diag.recentMutations.length === 0 ? (
+              <span className="ml-1 text-slate-500">Nessuna mutazione registrata</span>
+            ) : (
+              <ul className="mt-1 max-h-40 overflow-y-auto space-y-1 pr-1">
+                {diag.recentMutations.map((m, idx) => {
+                  const isAct = m.entityType === 'attivita' || m.entityType === 'activity';
+                  const d1Label = typeof m.scheduledCount === 'number'
+                    ? (m.scheduledCount > 0 ? `D1: ${m.scheduledCount}` : 'D1: 0')
+                    : 'D1: n/d';
+                  return (
+                    <li
+                      key={`${m.ts}-${idx}`}
+                      className={`rounded-lg px-2 py-1 text-[10px] border ${
+                        isAct
+                          ? 'border-sky-300 bg-sky-50/90 text-sky-950 dark:border-sky-700 dark:bg-sky-950/40 dark:text-sky-100 font-semibold'
+                          : 'border-slate-200/80 bg-white/80 text-slate-600 dark:border-slate-700 dark:bg-slate-900/60 dark:text-slate-300'
+                      }`}
+                    >
+                      <span>{formatDiagTime(m.ts)}</span> ·{' '}
+                      <span className="uppercase">{isAct ? 'Attività' : (m.entityType || '—')}</span> ·{' '}
+                      <span>Rem: {m.reminderCount}</span> · <span>{d1Label}</span>
+                      {m.skipReason && m.skipReason !== 'ok' && (
+                        <span className="text-amber-700 dark:text-amber-300">
+                          {' '}· {SKIP_REASON_LABELS[m.skipReason] || m.skipReason}
+                        </span>
+                      )}
+                      {m.error && (
+                        <span className="text-rose-600 dark:text-rose-400"> · Err: {m.error}</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
         </div>
 
         {feedback && (
