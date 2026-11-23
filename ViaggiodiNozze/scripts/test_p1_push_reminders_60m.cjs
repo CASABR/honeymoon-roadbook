@@ -425,6 +425,56 @@ class InMemoryD1 {
     }
   });
 
+  await asyncCheck('4. Modifica card esistente (+65 min, confermato, vecchia date vs nuova data) sostituisce il job senza duplicati', async () => {
+    const baseNow = Date.UTC(2026, 10, 23, 7, 30, 0); // 08:30 Europe/Rome
+    const realDateNow = Date.now;
+    Date.now = () => baseNow;
+    try {
+      const remindersMod = loadTsGraph('src/utils/pushReminders.ts');
+      const editedAtPlus65 = baseNow + 65 * 60_000; // 09:35 Europe/Rome
+      const editedReminders = remindersMod.buildClientPushReminders('shopping', {
+        id: 'shop_existing_1',
+        nome: 'Mercato Test',
+        date: '2026-12-20', // vecchio campo residuo
+        data: '2026-11-23', // nuova data salvata dal form
+        orario: '09:35',
+        timeStatus: 'confermato',
+        timeZone: 'Europe/Rome',
+      }, { nowMs: baseNow });
+      assert.equal(editedReminders.length, 1);
+      assert.equal(editedReminders[0].eventAt, editedAtPlus65);
+
+      const db = new InMemoryD1();
+      const env = { RATE_LIMITS: db };
+      const uidOwner = 'owner_edit_test';
+      const tripId = 'trip_edit_test';
+      const subOwner = crypto.createHash('sha256').update(`${uidOwner}\n${tripId}\ndev_edit_1`).digest('hex').slice(0, 48);
+      await workerPush.handlePushRequest('/v1/push/register', uidOwner, tripId, {
+        deviceId: 'dev_edit_1', subscriberId: subOwner,
+        subscription: { endpoint: 'https://web.push.apple.com/edit1', keys: { p256dh: 'x'.repeat(40), auth: 'y'.repeat(16) } },
+        preferences: { transports: true, activities: true, lodging: true, deadlines: true, collaboration: true, reminderMinutes: 60 },
+      }, env);
+
+      // Vecchia schedulazione
+      await workerPush.handlePushRequest('/v1/push/mutation', uidOwner, tripId, {
+        entityType: 'shopping', action: 'save', entityId: 'shop_existing_1', mutationId: 'mut-old-0001',
+        reminders: [{ kind: 'activity_start', eventAt: baseNow + 10 * 86400_000 }],
+      }, env);
+      // Modifica a +65 min
+      await workerPush.handlePushRequest('/v1/push/mutation', uidOwner, tripId, {
+        entityType: 'shopping', action: 'save', entityId: 'shop_existing_1', mutationId: 'mut-new-0002',
+        reminders: editedReminders,
+      }, env);
+
+      const remJobs = db.jobs.filter(j => j.entity_key === 'shopping:shop_existing_1' && j.kind === 'activity_start');
+      assert.equal(remJobs.length, 1, 'La modifica deve sostituire il vecchio job senza duplicati');
+      assert.equal(remJobs[0].event_at, editedAtPlus65);
+      assert.equal(remJobs[0].due_at, editedAtPlus65 - 60 * 60_000);
+    } finally {
+      Date.now = realDateNow;
+    }
+  });
+
   console.log(`\n=== TEST P1 COMPLETATI: ${passed}/${passed} PASS ===`);
 })().catch((err) => {
   console.error(err);

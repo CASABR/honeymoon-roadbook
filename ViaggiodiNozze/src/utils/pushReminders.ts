@@ -35,9 +35,17 @@ export interface TripReminderCollections {
   note?: Array<Record<string, unknown>>;
 }
 
-function readEntityDate(data: Record<string, unknown>): string | undefined {
-  if (typeof data.date === 'string' && data.date.trim()) return data.date.trim();
-  if (typeof data.data === 'string' && data.data.trim()) return data.data.trim();
+function readEntityDate(data: Record<string, unknown>, entityType?: string): string | undefined {
+  const preferDataField = entityType === 'tappa' || entityType === 'tappe'
+    || entityType === 'ristorante' || entityType === 'ristoranti'
+    || entityType === 'shopping';
+  if (preferDataField) {
+    if (typeof data.data === 'string' && data.data.trim()) return data.data.trim();
+    if (typeof data.date === 'string' && data.date.trim()) return data.date.trim();
+  } else {
+    if (typeof data.date === 'string' && data.date.trim()) return data.date.trim();
+    if (typeof data.data === 'string' && data.data.trim()) return data.data.trim();
+  }
   if (typeof data.dayId === 'string' && data.dayId.startsWith('day_')) return data.dayId.slice(4).trim();
   return undefined;
 }
@@ -122,7 +130,7 @@ export function resolveReliableEntityTimeZone(
     if (placeTz) return placeTz;
   }
 
-  const dateKey = options.dateHint || readEntityDate(data) || (typeof data.checkIn === 'string' ? data.checkIn : undefined) || (typeof data.dueDate === 'string' ? data.dueDate : undefined);
+  const dateKey = options.dateHint || readEntityDate(data, entityType) || (typeof data.checkIn === 'string' ? data.checkIn : undefined) || (typeof data.dueDate === 'string' ? data.dueDate : undefined);
   if (dateKey && options.context?.dayLocationsByDate?.[dateKey]) {
     const dayTz = resolveUnambiguousPlaceTimeZone(options.context.dayLocationsByDate[dateKey]);
     if (dayTz) return dayTz;
@@ -155,7 +163,7 @@ export function buildClientPushReminders(
 
   if (entityType === 'trasporto' || entityType === 'trasporti') {
     if (!isConfirmedCardTime(data, true)) return [];
-    const depDate = readEntityDate(data);
+    const depDate = readEntityDate(data, entityType);
     const depTz = resolveReliableEntityTimeZone(entityType, data, { dateHint: depDate, context });
     const dropDate = typeof data.dropoffDate === 'string' ? data.dropoffDate : undefined;
     const dropTz = ['auto', 'camper'].includes(String(data.type || ''))
@@ -172,7 +180,7 @@ export function buildClientPushReminders(
 
   if (entityType === 'attivita' || entityType === 'activity') {
     if (!isConfirmedCardTime(data, true)) return [];
-    const date = readEntityDate(data);
+    const date = readEntityDate(data, entityType);
     const timeZone = resolveReliableEntityTimeZone(entityType, data, { dateHint: date, context });
     return futureUtcCandidate(
       'activity_start',
@@ -201,7 +209,7 @@ export function buildClientPushReminders(
 
   if (['ristorante', 'ristoranti', 'tappa', 'tappe', 'shopping'].includes(entityType)) {
     if (!isConfirmedCardTime(data, false)) return [];
-    const date = readEntityDate(data);
+    const date = readEntityDate(data, entityType);
     const timeZone = resolveReliableEntityTimeZone(entityType, data, { dateHint: date, context });
     return futureUtcCandidate('activity_start', date, data.orario || data.time, timeZone, nowMs);
   }
