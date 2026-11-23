@@ -152,6 +152,26 @@ export default function ScadenzeView({ onBack }: ScadenzeViewProps) {
     }
     setSaving(true);
     try {
+      let resolvedDeadlineTimeZone = form.dueDate && form.dueTime && form.timeZone ? form.timeZone.trim() : undefined;
+      if (form.dueDate && form.dueTime && !resolvedDeadlineTimeZone) {
+        const [{ buildDayLocationsMap, resolveReliableEntityTimeZone }, days] = await Promise.all([
+          import('../../utils/pushReminders'),
+          storageService.getDays().catch(() => []),
+        ]);
+        const dayLocationsByDate = buildDayLocationsMap(days as unknown as Array<Record<string, unknown>>);
+        const destTz = resolveReliableEntityTimeZone(
+          'note',
+          { title: form.title.trim(), dueDate: form.dueDate, dueTime: form.dueTime },
+          { dateHint: form.dueDate, context: { dayLocationsByDate } }
+        );
+        if (!destTz) {
+          try {
+            resolvedDeadlineTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+          } catch {
+            resolvedDeadlineTimeZone = undefined;
+          }
+        }
+      }
       await storageService.saveScadenza({
         id: editing?.id || `scadenza_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
         recordKind: 'scadenza',
@@ -160,7 +180,7 @@ export default function ScadenzeView({ onBack }: ScadenzeViewProps) {
         color: 'rose',
         dueDate: form.dueDate || undefined,
         dueTime: form.dueDate && form.dueTime ? form.dueTime : undefined,
-        timeZone: form.dueDate && form.dueTime && form.timeZone ? form.timeZone.trim() : undefined,
+        timeZone: resolvedDeadlineTimeZone,
         dateVerified: Boolean(form.dueDate && form.dateVerified),
         status: form.status,
         reminderMinutesBefore: form.dueDate ? form.reminderMinutesBefore : 0,

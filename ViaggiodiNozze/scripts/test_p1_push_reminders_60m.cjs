@@ -164,6 +164,17 @@ class InMemoryD1 {
               kind: 'collaboration', event_at: null, lead_minutes: null, due_at, attempts: 0, created_at,
             });
           }
+        } else if (norm.startsWith("DELETE FROM push_jobs WHERE subscriber_id = ?1 AND kind <> 'deadline_due'")) {
+          const [subscriberId, leadMin, nowTs] = params;
+          db.jobs = db.jobs.filter(j => !(j.subscriber_id === subscriberId && j.kind !== 'deadline_due' && j.event_at != null && (j.event_at - leadMin * 60_000) <= nowTs));
+        } else if (norm.startsWith('UPDATE push_jobs SET due_at = event_at -')) {
+          const [subscriberId, leadMin] = params;
+          for (const j of db.jobs) {
+            if (j.subscriber_id === subscriberId && j.kind !== 'deadline_due' && j.event_at != null) {
+              j.lead_minutes = leadMin;
+              j.due_at = j.event_at - leadMin * 60_000;
+            }
+          }
         } else if (norm.startsWith('UPDATE push_jobs SET due_at = MAX(?3,')) {
           const [subscriberId, leadMin, minDue] = params;
           for (const j of db.jobs) {
@@ -470,6 +481,22 @@ class InMemoryD1 {
       assert.equal(remJobs.length, 1, 'La modifica deve sostituire il vecchio job senza duplicati');
       assert.equal(remJobs[0].event_at, editedAtPlus65);
       assert.equal(remJobs[0].due_at, editedAtPlus65 - 60 * 60_000);
+
+      // Verifica preferenza 15 minuti su card + pruneRemoved=false (>200 elementi) non elimina job validi
+      await workerPush.handlePushRequest('/v1/push/register', uidOwner, tripId, {
+        deviceId: 'dev_edit_1', subscriberId: subOwner,
+        subscription: { endpoint: 'https://web.push.apple.com/edit1', keys: { p256dh: 'x'.repeat(40), auth: 'y'.repeat(16) } },
+        preferences: { transports: true, activities: true, lodging: true, deadlines: true, collaboration: true, reminderMinutes: 15 },
+      }, env);
+      const updatedJob15 = db.jobs.find(j => j.entity_key === 'shopping:shop_existing_1' && j.kind === 'activity_start');
+      assert.equal(updatedJob15.lead_minutes, 15);
+      assert.equal(updatedJob15.due_at, editedAtPlus65 - 15 * 60_000);
+
+      const syncNoPrune = await workerPush.handlePushRequest('/v1/push/sync-reminders', uidOwner, tripId, {
+        tripId, items: [], pruneRemoved: false,
+      }, env);
+      assert.equal(syncNoPrune.removedCount, 0);
+      assert.equal(db.jobs.filter(j => j.entity_key === 'shopping:shop_existing_1' && j.kind === 'activity_start').length, 1, 'pruneRemoved=false preserva job validi oltre limite 200');
     } finally {
       Date.now = realDateNow;
     }

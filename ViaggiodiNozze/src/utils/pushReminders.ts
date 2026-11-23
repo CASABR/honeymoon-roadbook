@@ -139,6 +139,20 @@ export function resolveReliableEntityTimeZone(
   return null;
 }
 
+export type PushReminderSkipReason =
+  | 'ok'
+  | 'invalid_data'
+  | 'unsupported_entity'
+  | 'unconfirmed_time'
+  | 'missing_date_or_time'
+  | 'missing_timezone'
+  | 'past_event';
+
+export interface PushReminderDiagnosis {
+  reminders: ClientPushReminder[];
+  skipReason: PushReminderSkipReason;
+}
+
 function futureUtcCandidate(
   kind: ClientPushReminder['kind'],
   date: unknown,
@@ -151,6 +165,43 @@ function futureUtcCandidate(
   const eventAt = zonedDateTimeToEpochMs(date, time, timeZone);
   if (!eventAt || eventAt <= nowMs) return [];
   return [{ kind, eventAt, ...(leadMinutes === undefined ? {} : { leadMinutes }) }];
+}
+
+export function diagnoseClientPushReminders(
+  entityType: string,
+  data: Record<string, unknown>,
+  context: PushReminderResolutionContext = {},
+): PushReminderDiagnosis {
+  const reminders = buildClientPushReminders(entityType, data, context);
+  if (reminders.length > 0) return { reminders, skipReason: 'ok' };
+  if (!data || typeof data !== 'object') return { reminders: [], skipReason: 'invalid_data' };
+  const nowMs = context.nowMs ?? Date.now();
+
+  if (entityType === 'note' || entityType === 'nota' || entityType === 'scadenza' || entityType === 'scadenze') {
+    if (data.recordKind !== 'scadenza' || data.dateVerified !== true || data.status === 'completata') {
+      return { reminders: [], skipReason: 'unconfirmed_time' };
+    }
+    const dueDate = typeof data.dueDate === 'string' ? data.dueDate : '';
+    const dueTime = typeof data.dueTime === 'string' ? data.dueTime : '';
+    if (!dueDate || !dueTime) return { reminders: [], skipReason: 'missing_date_or_time' };
+    const tz = resolveReliableEntityTimeZone(entityType, data, { dateHint: dueDate, context });
+    if (!tz) return { reminders: [], skipReason: 'missing_timezone' };
+    const eventAt = zonedDateTimeToEpochMs(dueDate, dueTime, tz);
+    return { reminders: [], skipReason: !eventAt ? 'missing_date_or_time' : (eventAt <= nowMs ? 'past_event' : 'invalid_data') };
+  }
+
+  const isLegacyAllowed = ['trasporto', 'trasporti', 'attivita', 'activity', 'alloggio', 'alloggi'].includes(entityType);
+  const isSimpleCard = ['ristorante', 'ristoranti', 'tappa', 'tappe', 'shopping'].includes(entityType);
+  if (!isLegacyAllowed && !isSimpleCard) return { reminders: [], skipReason: 'unsupported_entity' };
+  if (!isConfirmedCardTime(data, isLegacyAllowed)) return { reminders: [], skipReason: 'unconfirmed_time' };
+
+  const dateHint = readEntityDate(data, entityType) || (typeof data.checkIn === 'string' ? data.checkIn : undefined);
+  const timeHint = data.orarioInizio || data.time || data.orario || data.orarioRitrovo || data.departureTime || data.arrivalTime || data.checkInTime || data.checkOutTime;
+  if (!dateHint || !timeHint) return { reminders: [], skipReason: 'missing_date_or_time' };
+  const tz = resolveReliableEntityTimeZone(entityType, data, { dateHint, context });
+  if (!tz) return { reminders: [], skipReason: 'missing_timezone' };
+  const eventAt = zonedDateTimeToEpochMs(dateHint, timeHint, tz);
+  return { reminders: [], skipReason: !eventAt ? 'missing_date_or_time' : (eventAt <= nowMs ? 'past_event' : 'invalid_data') };
 }
 
 export function buildClientPushReminders(

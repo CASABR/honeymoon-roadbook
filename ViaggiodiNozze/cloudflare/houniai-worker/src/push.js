@@ -267,6 +267,7 @@ async function runD1Statements(database, statements) {
 async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, existingJobsMap, sentKeysSet, pendingStatements, now, env }) {
   let scheduledCount = 0;
   let skippedAlreadySentCount = 0;
+  let skippedPastLeadCount = 0;
   const desiredJobIds = new Set();
 
   for (const subscriber of subscribers) {
@@ -286,9 +287,11 @@ async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, e
             dueAt = fallbackDueAt;
             leadMinutes = 60;
           } else {
+            skippedPastLeadCount += 1;
             continue;
           }
         } else {
+          skippedPastLeadCount += 1;
           continue;
         }
       }
@@ -325,7 +328,7 @@ async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, e
     }
   }
 
-  return { desiredJobIds, scheduledCount, skippedAlreadySentCount };
+  return { desiredJobIds, scheduledCount, skippedAlreadySentCount, skippedPastLeadCount };
 }
 
 async function scheduleMutationJobs(uid, tripId, payload, env) {
@@ -348,12 +351,14 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
   await env.RATE_LIMITS.prepare("DELETE FROM push_jobs WHERE trip_id = ?1 AND entity_key = ?2 AND kind <> 'collaboration'")
     .bind(tripId, entityKey).run();
 
+  let scheduledCount = 0;
+  let skippedPastLeadCount = 0;
   if (action === 'save') {
     const reminders = Array.isArray(payload.reminders) ? payload.reminders.filter(validReminder).slice(0, 3) : [];
     const subscribers = await env.RATE_LIMITS.prepare(
       'SELECT subscriber_id, preferences_json FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1 LIMIT 20'
     ).bind(tripId).all();
-    await upsertReminderJobs({
+    const res = await upsertReminderJobs({
       tripId,
       entityKey,
       reminders,
@@ -361,6 +366,8 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
       now: Date.now(),
       env,
     });
+    scheduledCount = res.scheduledCount;
+    skippedPastLeadCount = res.skippedPastLeadCount;
   }
 
   const collaborationId = (await sha256(`collaboration|${tripId}`)).slice(0, 56);
@@ -369,7 +376,8 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
     VALUES (?1, ?2, NULL, ?3, ?4, 'collaboration', NULL, NULL, ?5, 0, ?6)
     ON CONFLICT(job_id) DO UPDATE SET due_at = MIN(push_jobs.created_at + 300000, excluded.due_at)
   `).bind(collaborationId, tripId, uid, entityKey, Date.now() + 90_000, Date.now()).run();
-  return { accepted: true, duplicate: false };
+  console.info('[push-mutation]', { entityType, action, scheduledCount, skippedPastLeadCount });
+  return { accepted: true, duplicate: false, scheduledCount, skippedPastLeadCount };
 }
 
 async function syncTripReminders(tripId, payload, env) {
@@ -400,6 +408,7 @@ async function syncTripReminders(tripId, payload, env) {
   const pendingStatements = [];
   let scheduledCount = 0;
   let skippedAlreadySentCount = 0;
+  let skippedPastLeadCount = 0;
 
   for (const item of rawItems) {
     const entityType = String(item?.entityType || '');
@@ -421,6 +430,7 @@ async function syncTripReminders(tripId, payload, env) {
     res.desiredJobIds.forEach(id => desiredAll.add(id));
     scheduledCount += res.scheduledCount;
     skippedAlreadySentCount += res.skippedAlreadySentCount;
+    skippedPastLeadCount += res.skippedPastLeadCount;
   }
 
   let removedCount = 0;
@@ -434,8 +444,9 @@ async function syncTripReminders(tripId, payload, env) {
   }
 
   await runD1Statements(env.RATE_LIMITS, pendingStatements);
+  console.info('[push-sync]', { itemsCount: rawItems.length, scheduledCount, skippedAlreadySentCount, skippedPastLeadCount, removedCount });
 
-  return { synced: true, scheduledCount, skippedAlreadySentCount, removedCount };
+  return { synced: true, scheduledCount, skippedAlreadySentCount, skippedPastLeadCount, removedCount };
 }
 
 export async function handlePushRequest(path, uid, tripId, payload, env) {
@@ -592,20 +603,28 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
 
 async function processJob(job, env, membershipCache) {
   if (job.kind !== 'collaboration' && job.event_at != null && Number(job.event_at) <= Date.now()) {
+    console.info('[push-cron]', { kind: job.kind, outcome: 'skipped_expired' });
     return;
   }
   const subscribers = job.subscriber_id
     ? { results: [await env.RATE_LIMITS.prepare('SELECT * FROM push_subscriptions WHERE subscriber_id = ?1 AND enabled = 1').bind(job.subscriber_id).first()].filter(Boolean) }
     : await env.RATE_LIMITS.prepare('SELECT * FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1 LIMIT 20').bind(job.trip_id).all();
   for (const subscriber of subscribers.results || []) {
-    if (job.kind === 'collaboration' && subscriber.uid === job.actor_uid) continue;
+    if (job.kind === 'collaboration' && subscriber.uid === job.actor_uid) {
+      console.info('[push-cron]', { kind: job.kind, outcome: 'skipped_actor' });
+      continue;
+    }
     const preferences = normalizePreferences(JSON.parse(subscriber.preferences_json));
-    if (!preferenceAllows(preferences, job.kind)) continue;
+    if (!preferenceAllows(preferences, job.kind)) {
+      console.info('[push-cron]', { kind: job.kind, outcome: 'skipped_preference' });
+      continue;
+    }
     const membershipKey = `${subscriber.trip_id}:${subscriber.uid}`;
     if (!membershipCache.has(membershipKey)) {
       membershipCache.set(membershipKey, await stillAuthorized(subscriber.uid, subscriber.trip_id, env));
     }
     if (!membershipCache.get(membershipKey)) {
+      console.info('[push-cron]', { kind: job.kind, outcome: 'skipped_membership' });
       await env.RATE_LIMITS.prepare('DELETE FROM push_subscriptions WHERE subscriber_id = ?1').bind(subscriber.subscriber_id).run();
       continue;
     }
@@ -618,6 +637,7 @@ async function processJob(job, env, membershipCache) {
         }),
         tag: `hounigo-${job.kind}-${job.job_id}`,
       }, env);
+      console.info('[push-cron]', { kind: job.kind, outcome: 'sent' });
       if (job.kind !== 'collaboration' && job.event_at != null && job.entity_key) {
         const sentKey = await sentReminderDispatchKey(subscriber.subscriber_id, job.entity_key, job.kind, Number(job.event_at));
         await env.RATE_LIMITS.prepare('INSERT OR IGNORE INTO push_dispatches (dispatch_key, trip_id, created_at) VALUES (?1, ?2, ?3)')
@@ -625,6 +645,7 @@ async function processJob(job, env, membershipCache) {
       }
     } catch (error) {
       if (error?.statusCode === 404 || error?.statusCode === 410) {
+        console.info('[push-cron]', { kind: job.kind, outcome: `apns_gone_${error.statusCode}` });
         await env.RATE_LIMITS.prepare('DELETE FROM push_subscriptions WHERE subscriber_id = ?1').bind(subscriber.subscriber_id).run();
         continue;
       }

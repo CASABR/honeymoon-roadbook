@@ -192,7 +192,7 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
             </label>
           ))}
           <label className="block text-xs font-semibold text-slate-700 dark:text-slate-200 pt-2 border-t border-slate-100 dark:border-slate-800">
-            Anticipo promemoria
+            Anticipo promemoria card
             <select value={draft.reminderMinutes} onChange={event => updateFlag('reminderMinutes', Number(event.target.value))} className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium dark:border-slate-700 dark:bg-slate-900">
               <option value={15}>15 minuti prima</option>
               <option value={30}>30 minuti prima</option>
@@ -202,6 +202,9 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
               <option value={720}>12 ore prima</option>
               <option value={1440}>1 giorno prima</option>
             </select>
+            <span className="block mt-1 text-[11px] font-normal text-slate-500 dark:text-slate-400">
+              Vale per trasporti, attività, alloggi, tappe, ristoranti e shopping con orario confermato. Le scadenze usano il proprio anticipo dedicato.
+            </span>
           </label>
           <button type="button" onClick={() => void run(() => push.updatePreferences(draft), 'Preferenze salvate con successo.')} className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-bold text-white hover:bg-slate-800 transition-colors dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 cursor-pointer">
             Salva preferenze

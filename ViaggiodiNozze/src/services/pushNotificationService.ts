@@ -4,10 +4,11 @@ import { getOrCreateDeviceId } from '../utils/deviceSession';
 import { getTripConfig } from '../utils/tripConfig';
 import { BACKGROUND_PUSH_ENABLED, PUSH_WORKER_URL } from '../config/freeArchitecture';
 import {
-  buildClientPushReminders,
   buildDayLocationsMap,
   collectTripPushReminderItems,
+  diagnoseClientPushReminders,
   type ClientPushSyncItem,
+  type PushReminderSkipReason,
 } from '../utils/pushReminders';
 import { isCloudAuthorized } from '../utils/useAuthIdentity';
 
@@ -233,8 +234,40 @@ export async function sendPushTestOnServer(subscriberId: string) {
 }
 
 const REMINDER_SYNC_STORAGE_PREFIX = 'hounigo_push_reminders_sync_v1_';
+const PUSH_DIAGNOSTICS_KEY = 'hounigo_push_diagnostics_v1';
 const REMINDER_SYNC_TTL_MS = 12 * 60 * 60 * 1000;
 let inFlightReminderSync: Promise<void> | null = null;
+
+export interface PushDiagnosticEntry {
+  ts: number;
+  stage: 'mutation' | 'sync_reminders';
+  entityType?: string;
+  skipReason?: PushReminderSkipReason;
+  reminderCount: number;
+  scheduledCount?: number;
+  skippedPastLeadCount?: number;
+  removedCount?: number;
+  error?: string;
+}
+
+export function readPushDiagnostics(): PushDiagnosticEntry[] {
+  try {
+    const raw = localStorage.getItem(PUSH_DIAGNOSTICS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function appendPushDiagnostic(entry: PushDiagnosticEntry): void {
+  try {
+    const next = [...readPushDiagnostics(), entry].slice(-20);
+    localStorage.setItem(PUSH_DIAGNOSTICS_KEY, JSON.stringify(next));
+  } catch {
+    // storage non disponibile
+  }
+}
 
 async function buildMutationDayLocationsMap(): Promise<Record<string, string>> {
   try {
@@ -263,10 +296,32 @@ export async function recordPushMutation(input: {
   const dayLocationsByDate = input.action === 'save' && input.data
     ? await buildMutationDayLocationsMap()
     : undefined;
-  const reminders = input.action === 'save' && input.data
-    ? buildClientPushReminders(input.entityType, input.data, { dayLocationsByDate })
-    : [];
-  await callPush('mutation', { ...input, reminders });
+  const diagnosis = input.action === 'save' && input.data
+    ? diagnoseClientPushReminders(input.entityType, input.data, { dayLocationsByDate })
+    : { reminders: [], skipReason: 'ok' as PushReminderSkipReason };
+  const reminders = diagnosis.reminders;
+  try {
+    const res = await callPush<{ scheduledCount?: number; skippedPastLeadCount?: number }>('mutation', { ...input, reminders });
+    appendPushDiagnostic({
+      ts: Date.now(),
+      stage: 'mutation',
+      entityType: input.entityType,
+      skipReason: diagnosis.skipReason,
+      reminderCount: reminders.length,
+      scheduledCount: res?.scheduledCount,
+      skippedPastLeadCount: res?.skippedPastLeadCount,
+    });
+  } catch (err: any) {
+    appendPushDiagnostic({
+      ts: Date.now(),
+      stage: 'mutation',
+      entityType: input.entityType,
+      skipReason: diagnosis.skipReason,
+      reminderCount: reminders.length,
+      error: String(err?.code || err?.message || 'PUSH_MUTATION_FAILED').slice(0, 60),
+    });
+    throw err;
+  }
 }
 
 export async function collectLocalTripPushSyncItems(): Promise<ClientPushSyncItem[]> {
@@ -334,19 +389,33 @@ export async function syncPushRemindersFromStorage(options: {
           // cache assente o non leggibile: prosegui con la sincronizzazione
         }
       }
-      await callPush('sync-reminders', {
+      const syncPayload = items.slice(0, 200);
+      const res = await callPush<{ scheduledCount?: number; skippedPastLeadCount?: number; removedCount?: number }>('sync-reminders', {
         tripId,
         subscriberId: stored.subscriberId,
-        items: items.slice(0, 200),
-        pruneRemoved: true,
+        items: syncPayload,
+        pruneRemoved: items.length <= 200,
+      });
+      appendPushDiagnostic({
+        ts: Date.now(),
+        stage: 'sync_reminders',
+        reminderCount: syncPayload.length,
+        scheduledCount: res?.scheduledCount,
+        skippedPastLeadCount: res?.skippedPastLeadCount,
+        removedCount: res?.removedCount,
       });
       try {
         localStorage.setItem(cacheKey, JSON.stringify({ fingerprint, syncedAt: Date.now() }));
       } catch {
         // quota storage ignorabile
       }
-    } catch {
-      // Backfill non bloccante per non disturbare offline o rate-limit
+    } catch (err: any) {
+      appendPushDiagnostic({
+        ts: Date.now(),
+        stage: 'sync_reminders',
+        reminderCount: 0,
+        error: String(err?.code || err?.message || 'SYNC_REMINDERS_FAILED').slice(0, 60),
+      });
     }
   })().finally(() => {
     inFlightReminderSync = null;
