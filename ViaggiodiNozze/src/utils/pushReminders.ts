@@ -34,6 +34,8 @@ export interface PushReminderResolutionContext {
   dayLocationsByDate?: Record<string, string>;
   multiTzDates?: Set<string>;
   hasForeignTripContext?: boolean;
+  trasporti?: Array<Record<string, unknown>>;
+  alloggi?: Array<Record<string, unknown>>;
   nowMs?: number;
   deviceTimeZone?: string | null;
 }
@@ -224,6 +226,103 @@ function coordTimeZone(coord: unknown): string | null {
   return getStrictTimeZoneFromCoordinates(lat, lng);
 }
 
+function resolveTransportDepartureTz(t: Record<string, unknown>): string | null {
+  const explicitTz = t?.departureTimeZone || t?.timeZone;
+  if (isValidIanaTimeZone(explicitTz)) return explicitTz.trim();
+  const coordTz = coordTimeZone(t?.coordinate);
+  if (coordTz) return coordTz;
+  const iataTz = resolveReliableIataTimeZone(t?.departureIata);
+  if (iataTz) return iataTz;
+  return resolveTimeZoneFromTextList([t?.departureLocation, t?.location, t?.address]);
+}
+
+function resolveAlloggioTz(a: Record<string, unknown>): string | null {
+  if (isValidIanaTimeZone(a?.timeZone)) return a.timeZone.trim();
+  return coordTimeZone(a?.coordinate)
+    || resolveTimeZoneFromTextList([a?.indirizzo, a?.address, a?.location, a?.name, a?.nome, a?.title]);
+}
+
+function resolveBoardingTimeZoneFromTransports(
+  data: Record<string, unknown>,
+  dateKey: string | undefined,
+  trasporti: Array<Record<string, unknown>> | undefined,
+): string | null {
+  if (!dateKey || !trasporti?.length) return null;
+  const cardText = [data.title, data.titolo, data.nome, data.name, data.location, data.indirizzo]
+    .filter(v => typeof v === 'string' && v.trim())
+    .join(' ');
+  if (!/\b(imbarco|boarding)\b/i.test(cardText)) return null;
+
+  const sameDay = trasporti.filter(t => readEntityDate(t, 'trasporti') === dateKey);
+  if (sameDay.length === 0) return null;
+
+  const upperCard = cardText.toUpperCase();
+  const lowerCard = cardText.toLowerCase();
+  const matchedTzs = new Set<string>();
+  const allTzs = new Set<string>();
+
+  for (const t of sameDay) {
+    const depTz = resolveTransportDepartureTz(t);
+    if (!depTz) continue;
+    allTzs.add(depTz);
+    const arrIata = typeof t.arrivalIata === 'string' ? t.arrivalIata.trim().toUpperCase() : '';
+    const arrText = [t.arrivalLocation, t.destination, t.title, t.titolo]
+      .filter(v => typeof v === 'string' && v.trim())
+      .join(' ')
+      .toLowerCase();
+    const arrWords = arrText.match(/[a-z]{4,}/g) || [];
+    const matchesIata = Boolean(arrIata && new RegExp(`\\b${arrIata}\\b`).test(upperCard));
+    const matchesCity = arrWords.some(w => !['volo', 'flight', 'aeroporto', 'airport', 'roma'].includes(w)
+      ? lowerCard.includes(w)
+      : (w === 'roma' && /\broma\b/i.test(cardText)));
+    if (matchesIata || matchesCity) {
+      matchedTzs.add(depTz);
+    }
+  }
+
+  if (matchedTzs.size === 1) return matchedTzs.values().next().value || null;
+  if (matchedTzs.size === 0 && allTzs.size === 1) return allTzs.values().next().value || null;
+  return null;
+}
+
+function resolveCheckoutTimeZoneFromLodging(
+  data: Record<string, unknown>,
+  dateKey: string | undefined,
+  alloggi: Array<Record<string, unknown>> | undefined,
+): string | null {
+  if (!dateKey || !alloggi?.length) return null;
+  const cardText = [data.title, data.titolo, data.nome, data.name, data.location, data.indirizzo]
+    .filter(v => typeof v === 'string' && v.trim())
+    .join(' ');
+  if (!/\bcheck-?out\b/i.test(cardText)) return null;
+
+  const sameDay = alloggi.filter(a => typeof a?.checkOut === 'string' && a.checkOut.trim() === dateKey);
+  if (sameDay.length === 0) return null;
+
+  const lowerCard = cardText.toLowerCase();
+  const stopWords = new Set(['check', 'checkout', 'hotel', 'resort', 'boutique', 'house', 'villa', 'room', 'rooms', 'alloggio']);
+  const matchedTzs = new Set<string>();
+  const allTzs = new Set<string>();
+
+  for (const a of sameDay) {
+    const tz = resolveAlloggioTz(a);
+    if (!tz) continue;
+    allTzs.add(tz);
+    const nameText = [a.name, a.nome, a.title, a.location]
+      .filter(v => typeof v === 'string' && v.trim())
+      .join(' ')
+      .toLowerCase();
+    const tokens = (nameText.match(/[a-z0-9]{4,}/g) || []).filter(w => !stopWords.has(w));
+    if (tokens.some(tok => lowerCard.includes(tok))) {
+      matchedTzs.add(tz);
+    }
+  }
+
+  if (matchedTzs.size === 1) return matchedTzs.values().next().value || null;
+  if (matchedTzs.size === 0 && allTzs.size === 1) return allTzs.values().next().value || null;
+  return null;
+}
+
 export function resolveEntityTimeZoneWithSource(
   entityType: string,
   data: Record<string, unknown>,
@@ -261,6 +360,12 @@ export function resolveEntityTimeZoneWithSource(
     ]);
     if (locTz) return { timeZone: locTz, source: 'card_place' };
   } else {
+    const boardingTz = resolveBoardingTimeZoneFromTransports(data, dateKey, options.context?.trasporti);
+    if (boardingTz) return { timeZone: boardingTz, source: 'day_or_stage' };
+
+    const checkoutTz = resolveCheckoutTimeZoneFromLodging(data, dateKey, options.context?.alloggi);
+    if (checkoutTz) return { timeZone: checkoutTz, source: 'day_or_stage' };
+
     const addrTz = resolveTimeZoneFromTextList([
       data.indirizzo,
       data.address,
@@ -278,7 +383,7 @@ export function resolveEntityTimeZoneWithSource(
   if (entityType !== 'trasporto' && entityType !== 'trasporti') {
     const titleCandidates = [data.title, data.titolo, data.nome, data.name];
     const titleTz = resolveTimeZoneFromTextList(
-      titleCandidates.filter((t) => !(typeof t === 'string' && /\b(imbarco|boarding)\b/i.test(t) && /\b(FCO|MXP|LIN|BGY|VCE|NAP)\b/.test(t))),
+      titleCandidates.filter((t) => !(typeof t === 'string' && /\b(imbarco|boarding)\b/i.test(t))),
     );
     if (titleTz) return { timeZone: titleTz, source: 'card_place' };
   }
@@ -475,6 +580,8 @@ export function collectTripPushReminderItems(
     dayLocationsByDate: dayCtx.dayLocationsByDate,
     multiTzDates: dayCtx.multiTzDates,
     hasForeignTripContext: dayCtx.hasForeignTripContext,
+    trasporti: collections.trasporti,
+    alloggi: collections.alloggi,
     nowMs,
     deviceTimeZone: options.deviceTimeZone,
   };

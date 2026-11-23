@@ -648,12 +648,17 @@ class InMemoryD1 {
       trasporti: [
         { id: 'trn_03_volo_ca783', date: '2026-12-01', departureTime: '00:25', departureIata: 'PEK', timeStatus: 'confermato' },
         { id: 'trn_20270103_desert_rose_tao', date: '2027-01-03', departureTime: '06:45', departureLocation: 'El Nido, Palawan', timeStatus: 'confermato' },
-        { id: 'trn_16_ceb_tpe_ci706', date: '2027-01-09', departureTime: '12:10', departureIata: 'CEB', timeStatus: 'confermato' },
-        { id: 'trn_16_ceb_tpe_fco', date: '2027-01-09', departureTime: '23:25', departureIata: 'TPE', arrivalIata: 'FCO', timeStatus: 'confermato' },
+        { id: 'trn_16_ceb_tpe_ci706', date: '2027-01-09', departureTime: '12:10', departureIata: 'CEB', arrivalIata: 'TPE', timeStatus: 'confermato' },
+        { id: 'trn_16_ceb_tpe_fco', date: '2027-01-09', departureTime: '23:25', departureIata: 'TPE', arrivalIata: 'FCO', arrivalLocation: 'Roma Fiumicino', timeStatus: 'confermato' },
+      ],
+      alloggi: [
+        { id: 'alloggio_appleton', name: 'Appleton Boutique Hotel', checkIn: '2027-01-08', checkOut: '2027-01-09', checkInTime: '14:00', checkOutTime: '11:00', location: 'Cebu, Filippine', timeStatus: 'confermato' },
       ],
       tappe: [
         { id: 'tappa_20270103_ritrovo_tao', data: '2027-01-03', orario: '07:30', titolo: 'Ritrovo TAO', indirizzo: 'Palawan', timeStatus: 'confermato' },
-        { id: 'tappa_20270109_imbarco_fco', data: '2027-01-09', orario: '20:55', titolo: 'Imbarco volo TPE -> FCO', indirizzo: 'Taoyuan', timeStatus: 'confermato' },
+        { id: 'tappa_20270109_imbarco_fco', data: '2027-01-09', orario: '20:55', titolo: 'Imbarco volo per Roma (FCO)', indirizzo: 'Gate B5', timeStatus: 'confermato' },
+        { id: 'tappa_20270109_checkout_appleton', data: '2027-01-09', orario: '08:15', titolo: 'Checkout Appleton', indirizzo: 'Reception', timeStatus: 'confermato' },
+        { id: 'tappa_imbarco_ambig', data: '2027-01-09', orario: '18:00', titolo: 'Imbarco generico', indirizzo: 'Terminal', timeStatus: 'confermato' },
       ],
       attivita: [
         { id: 'attivita_1793365094188_qlzg2', date: '2026-12-01', orarioInizio: '21:00', titolo: 'Attività senza luogo', timeStatus: 'confermato' },
@@ -675,6 +680,12 @@ class InMemoryD1 {
     const expectedImbarcoUtc = Date.UTC(2027, 0, 9, 12, 55, 0);
     assert.equal(ownerMap.get('tappe:tappa_20270109_imbarco_fco').reminders[0].eventAt, expectedImbarcoUtc, 'Imbarco 09/01 deve essere 20:55 Asia/Taipei');
     assert.equal(copMap.get('tappe:tappa_20270109_imbarco_fco').reminders[0].eventAt, expectedImbarcoUtc, 'Owner e Copilota devono avere identico UTC per Imbarco Taipei');
+
+    // 7b-bis. Checkout 09/01 08:15 -> Asia/Manila (2027-01-09 00:15 UTC) dall'alloggio collegato, e imbarco ambiguo escluso
+    const expectedCheckoutUtc = Date.UTC(2027, 0, 9, 0, 15, 0);
+    assert.equal(ownerMap.get('tappe:tappa_20270109_checkout_appleton').reminders[0].eventAt, expectedCheckoutUtc, 'Checkout Appleton 09/01 deve essere 08:15 Asia/Manila');
+    assert.equal(copMap.get('tappe:tappa_20270109_checkout_appleton').reminders[0].eventAt, expectedCheckoutUtc, 'Owner e Copilota devono avere identico UTC per Checkout');
+    assert.equal(ownerMap.has('tappe:tappa_imbarco_ambig'), false, 'Imbarco ambiguo su giorno multi-fuso senza corrispondenza non va inventato');
 
     // 7c. Attività 01/12 senza luogo su giorno multi-fuso non deve usare Europe/Rome né Auckland
     assert.equal(ownerMap.has('attivita:attivita_1793365094188_qlzg2'), false, 'Attività 01/12 senza luogo su giorno multi-fuso non va programmata in Europe/Rome');

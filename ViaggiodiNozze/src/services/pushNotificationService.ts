@@ -332,14 +332,17 @@ async function buildMutationDayContext(deviceTimeZone: string | null) {
       storageService.getTransports().catch(() => []),
       storageService.getAccommodations().catch(() => []),
     ]);
-    return buildPushDayContext({
+    const tList = trasporti as unknown as Array<Record<string, unknown>>;
+    const aList = alloggi as unknown as Array<Record<string, unknown>>;
+    const ctx = buildPushDayContext({
       giorni: giorni as unknown as Array<Record<string, unknown>>,
       tappe: tappe as unknown as Array<Record<string, unknown>>,
-      trasporti: trasporti as unknown as Array<Record<string, unknown>>,
-      alloggi: alloggi as unknown as Array<Record<string, unknown>>,
+      trasporti: tList,
+      alloggi: aList,
     }, deviceTimeZone);
+    return { ...ctx, trasporti: tList, alloggi: aList };
   } catch {
-    return { dayLocationsByDate: {}, multiTzDates: new Set<string>(), hasForeignTripContext: false };
+    return { dayLocationsByDate: {}, multiTzDates: new Set<string>(), hasForeignTripContext: false, trasporti: [], alloggi: [] };
   }
 }
 
@@ -383,6 +386,8 @@ export async function recordPushMutation(input: {
         dayLocationsByDate: dayContext?.dayLocationsByDate,
         multiTzDates: dayContext?.multiTzDates,
         hasForeignTripContext: dayContext?.hasForeignTripContext,
+        trasporti: dayContext?.trasporti,
+        alloggi: dayContext?.alloggi,
         deviceTimeZone,
       })
     : { reminders: [], skipReason: 'ok' as PushReminderSkipReason, appliedTimeZone: null as string | null, timeZoneSource: 'none' as TimeZoneSource };
