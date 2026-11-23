@@ -502,6 +502,39 @@ class InMemoryD1 {
     }
   });
 
+  await asyncCheck('5. Risoluzione fuso da tappa del giorno, diagnostica missing_timezone e sync idempotente post-flush', async () => {
+    const remindersMod = loadTsGraph('src/utils/pushReminders.ts');
+    const nowMs = Date.UTC(2026, 10, 23, 10, 0, 0); // 11:00 Europe/Rome
+
+    // 5a. Attività generica su data fuori giorni usa località della tappa del giorno
+    const itemsViaTappa = remindersMod.collectTripPushReminderItems({
+      giorni: [],
+      tappe: [{ id: 'tap_oggi', data: '2026-11-23', indirizzo: 'Roma, Italia' }],
+      attivita: [{ id: 'act_oggi', date: '2026-11-23', orarioInizio: '12:00', timeStatus: 'confermato', location: 'Ritrovo centro' }],
+    }, nowMs);
+    assert.equal(itemsViaTappa.length, 1);
+    assert.equal(itemsViaTappa[0].reminders[0].eventAt, Date.UTC(2026, 10, 23, 11, 0, 0));
+
+    // 5b. Fuso estero (Auckland) non viene mai sovrascritto
+    const foreignDiag = remindersMod.diagnoseClientPushReminders('attivita', {
+      id: 'act_akl', date: '2026-12-05', orarioInizio: '10:00', timeStatus: 'confermato', location: 'Auckland',
+    }, { nowMs });
+    assert.equal(foreignDiag.skipReason, 'ok');
+    assert.equal(foreignDiag.reminders[0].eventAt, Date.UTC(2026, 11, 4, 21, 0, 0)); // 10:00 NZDT (+13) = 21:00 UTC prev day
+
+    // 5c. Fuso assente produce motivo esplicito missing_timezone
+    const missingTzDiag = remindersMod.diagnoseClientPushReminders('attivita', {
+      id: 'act_notz', date: '2026-11-23', orarioInizio: '12:00', timeStatus: 'confermato', location: 'Parco generico',
+    }, { nowMs });
+    assert.equal(missingTzDiag.reminders.length, 0);
+    assert.equal(missingTzDiag.skipReason, 'missing_timezone');
+
+    // 5d. SyncService garantisce syncPushRemindersFromStorage e diagnostica errori non nascosti
+    const syncSrc = fs.readFileSync(path.join(projectRoot, 'src/storage/syncService.ts'), 'utf8');
+    assert.ok(syncSrc.includes('syncPushRemindersFromStorage'), 'SyncService deve garantire syncPushRemindersFromStorage dopo sync');
+    assert.ok(syncSrc.includes("stage: 'sync_deferred'") && syncSrc.includes("stage: 'cloud_sync_error'"), 'SyncService deve tracciare errori/differimenti');
+  });
+
   console.log(`\n=== TEST P1 COMPLETATI: ${passed}/${passed} PASS ===`);
 })().catch((err) => {
   console.error(err);

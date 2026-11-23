@@ -240,7 +240,7 @@ let inFlightReminderSync: Promise<void> | null = null;
 
 export interface PushDiagnosticEntry {
   ts: number;
-  stage: 'mutation' | 'sync_reminders';
+  stage: 'mutation' | 'sync_reminders' | 'sync_deferred' | 'cloud_sync_error';
   entityType?: string;
   skipReason?: PushReminderSkipReason;
   reminderCount: number;
@@ -248,6 +248,20 @@ export interface PushDiagnosticEntry {
   skippedPastLeadCount?: number;
   removedCount?: number;
   error?: string;
+}
+
+export function recordPushSyncDiagnostic(input: {
+  stage: 'sync_deferred' | 'cloud_sync_error';
+  entityType?: string;
+  error: string;
+}): void {
+  appendPushDiagnostic({
+    ts: Date.now(),
+    stage: input.stage,
+    entityType: input.entityType,
+    reminderCount: 0,
+    error: String(input.error || '').slice(0, 60),
+  });
 }
 
 export function readPushDiagnostics(): PushDiagnosticEntry[] {
@@ -272,8 +286,14 @@ function appendPushDiagnostic(entry: PushDiagnosticEntry): void {
 async function buildMutationDayLocationsMap(): Promise<Record<string, string>> {
   try {
     const { storageService } = await import('../storage/storageService');
-    const days = await storageService.getDays();
-    return buildDayLocationsMap(days as unknown as Array<Record<string, unknown>>);
+    const [days, tappe] = await Promise.all([
+      storageService.getDays(),
+      storageService.getTappe().catch(() => []),
+    ]);
+    return buildDayLocationsMap(
+      days as unknown as Array<Record<string, unknown>>,
+      tappe as unknown as Array<Record<string, unknown>>,
+    );
   } catch {
     return {};
   }

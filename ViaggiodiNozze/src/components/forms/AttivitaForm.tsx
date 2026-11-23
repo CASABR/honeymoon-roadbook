@@ -1150,6 +1150,11 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       <OpeningHoursFields value={openingHours} onChange={setOpeningHours} date={customDate} time={orarioInizio || orarioRitrovo} />
 
       <TimeZoneInput value={timeZone} onChange={setTimeZone} label="Fuso orario dell'attività" />
+      {timeStatus === 'confermato' && (orarioInizio || orarioRitrovo).trim() && !timeZone.trim() && (
+        <p className="text-[11px] text-slate-500 -mt-2">
+          Per i promemoria Push, se la località non contiene una città riconosciuta o una tappa del giorno, seleziona qui il fuso IANA (es. Europe/Rome).
+        </p>
+      )}
 
       {!isTrekking && !isPhotoSpot && <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">

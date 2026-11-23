@@ -36,7 +36,7 @@ const SKIP_REASON_LABELS: Record<string, string> = {
   unsupported_entity: 'Categoria senza reminder',
   unconfirmed_time: 'Orario non confermato / scadenza non verificata',
   missing_date_or_time: 'Data o orario mancante',
-  missing_timezone: 'Fuso orario non determinabile',
+  missing_timezone: 'Fuso orario mancante: specifica città o fuso IANA (es. Europe/Rome) nella card',
   past_event: 'Orario evento già passato',
 };
 
@@ -60,12 +60,14 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
     const entries = readPushDiagnostics();
     const lastMutation: PushDiagnosticEntry | undefined = [...entries].reverse().find(e => e.stage === 'mutation');
     const lastSyncPush: PushDiagnosticEntry | undefined = [...entries].reverse().find(e => e.stage === 'sync_reminders');
+    const lastCloudSyncDiag: PushDiagnosticEntry | undefined = [...entries].reverse().find(e => e.stage === 'sync_deferred' || e.stage === 'cloud_sync_error');
     return {
       isAuth: Boolean(auth.currentUser && !auth.currentUser.isAnonymous),
       isAuthorized: isCloudAuthorized(tripId),
       isOnline: typeof navigator === 'undefined' ? true : navigator.onLine !== false,
       lastCloudSyncAt: getLastSyncTimestamp(tripId),
       lastCloudSyncErr: getLastSyncError(tripId),
+      lastCloudSyncDiag,
       lastMutation,
       lastSyncPush,
     };
@@ -281,30 +283,41 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
             </button>
           </div>
           <div>
-            <strong>Auth &amp; Sync:</strong> {diag.isAuth ? 'Autenticato' : 'Non autenticato'} · {diag.isAuthorized ? 'Editor autorizzato' : 'Non autorizzato'} · {diag.isOnline ? 'Online' : 'Offline'} · Sync {formatDiagTime(diag.lastCloudSyncAt)}
-            {diag.lastCloudSyncErr ? ` (Errore sync: ${diag.lastCloudSyncErr.slice(0, 60)})` : ''}
+            <strong>1. Salvataggio &amp; Sync Cloud:</strong> {diag.isAuth ? 'Auth OK' : 'Non autenticato'} · {diag.isAuthorized ? 'Editor OK' : 'Non autorizzato'} · {diag.isOnline ? 'Online' : 'Offline'} · Sync {formatDiagTime(diag.lastCloudSyncAt)}
+            {diag.lastCloudSyncErr ? ` · Errore sync: ${diag.lastCloudSyncErr.slice(0, 60)}` : ''}
+            {diag.lastCloudSyncDiag?.error ? ` · ${diag.lastCloudSyncDiag.stage === 'sync_deferred' ? 'Differito' : 'Errore'} (${diag.lastCloudSyncDiag.entityType || '—'} ${formatDiagTime(diag.lastCloudSyncDiag.ts)}): ${diag.lastCloudSyncDiag.error}` : ''}
           </div>
           <div>
-            <strong>Preferenza card effettiva:</strong> {push.preferences.reminderMinutes} minuti prima · Stato: {push.state}
-          </div>
-          <div>
-            <strong>Ultima mutazione:</strong>{' '}
+            <strong>2. Mutazione Push (Worker):</strong>{' '}
             {diag.lastMutation ? (
               <>
                 {diag.lastMutation.entityType || '—'} ({formatDiagTime(diag.lastMutation.ts)}) ·{' '}
-                {diag.lastMutation.error
-                  ? `Errore: ${diag.lastMutation.error}`
-                  : `Reminder: ${diag.lastMutation.reminderCount}, Job D1: ${diag.lastMutation.scheduledCount ?? '—'}${diag.lastMutation.skippedPastLeadCount ? `, Scartati preavviso passato: ${diag.lastMutation.skippedPastLeadCount}` : ''}`}
+                {diag.lastMutation.error ? `Errore: ${diag.lastMutation.error}` : 'Ricevuta dal Worker'}
               </>
             ) : (
               'Nessuna mutazione registrata su questo dispositivo'
             )}
           </div>
-          {diag.lastMutation?.skipReason && diag.lastMutation.skipReason !== 'ok' && (
-            <div className="text-amber-700 dark:text-amber-300 font-semibold">
-              <strong>Motivo esclusione reminder:</strong> {SKIP_REASON_LABELS[diag.lastMutation.skipReason] || diag.lastMutation.skipReason}
-            </div>
-          )}
+          <div>
+            <strong>3. Reminder &amp; Job D1:</strong>{' '}
+            {diag.lastMutation ? (
+              diag.lastMutation.skipReason && diag.lastMutation.skipReason !== 'ok' ? (
+                <span className="text-amber-700 dark:text-amber-300 font-semibold">
+                  {SKIP_REASON_LABELS[diag.lastMutation.skipReason] || diag.lastMutation.skipReason}
+                </span>
+              ) : (
+                <>
+                  Reminder: {diag.lastMutation.reminderCount} · Job D1: {diag.lastMutation.scheduledCount ?? '—'}
+                  {diag.lastMutation.skippedPastLeadCount ? ` · Scartati (preavviso passato): ${diag.lastMutation.skippedPastLeadCount}` : ''}
+                </>
+              )
+            ) : (
+              '—'
+            )}
+          </div>
+          <div>
+            <strong>4. Preferenza card effettiva:</strong> {push.preferences.reminderMinutes} minuti prima · Stato: {push.state}
+          </div>
           {diag.lastSyncPush && (
             <div className="text-slate-500 dark:text-slate-400">
               <strong>Backfill ({formatDiagTime(diag.lastSyncPush.ts)}):</strong>{' '}

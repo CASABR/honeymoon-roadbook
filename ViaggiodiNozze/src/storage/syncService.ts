@@ -5,7 +5,7 @@ import { notifyDataChanged } from './storageService';
 import { normalizeTimestamp } from '../utils/tripDates';
 import { isCloudAuthorized, isTripAuthRevoked, getAuthoritativeCloudRole } from '../utils/useAuthIdentity';
 import { getTripConfig } from '../utils/tripConfig';
-import { recordPushMutation } from '../services/pushNotificationService';
+import { recordPushMutation, recordPushSyncDiagnostic, syncPushRemindersFromStorage } from '../services/pushNotificationService';
 import {
   splitEntitySecurityData,
   mergeEntitySecurityData,
@@ -1848,6 +1848,7 @@ export class SyncService {
     }
 
     console.log(`[SyncService] Push completo IndexedDB -> Firestore /trips/${this.tripId}`, pushedCounts);
+    void syncPushRemindersFromStorage().catch(() => undefined);
   }
 
   private getOperationalCollections() {
@@ -2215,6 +2216,9 @@ export class SyncService {
         this.inFlightFlushPromise = null;
         this.emitSyncStatus();
       }
+      if (pushErrors.length === 0) {
+        void syncPushRemindersFromStorage().catch(() => undefined);
+      }
       return pushErrors;
     })();
 
@@ -2239,6 +2243,7 @@ export class SyncService {
       await this.persistPendingPush({ entityType, action, data, notifyCollaborators: options.notifyCollaborators, mutationId: options.mutationId });
     }
     if (!this.canWriteToCloud()) {
+      recordPushSyncDiagnostic({ stage: 'sync_deferred', entityType, error: 'cloud_write_not_authorized' });
       console.warn(`[SyncService] Push to cloud differito (in coda persistente IndexedDB): scrittura cloud non autorizzata per ${entityType}/${data.id}`);
       return;
     }
@@ -2708,6 +2713,7 @@ export class SyncService {
         }));
       }
       console.warn(`[SyncService] pushToCloud non riuscito per ${entityType}/${data.id} (lockdown o offline): memorizzo in coda persistente.`, errMsg);
+      recordPushSyncDiagnostic({ stage: 'cloud_sync_error', entityType, error: errMsg });
       throw pushErr;
     }
 

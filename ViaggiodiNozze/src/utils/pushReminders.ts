@@ -63,7 +63,10 @@ function isConfirmedCardTime(data: Record<string, unknown>, allowLegacyBookedWit
   return false;
 }
 
-export function buildDayLocationsMap(days: Array<Record<string, unknown>> = []): Record<string, string> {
+export function buildDayLocationsMap(
+  days: Array<Record<string, unknown>> = [],
+  tappe: Array<Record<string, unknown>> = [],
+): Record<string, string> {
   const map: Record<string, string> = {};
   for (const day of days) {
     const date = typeof day?.date === 'string'
@@ -72,6 +75,36 @@ export function buildDayLocationsMap(days: Array<Record<string, unknown>> = []):
     const place = [day?.location, day?.title].filter(v => typeof v === 'string' && v.trim()).join(' · ');
     if (date && place) {
       map[date] = place;
+    }
+  }
+  for (const tappa of tappe) {
+    const date = readEntityDate(tappa, 'tappe');
+    if (!date) continue;
+    const coordTz = coordTimeZone(tappa?.coordinate);
+    const place = [tappa?.indirizzo, tappa?.address, tappa?.location, tappa?.titolo, tappa?.title]
+      .filter(v => typeof v === 'string' && v.trim())
+      .join(' · ');
+    const resolvedFromPlace = place ? resolveUnambiguousPlaceTimeZone(place) : null;
+    if (!map[date] || !resolveUnambiguousPlaceTimeZone(map[date])) {
+      if (resolvedFromPlace && place) {
+        map[date] = place;
+      } else if (coordTz) {
+        // Esponi una label riconosciuta solo se il fuso della tappa è determinabile dalle coordinate
+        const tzHint: Record<string, string> = {
+          'Europe/Rome': 'Roma, Italia',
+          'Asia/Shanghai': 'Pechino',
+          'Pacific/Auckland': 'Auckland',
+          'Australia/Sydney': 'Sydney',
+          'Australia/Melbourne': 'Melbourne',
+          'Australia/Adelaide': 'Adelaide',
+          'Australia/Brisbane': 'Brisbane',
+          'Australia/Perth': 'Perth',
+          'Asia/Manila': 'Manila',
+          'Pacific/Rarotonga': 'Rarotonga',
+          'Asia/Taipei': 'Taipei',
+        };
+        if (tzHint[coordTz]) map[date] = tzHint[coordTz];
+      }
     }
   }
   return map;
@@ -284,7 +317,7 @@ export function collectTripPushReminderItems(
   nowMs: number = Date.now(),
 ): ClientPushSyncItem[] {
   const context: PushReminderResolutionContext = {
-    dayLocationsByDate: buildDayLocationsMap(collections.giorni || []),
+    dayLocationsByDate: buildDayLocationsMap(collections.giorni || [], collections.tappe || []),
     nowMs,
   };
   const sources: Array<[string, Array<Record<string, unknown>> | undefined]> = [
