@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.9",
+      "publishedAt": "2026-11-23",
+      "sourceCommit": "5b85d2b3342a0669d17ec978c1522c232d94d19a",
+      "changes": [
+        "Push Destinazione Prima: risoluzione fusi automatica multi-fonte (tappe, trasporti, alloggi) con blocco fallback su giorni multi-fuso o esteri futuri.",
+        "Corretti TAO 03/01 (Asia/Manila), Imbarco Taipei 09/01 (Asia/Taipei) e prevenzione falsi positivi IATA di destinazione."
+      ],
+      "publishedAtIso": "2026-11-23T12:28:40.000Z"
+    },
+    {
       "version": "1.7.8",
       "publishedAt": "2026-11-23",
       "sourceCommit": "09d388c976ce8fff285b4679e8f494e639fa0f4f",

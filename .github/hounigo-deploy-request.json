@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.7.8-202611231053",
-  "requestedAt": "2026-11-23T10:53:30.000Z",
+  "requestId": "release-1.7.9-202611231228",
+  "requestedAt": "2026-11-23T12:28:40.000Z",
   "requestedBy": "CASABR",
   "action": "deploy",
   "ref": "main",
   "confirm": "CONFERMA",
-  "note": "Release 1.7.8 fusi orari automatici, cambio fuso dispositivo e recupero push futuri (Worker già distribuito; esclusi file estranei)."
+  "note": "Release 1.7.9 fix fusi Destinazione Prima (senza deploy Worker; esclusi 6 file estranei)."
 }
