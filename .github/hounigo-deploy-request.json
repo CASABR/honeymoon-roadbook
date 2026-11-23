@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.7.3-202611230808",
-  "requestedAt": "2026-11-23T08:08:00.000Z",
+  "requestId": "release-1.7.4-202611230840",
+  "requestedAt": "2026-11-23T08:40:30.000Z",
   "requestedBy": "CASABR",
   "action": "deploy",
   "ref": "main",
   "confirm": "CONFERMA",
-  "note": "Release 1.7.3 fix priorità data nei reminder Push su modifica card esistenti (esclusi altri file locali)."
+  "note": "Release 1.7.4 chiusura Push pre-partenza (diagnostica non-PII, fuso scadenze e preferenze card; esclusi altri file locali)."
 }

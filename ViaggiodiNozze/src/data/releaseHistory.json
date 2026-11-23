@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.4",
+      "publishedAt": "2026-11-23",
+      "sourceCommit": "7133cc53b4d34b10b263c7ea5bbc7534a33119aa",
+      "changes": [
+        "Push: diagnostica non-PII client/Worker, protezione job oltre 200 elementi e chiarezza preferenze 15/60 min sulle card.",
+        "Scadenze: fuso dispositivo applicato solo se assente un fuso di destinazione verificato."
+      ],
+      "publishedAtIso": "2026-11-23T08:40:30.000Z"
+    },
+    {
       "version": "1.7.3",
       "publishedAt": "2026-11-23",
       "sourceCommit": "d5bc3355a1fb694021beb9f9bd11c23eb0456145",
