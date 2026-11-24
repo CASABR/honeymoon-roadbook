@@ -536,21 +536,32 @@ export default function TrasportoCard({
             </div>
           ) : (
             <div className="hounigo-ds-route-track">
-              <div className="hounigo-ds-route-stop">
-                <span className="hounigo-ds-route-kicker">Da</span>
-                <span className="font-bold text-slate-900 dark:text-white break-words">
+              <div className="hounigo-ds-route-stop justify-between items-baseline gap-2">
+                <span className="min-w-0 flex-1 font-bold text-slate-900 dark:text-white break-words">
                   {isFlight
                     ? extractFlightEndpoint(transport.departureLocation, transport.departureIata)
                     : (transport.departureLocation || 'Origine')}
                 </span>
+                {transport.departureTime?.trim() && (
+                  <span className="shrink-0 font-mono tabular-nums text-xs sm:text-[13px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap text-right">
+                    {transport.departureTime.trim()}
+                  </span>
+                )}
               </div>
-              <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end">
-                <span className="hounigo-ds-route-kicker">A</span>
-                <span className="font-bold text-slate-900 dark:text-white break-words">
+              <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end justify-between items-baseline gap-2">
+                <span className="min-w-0 flex-1 font-bold text-slate-900 dark:text-white break-words">
                   {isFlight
                     ? extractFlightEndpoint(transport.arrivalLocation, transport.arrivalIata)
                     : (transport.dropoffLocation || transport.arrivalLocation || 'Destinazione')}
                 </span>
+                {(transport.dropoffTime || transport.arrivalTime)?.trim() && (
+                  <span className="shrink-0 inline-flex items-baseline justify-end gap-1 font-mono tabular-nums text-xs sm:text-[13px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap text-right">
+                    {isNextDayArrival && (
+                      <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">+1g</span>
+                    )}
+                    <span>{(transport.dropoffTime || transport.arrivalTime)!.trim()}</span>
+                  </span>
+                )}
               </div>
             </div>
           )}
