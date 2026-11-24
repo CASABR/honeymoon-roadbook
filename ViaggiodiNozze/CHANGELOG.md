@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.14 — 2026-11-24
+
+- Card Trasporti: badge orizzontale compatto Posto con icona Armchair e troncamento su una riga.
+
 ## 1.7.13 — 2026-11-24
 
 - Uniformati pulsanti Aggiorna/Annulla/Elimina nei form card con conferma esplicita e corretto layout orario Modifica Tappa.
@@ -44,8 +48,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Notifiche Push: pannello Diagnostica Push su iPhone con stato Auth/Sync, ultima mutazione, motivo esclusione e preferenza effettiva.
 - Tracciamento locale non-PII anche su uscite anticipate auth/permessi senza credenziali esposte.
-
-## 1.7.4 — 2026-11-23
-
-- Push: diagnostica non-PII client/Worker, protezione job oltre 200 elementi e chiarezza preferenze 15/60 min sulle card.
-- Scadenze: fuso dispositivo applicato solo se assente un fuso di destinazione verificato.

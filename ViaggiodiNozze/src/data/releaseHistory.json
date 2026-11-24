@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.14",
+      "publishedAt": "2026-11-24",
+      "sourceCommit": "fb050462bb38ead20e51b8a0215bb1779858f28f",
+      "changes": [
+        "Card Trasporti: badge orizzontale compatto Posto con icona Armchair e troncamento su una riga."
+      ],
+      "publishedAtIso": "2026-11-24T20:20:15.000Z"
+    },
+    {
       "version": "1.7.13",
       "publishedAt": "2026-11-24",
       "sourceCommit": "6151151169e477d4b28e020c1a54aa471082fd7f",
@@ -88,16 +97,6 @@
         "Tracciamento locale non-PII anche su uscite anticipate auth/permessi senza credenziali esposte."
       ],
       "publishedAtIso": "2026-11-23T10:05:30.000Z"
-    },
-    {
-      "version": "1.7.4",
-      "publishedAt": "2026-11-23",
-      "sourceCommit": "7133cc53b4d34b10b263c7ea5bbc7534a33119aa",
-      "changes": [
-        "Push: diagnostica non-PII client/Worker, protezione job oltre 200 elementi e chiarezza preferenze 15/60 min sulle card.",
-        "Scadenze: fuso dispositivo applicato solo se assente un fuso di destinazione verificato."
-      ],
-      "publishedAtIso": "2026-11-23T08:40:30.000Z"
     }
   ]
 }

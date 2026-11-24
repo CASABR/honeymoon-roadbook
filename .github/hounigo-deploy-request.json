@@ -1,10 +1,10 @@
 {
-    "requestedAt":  "2026-11-24T15:53:48.000Z",
+    "requestedAt":  "2026-11-24T20:20:15.000Z",
     "action":  "deploy",
     "confirm":  "CONFERMA",
-    "requestId":  "release-1.7.13-202611241553",
+    "requestId":  "release-1.7.14-202611242020",
     "requestedBy":  "CASABR",
     "ref":  "main",
     "$schema":  "./hounigo-deploy-request.schema.json",
-    "note":  "Release 1.7.13: pulsanti form card uniformati, conferma eliminazione esplicita e fix layout orario Tappa (esclusi WIP locali)."
+    "note":  "Micro-release 1.7.14: badge orizzontale compatto Posto in TrasportoCard (esclusi WIP locali)."
 }
