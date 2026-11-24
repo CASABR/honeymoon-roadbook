@@ -1,10 +1,10 @@
 {
-    "requestedAt":  "2026-11-24T20:20:15.000Z",
+    "requestedAt":  "2026-11-24T20:26:52.000Z",
     "action":  "deploy",
     "confirm":  "CONFERMA",
-    "requestId":  "release-1.7.14-202611242020",
+    "requestId":  "release-1.7.15-202611242026",
     "requestedBy":  "CASABR",
     "ref":  "main",
     "$schema":  "./hounigo-deploy-request.schema.json",
-    "note":  "Micro-release 1.7.14: badge orizzontale compatto Posto in TrasportoCard (esclusi WIP locali)."
+    "note":  "Micro-release 1.7.15: mini-timeline compatta Partenza e Arrivo in TrasportoCard (esclusi WIP locali)."
 }

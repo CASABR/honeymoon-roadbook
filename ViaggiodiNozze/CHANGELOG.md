@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.15 — 2026-11-24
+
+- Card Trasporti: mini-timeline compatta Partenza e Arrivo con orari locali allineati e +1g.
+
 ## 1.7.14 — 2026-11-24
 
 - Card Trasporti: badge orizzontale compatto Posto con icona Armchair e troncamento su una riga.
@@ -43,8 +47,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Push Sync: programmazione idempotente garantita anche dopo syncAllLocalToCloud e flushPendingPushes senza loop.
 - Fuso orario risolto anche dalla tappa del giorno senza sovrascrivere fusi esteri; diagnostica a 4 fasi in Notifiche.
-
-## 1.7.5 — 2026-11-23
-
-- Notifiche Push: pannello Diagnostica Push su iPhone con stato Auth/Sync, ultima mutazione, motivo esclusione e preferenza effettiva.
-- Tracciamento locale non-PII anche su uscite anticipate auth/permessi senza credenziali esposte.
