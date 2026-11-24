@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.11",
+      "publishedAt": "2026-11-24",
+      "sourceCommit": "b1f5b1cd7b4463d0bd1062aa30923df640588a00",
+      "changes": [
+        "Notifiche Push puntuali al minuto (cron */1 * * * * compatibile con piano Free e indice D1 due_at).",
+        "Payload descrittivi con categoria, titolo reale, ora locale HH:MM e luogo breve, sanitizzati lato client e Worker con fallback legacy."
+      ],
+      "publishedAtIso": "2026-11-24T08:18:10.000Z"
+    },
+    {
       "version": "1.7.10",
       "publishedAt": "2026-11-23",
       "sourceCommit": "e2e5151cd526007b294e8d2f292b0bfc8917ae78",
