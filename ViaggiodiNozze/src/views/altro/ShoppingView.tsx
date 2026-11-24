@@ -180,6 +180,14 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
     await loadData();
   };
 
+  const handleDeleteFromForm = async () => {
+    if (!editingShopping) return;
+    await storageService.deleteShopping(editingShopping.id);
+    setIsModalOpen(false);
+    setEditingShopping(null);
+    await loadData();
+  };
+
   const filteredShopping = useMemo(() => {
     if (selectedDate === 'tutte') return shoppingList;
     return shoppingList.filter(s => s.data === selectedDate);
@@ -392,6 +400,7 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
           initialData={editingShopping}
           onSave={handleSave}
           onCancel={() => setIsModalOpen(false)}
+          onDelete={handleDeleteFromForm}
         />
       </Modal>
 

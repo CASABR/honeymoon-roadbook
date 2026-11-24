@@ -5,6 +5,7 @@ import { usePresence } from '../../hooks/usePresence';
 import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
 import TimeZoneInput from '../common/TimeZoneInput';
 import { DateTimePickerInput } from '../common/TimePickerInput';
+import FormActionButtons from './FormActionButtons';
 import { buildEurSavePatch } from '../../services/currencyService';
 import { parseCostToNumber } from '../../utils/priceHelper';
 
@@ -615,32 +616,13 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         </div>
 
         {/* Azioni finali */}
-        <div className="flex flex-col sm:flex-row-reverse items-center justify-between gap-3 pt-3 border-t border-slate-100 mt-4">
-          <button
-            type="submit"
-            className="w-full sm:w-auto min-w-[200px] min-h-[44px] px-6 rounded-xl text-sm font-bold bg-[#FF6B5F] hover:bg-[#e85c50] active:scale-95 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer"
-          >
-            {initialData ? 'Salva Modifiche' : 'Crea Trasporto'}
-          </button>
-          
-          <button
-            type="button"
-            onClick={onCancel}
-            className="w-full sm:w-auto min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
-          >
-            Annulla
-          </button>
-
-          {onDelete && initialData && (
-            <button
-              type="button"
-              onClick={onDelete}
-              className="w-full sm:w-auto mt-4 sm:mt-0 min-h-[44px] px-4 rounded-xl text-sm font-semibold text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
-            >
-              Elimina trasporto
-            </button>
-          )}
-        </div>
+        <FormActionButtons
+          isEditing={Boolean(initialData)}
+          submitLabel={initialData ? 'Aggiorna' : 'Crea Trasporto'}
+          itemName={carrier.trim() || (departureLocation && arrivalLocation ? `${departureLocation} → ${arrivalLocation}` : '') || initialData?.carrier || 'questo trasporto'}
+          onCancel={onCancel}
+          onDelete={onDelete}
+        />
       </form>
     </div>
   );

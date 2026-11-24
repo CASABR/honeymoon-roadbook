@@ -8,6 +8,7 @@ import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import type { PlaceSuggestion } from '../../services/photonService';
 import TimePickerInput from '../common/TimePickerInput';
 import { buildEurSavePatch } from '../../services/currencyService';
+import FormActionButtons from './FormActionButtons';
 
 interface RistoranteFormProps {
   initialData?: Ristorante | null;
@@ -15,9 +16,10 @@ interface RistoranteFormProps {
   defaultTime?: string;
   onSave: (data: Omit<Ristorante, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
+  onDelete?: () => void;
 }
 
-export default function RistoranteForm({ initialData, defaultDate, defaultTime, onSave, onCancel }: RistoranteFormProps) {
+export default function RistoranteForm({ initialData, defaultDate, defaultTime, onSave, onCancel, onDelete }: RistoranteFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
   const [nome, setNome] = useState('');
@@ -403,22 +405,15 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
         />
       </div>
 
-      <div className="flex items-center justify-end gap-3 pt-4 mt-2 border-t border-slate-100">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="h-12 px-6 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
-        >
-          Annulla
-        </button>
-        <button
-          type="submit"
-          disabled={isGeocoding}
-          className={`h-12 px-8 rounded-xl text-sm font-bold bg-[#172033] hover:bg-[#1a2436] active:scale-95 text-white shadow-lg transition-all ${isGeocoding ? 'opacity-70 cursor-not-allowed' : ''}`}
-        >
-          {isGeocoding ? 'Salvataggio...' : 'Salva Ristorante'}
-        </button>
-      </div>
+      <FormActionButtons
+        isEditing={Boolean(initialData)}
+        isSubmitting={isGeocoding}
+        submitLabel={initialData ? 'Aggiorna' : 'Salva Ristorante'}
+        submittingLabel="Salvataggio..."
+        itemName={nome.trim() || initialData?.nome || 'questo ristorante'}
+        onCancel={onCancel}
+        onDelete={onDelete}
+      />
     </form>
   );
 }

@@ -178,6 +178,14 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
     await loadData();
   };
 
+  const handleDeleteFromForm = async () => {
+    if (!editingRistorante) return;
+    await storageService.deleteRistorante(editingRistorante.id);
+    setIsModalOpen(false);
+    setEditingRistorante(null);
+    await loadData();
+  };
+
   const filteredRistoranti = useMemo(() => {
     if (selectedDate === 'tutte') return ristoranti;
     return ristoranti.filter(r => r.data === selectedDate);
@@ -377,6 +385,7 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
           initialData={editingRistorante}
           onSave={handleSave}
           onCancel={() => setIsModalOpen(false)}
+          onDelete={handleDeleteFromForm}
         />
       </Modal>
 

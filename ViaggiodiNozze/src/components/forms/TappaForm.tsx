@@ -13,6 +13,7 @@ import type { Tappa, Attivita, Coordinate, OpeningHoursInfo, TimeStatus } from '
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import type { PlaceSuggestion } from '../../services/photonService';
 import TimePickerInput from '../common/TimePickerInput';
+import FormActionButtons from './FormActionButtons';
 import OpeningHoursFields from '../common/OpeningHoursFields';
 
 interface TappaFormProps {
@@ -241,8 +242,8 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       )}
 
       {/* 1. Data, Sottocategoria & Orario */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="min-w-0">
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
             📅 Data
           </label>
@@ -255,7 +256,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
           />
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
             Categoria Sosta
           </label>
@@ -274,7 +275,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
         </div>
 
         {isPhotoSpot && (
-          <div className="p-3.5 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-xl space-y-3">
+          <div className="sm:col-span-2 p-3.5 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-xl space-y-3">
             <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300 font-semibold text-xs tracking-wide">
               <span>📸</span>
               <span>Dettagli Spot Fotografico</span>
@@ -352,16 +353,16 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
         )}
 
 
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
+        <div className="sm:col-span-2 min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
               {sottocategoria === 'Passeggiata' ? '⏰ Ora inizio' : '⏰ Orario (HH:mm)'}
             </label>
-            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+            <div className="inline-flex shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
               <button
                 type="button"
                 onClick={() => setTimeStatus('confermato')}
-                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                className={`px-2 py-0.5 rounded-md whitespace-nowrap transition-colors cursor-pointer ${
                   timeStatus === 'confermato'
                     ? 'bg-white dark:bg-slate-900 text-[#E11D48] dark:text-[#FF6B5F] shadow-xs font-extrabold'
                     : 'text-slate-500 hover:text-slate-700'
@@ -372,7 +373,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
               <button
                 type="button"
                 onClick={() => setTimeStatus('indicativo')}
-                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                className={`px-2 py-0.5 rounded-md whitespace-nowrap transition-colors cursor-pointer ${
                   timeStatus === 'indicativo'
                     ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
                     : 'text-slate-500 hover:text-slate-700'
@@ -502,33 +503,15 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       </div>
 
       {/* Azioni finali */}
-      <div className="flex flex-col sm:flex-row-reverse items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 mt-4">
-        <button
-          type="submit"
-          disabled={isGeocoding}
-          className="w-full sm:w-auto min-w-[200px] min-h-[44px] px-6 rounded-xl text-sm font-bold bg-[#FF6B5F] hover:bg-[#e85c50] active:scale-95 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer disabled:opacity-50"
-        >
-          {isGeocoding ? 'Salvataggio...' : (initialData ? 'Salva Modifiche' : isTask ? 'Crea Task' : 'Crea Tappa')}
-        </button>
-        
-        <button
-          type="button"
-          onClick={onCancel}
-          className="w-full sm:w-auto min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
-        >
-          Annulla
-        </button>
-
-        {onDelete && initialData && (
-          <button
-            type="button"
-            onClick={onDelete}
-            className="w-full sm:w-auto mt-4 sm:mt-0 min-h-[44px] px-4 rounded-xl text-sm font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 transition-all cursor-pointer"
-          >
-            Elimina tappa
-          </button>
-        )}
-      </div>
+      <FormActionButtons
+        isEditing={Boolean(initialData)}
+        isSubmitting={isGeocoding}
+        submitLabel={initialData ? 'Aggiorna' : isTask ? 'Crea Task' : 'Crea Tappa'}
+        submittingLabel="Salvataggio..."
+        itemName={titolo.trim() || initialData?.titolo || 'questa tappa'}
+        onCancel={onCancel}
+        onDelete={onDelete}
+      />
 
       {/* Modale Ricerca Meta Gratuita OpenStreetMap */}
       <DestinationSearchModal

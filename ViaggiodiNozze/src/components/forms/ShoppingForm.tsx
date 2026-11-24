@@ -4,6 +4,7 @@ import { usePresence } from '../../hooks/usePresence';
 import type { Shopping } from '../../types';
 import { extractFromText } from '../../services/aiExtractor';
 import TimePickerInput from '../common/TimePickerInput';
+import FormActionButtons from './FormActionButtons';
 import { auth } from '../../firebase';
 import { getActiveTripId } from '../../storage/indexedDB';
 import { isCloudAuthorized } from '../../utils/useAuthIdentity';
@@ -39,6 +40,7 @@ interface ShoppingFormProps {
   onDiscardInvalidClose?: () => void;
   formActionsRef?: React.Ref<ShoppingFormHandle>;
   onCancel: () => void;
+  onDelete?: () => void;
 }
 
 type ShoppingSaveUiStatus =
@@ -67,7 +69,8 @@ export default function ShoppingForm({
   onAutoSaveCompleteClose,
   onDiscardInvalidClose,
   formActionsRef,
-  onCancel
+  onCancel,
+  onDelete
 }: ShoppingFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
   const tripId = getActiveTripId() || '';
@@ -720,22 +723,16 @@ export default function ShoppingForm({
           </div>
         )}
 
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
-          >
-            {isAutoSaveEnabled ? 'Chiudi' : 'Annulla'}
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-rose-500 hover:bg-rose-400 active:scale-95 disabled:opacity-60 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer"
-          >
-            {isSubmitting ? 'Salvataggio…' : initialData ? 'Aggiorna Shopping' : 'Salva Shopping'}
-          </button>
-        </div>
+        <FormActionButtons
+          isEditing={Boolean(initialData)}
+          isSubmitting={isSubmitting}
+          submitLabel={initialData ? 'Aggiorna' : 'Salva Shopping'}
+          submittingLabel="Salvataggio…"
+          cancelLabel={isAutoSaveEnabled ? 'Chiudi' : 'Annulla'}
+          itemName={nome.trim() || initialData?.nome || 'questo elemento'}
+          onCancel={onCancel}
+          onDelete={onDelete}
+        />
       </form>
     </div>
   );

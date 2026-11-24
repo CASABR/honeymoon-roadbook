@@ -10,6 +10,7 @@ import { storageService } from '../storage/storageService';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
 import { prepareDuplicateItem } from '../utils/cardDuplication';
 import Modal from '../components/common/Modal';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 import AttivitaForm from '../components/forms/AttivitaForm';
 import TrasportoForm from '../components/forms/TrasportoForm';
 import TappaForm from '../components/forms/TappaForm';
@@ -340,6 +341,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   // Modali Dettaglio e Modifica
   const [detailItem, setDetailItem] = useState<TimelineItem | null>(null);
+  const [pendingCardDelete, setPendingCardDelete] = useState<{ label: string; onConfirm: () => Promise<void> } | null>(null);
   const [editingActivityItem, setEditingActivityItem] = useState<Attivita | null>(null);
   const [editingTransportItem, setEditingTransportItem] = useState<Trasporto | null>(null);
   const [editingTappaItem, setEditingTappaItem] = useState<Tappa | null>(null);
@@ -971,6 +973,35 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     await loadData(false);
     await fetchTimeline(selectedDate);
     showFeedbackBanner('Shopping aggiornato con successo ✓');
+  };
+
+  const handleDeleteRistoranteFromForm = async () => {
+    if (!editingRistoranteItem) return;
+    await storageService.deleteRistorante(editingRistoranteItem.id);
+    setEditingRistoranteItem(null);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'delete_ristorante' }
+      }));
+    }
+    await loadData(false);
+    await fetchTimeline(selectedDate);
+    showFeedbackBanner('Ristorante eliminato ✓');
+  };
+
+  const handleDeleteShoppingFromForm = async () => {
+    if (!editingShoppingItem?.id) return;
+    await storageService.deleteShopping(editingShoppingItem.id);
+    setEditingShoppingItem(null);
+    setCreatingCategory(null);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'delete_shopping' }
+      }));
+    }
+    await loadData(false);
+    await fetchTimeline(selectedDate);
+    showFeedbackBanner('Shopping eliminato ✓');
   };
 
 
@@ -2257,9 +2288,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               }}
                               onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
                               onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
-                              onDelete={async () => {
-                                await storageService.deleteTransport(item.originalData?.id || '');
-                                await fetchTimeline();
+                              onDelete={() => {
+                                const tr = item.originalData as Trasporto;
+                                setPendingCardDelete({
+                                  label: tr?.carrier || item.title || 'questo trasporto',
+                                  onConfirm: async () => {
+                                    await storageService.deleteTransport(tr?.id || '');
+                                    await fetchTimeline();
+                                  }
+                                });
                               }}
                               onUpdate={() => fetchTimeline()}
                             />
@@ -2271,9 +2308,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             onDetail={() => setDetailItem(item as TimelineItem)}
                             onEdit={() => setEditingActivityItem(item.originalData as Attivita)}
                             onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
-                            onDelete={async () => {
-                              await storageService.deleteActivity(item.originalData?.id || '');
-                              await fetchTimeline();
+                            onDelete={() => {
+                              const act = item.originalData as Attivita;
+                              setPendingCardDelete({
+                                label: act?.title || item.title || 'questa attività',
+                                onConfirm: async () => {
+                                  await storageService.deleteActivity(act?.id || '');
+                                  await fetchTimeline();
+                                }
+                              });
                             }}
                             onUpdate={() => fetchTimeline()}
                           />
@@ -2284,9 +2327,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             onDetail={() => setDetailItem(item as TimelineItem)}
                             onEdit={() => setEditingRistoranteItem(item.originalData)}
                             onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
-                            onDelete={async () => {
-                              await storageService.deleteRistorante(item.originalData?.id || '');
-                              await fetchTimeline();
+                            onDelete={() => {
+                              const rist = item.originalData as Ristorante;
+                              setPendingCardDelete({
+                                label: rist?.nome || item.title || 'questo ristorante',
+                                onConfirm: async () => {
+                                  await storageService.deleteRistorante(rist?.id || '');
+                                  await fetchTimeline();
+                                }
+                              });
                             }}
                             onUpdate={() => fetchTimeline()}
                           />
@@ -2296,9 +2345,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             onDetail={() => setDetailItem(item as TimelineItem)}
                             onEdit={() => setEditingShoppingItem(item.originalData)}
                             onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
-                            onDelete={async () => {
-                              await storageService.deleteShopping(item.originalData?.id || '');
-                              await fetchTimeline();
+                            onDelete={() => {
+                              const shop = item.originalData as Shopping;
+                              setPendingCardDelete({
+                                label: shop?.nome || item.title || 'questo elemento shopping',
+                                onConfirm: async () => {
+                                  await storageService.deleteShopping(shop?.id || '');
+                                  await fetchTimeline();
+                                }
+                              });
                             }}
                             onUpdate={() => fetchTimeline()}
                           />
@@ -2311,9 +2366,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               onDetail={() => setDetailItem(item as TimelineItem)}
                               onEdit={() => setEditingTappaItem(item.originalData as Tappa)}
                               onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
-                              onDelete={async () => {
-                                await storageService.deleteTappa(item.originalData?.id || '');
-                                await fetchTimeline();
+                              onDelete={() => {
+                                const tap = item.originalData as Tappa;
+                                setPendingCardDelete({
+                                  label: tap?.titolo || item.title || 'questa tappa',
+                                  onConfirm: async () => {
+                                    await storageService.deleteTappa(tap?.id || '');
+                                    await fetchTimeline();
+                                  }
+                                });
                               }}
                               onUpdate={() => fetchTimeline()}
                             />
@@ -2483,9 +2544,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         const found = timeline.find(t => t.id === `lodging_${tonightsAccommodation.id}` || t.id === tonightsAccommodation.id);
                         if (found) setDetailItem(found);
                       }}
-                      onDelete={async () => {
-                        await storageService.deleteAccommodation(tonightsAccommodation.id);
-                        await fetchTimeline();
+                      onDelete={() => {
+                        setPendingCardDelete({
+                          label: tonightsAccommodation.name || 'questo alloggio',
+                          onConfirm: async () => {
+                            await storageService.deleteAccommodation(tonightsAccommodation.id);
+                            await fetchTimeline();
+                          }
+                        });
                       }}
                       onUpdate={() => {
                         fetchTimeline();
@@ -2722,6 +2788,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           defaultTime={creatingCategory === 'ristorante' ? insertDraftTime : undefined}
           onSave={handleSaveRistorante}
           onCancel={() => { setEditingRistoranteItem(null); closeCreateForm(); }}
+          onDelete={handleDeleteRistoranteFromForm}
         />
       </Modal>
 
@@ -2738,6 +2805,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           defaultTime={creatingCategory === 'shopping' ? insertDraftTime : undefined}
           onSave={handleSaveShopping}
           onCancel={() => { setEditingShoppingItem(null); closeCreateForm(); }}
+          onDelete={handleDeleteShoppingFromForm}
         />
       </Modal>
 
@@ -3195,7 +3263,20 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         </div>
       </Modal>
 
-
+      <ConfirmDialog
+        isOpen={Boolean(pendingCardDelete)}
+        title="Conferma eliminazione"
+        message={`Vuoi davvero eliminare ${pendingCardDelete?.label || 'questo elemento'}?`}
+        confirmLabel="Elimina"
+        cancelLabel="Annulla"
+        isDestructive={true}
+        onConfirm={async () => {
+          const target = pendingCardDelete;
+          setPendingCardDelete(null);
+          if (target) await target.onConfirm();
+        }}
+        onCancel={() => setPendingCardDelete(null)}
+      />
     </div>
   );
 }

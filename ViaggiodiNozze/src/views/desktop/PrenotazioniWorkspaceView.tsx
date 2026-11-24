@@ -190,6 +190,13 @@ export default function PrenotazioniWorkspaceView({
     await loadBookings();
   };
 
+  const handleDeleteRestaurant = async () => {
+    if (!editingRestaurantItem) return;
+    await storageService.deleteRistorante(editingRestaurantItem.id);
+    setEditingRestaurantItem(null);
+    await loadBookings();
+  };
+
   const handleSaveShopping = async (data: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const shoppingToSave: Shopping = {
       ...data,
@@ -198,6 +205,13 @@ export default function PrenotazioniWorkspaceView({
       updatedAt: Date.now()
     };
     await storageService.saveShopping(shoppingToSave);
+    setEditingShoppingItem(null);
+    await loadBookings();
+  };
+
+  const handleDeleteShopping = async () => {
+    if (!editingShoppingItem) return;
+    await storageService.deleteShopping(editingShoppingItem.id);
     setEditingShoppingItem(null);
     await loadBookings();
   };
@@ -939,6 +953,7 @@ export default function PrenotazioniWorkspaceView({
           initialData={editingRestaurantItem}
           onSave={handleSaveRestaurant}
           onCancel={() => setEditingRestaurantItem(null)}
+          onDelete={handleDeleteRestaurant}
         />
       </Modal>
 
@@ -953,6 +968,7 @@ export default function PrenotazioniWorkspaceView({
           initialData={editingShoppingItem}
           onSave={handleSaveShopping}
           onCancel={() => setEditingShoppingItem(null)}
+          onDelete={handleDeleteShopping}
         />
       </Modal>
 

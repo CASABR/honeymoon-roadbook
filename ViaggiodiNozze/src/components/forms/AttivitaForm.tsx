@@ -13,6 +13,7 @@ import type { PlaceSuggestion } from '../../services/photonService';
 import { isPhotoSpotActivity, isTrekkingActivity, isPasseggiataActivity, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 import TimeZoneInput from '../common/TimeZoneInput';
 import TappaForm from './TappaForm';
+import FormActionButtons from './FormActionButtons';
 import TimePickerInput from '../common/TimePickerInput';
 import OpeningHoursFields from '../common/OpeningHoursFields';
 import { buildEurSavePatch } from '../../services/currencyService';
@@ -163,7 +164,6 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
 
   const [error, setError] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   const initializedIdRef = useRef<string | null | undefined>(undefined);
 
@@ -1169,57 +1169,15 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
         />
       </div>}
 
-      <div className="flex flex-col gap-3 pt-4 mt-2 border-t border-slate-100">
-        <button
-          type="submit"
-          disabled={isGeocoding}
-          className={`w-full h-12 rounded-xl text-sm font-bold bg-[#FF6B5F] hover:bg-[#e85c50] active:scale-95 text-white shadow-lg transition-all ${isGeocoding ? 'opacity-70 cursor-not-allowed' : ''}`}
-        >
-          {isGeocoding ? 'Salvataggio in corso...' : initialData ? 'Aggiorna Attività' : 'Salva Modifiche'}
-        </button>
-        
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-700 transition-colors py-1"
-          >
-            Annulla
-          </button>
-        )}
-
-        {initialData && onDelete && (
-          <div className="text-center">
-            {!showConfirmDelete ? (
-              <button
-                type="button"
-                onClick={() => setShowConfirmDelete(true)}
-                className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors py-2"
-              >
-                Elimina attività
-              </button>
-            ) : (
-              <div className="flex items-center justify-center gap-2 py-1">
-                <span className="text-xs font-medium text-slate-600">Sei sicuro?</span>
-                <button
-                  type="button"
-                  onClick={onDelete}
-                  className="px-3 py-1 bg-rose-600 text-white text-xs font-bold rounded-lg hover:bg-rose-700"
-                >
-                  Sì, elimina
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmDelete(false)}
-                  className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded-lg hover:bg-slate-300"
-                >
-                  Annulla
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      <FormActionButtons
+        isEditing={Boolean(initialData)}
+        isSubmitting={isGeocoding}
+        submitLabel={initialData ? 'Aggiorna' : 'Crea Attività'}
+        submittingLabel="Salvataggio in corso..."
+        itemName={title.trim() || initialData?.title || 'questa attività'}
+        onCancel={onCancel}
+        onDelete={onDelete}
+      />
     </form>
   );
 }
