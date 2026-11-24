@@ -22,6 +22,10 @@ export interface ClientPushReminder {
   eventAt: number;
   leadMinutes?: number;
   recoverIfMissed?: boolean;
+  category?: string;
+  title?: string;
+  localTime?: string;
+  place?: string;
 }
 
 export interface ClientPushSyncItem {
@@ -425,6 +429,76 @@ export interface PushReminderDiagnosis {
   timeZoneSource?: TimeZoneSource;
 }
 
+function sanitizePushMetaText(value: unknown, maxLen: number): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const cleaned = value
+    .replace(/\S+@\S+\.\S+/g, '')
+    .replace(/\b(?:pnr|codice|code|booking|prenotazione|ref|rif|ticket|biglietto|conferma|voucher)\b\s*[:#=-]?\s*[A-Z0-9-]{3,}/gi, '')
+    .replace(/(?:\+?\d[\d\s().-]{6,}\d)/g, '')
+    .replace(/(?:€|\$|£|¥|AUD|NZD|PHP|CNY|EUR|USD)\s*\d[\d.,]*|\d[\d.,]*\s*(?:€|\$|£|¥|EUR|USD)/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!cleaned) return undefined;
+  return cleaned.slice(0, maxLen).trim() || undefined;
+}
+
+function formatLocalTimeHHMM(time: unknown): string | undefined {
+  if (typeof time !== 'string') return undefined;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(time.trim());
+  if (!m) return undefined;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return undefined;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+function resolveCategoryLabel(entityType: string, data: Record<string, unknown>, isRentalReturn = false): string {
+  if (isRentalReturn) return 'Noleggio';
+  if (entityType === 'trasporto' || entityType === 'trasporti') {
+    return String(data.type || '').toLowerCase() === 'volo' ? 'Volo' : 'Trasporto';
+  }
+  if (entityType === 'attivita' || entityType === 'activity') return 'Attività';
+  if (entityType === 'alloggio' || entityType === 'alloggi') return 'Alloggio';
+  if (entityType === 'ristorante' || entityType === 'ristoranti') return 'Ristorante';
+  if (entityType === 'tappa' || entityType === 'tappe') return 'Tappa';
+  if (entityType === 'shopping') return 'Shopping';
+  return 'Scadenza';
+}
+
+function buildReminderMeta(
+  entityType: string,
+  data: Record<string, unknown>,
+  time: unknown,
+  options: { isRentalReturn?: boolean; placeOverride?: unknown; titleOverride?: unknown } = {},
+): Pick<ClientPushReminder, 'category' | 'title' | 'localTime' | 'place'> {
+  const category = resolveCategoryLabel(entityType, data, options.isRentalReturn);
+  const rawTitle = options.titleOverride
+    ?? data.titolo
+    ?? data.title
+    ?? data.nome
+    ?? data.name
+    ?? (typeof data.departureIata === 'string' && typeof data.arrivalIata === 'string'
+      ? `${data.departureIata.trim()} → ${data.arrivalIata.trim()}`
+      : undefined)
+    ?? data.company
+    ?? data.compagnia;
+  const title = sanitizePushMetaText(rawTitle, 64);
+  const localTime = formatLocalTimeHHMM(time);
+  const rawPlace = options.placeOverride
+    ?? data.location
+    ?? data.citta
+    ?? data.indirizzo
+    ?? data.address
+    ?? data.departureLocation;
+  const place = sanitizePushMetaText(rawPlace, 48);
+  return {
+    category,
+    ...(title ? { title } : {}),
+    ...(localTime ? { localTime } : {}),
+    ...(place ? { place } : {}),
+  };
+}
+
 function futureUtcCandidate(
   kind: ClientPushReminder['kind'],
   date: unknown,
@@ -432,11 +506,12 @@ function futureUtcCandidate(
   timeZone: string | null,
   nowMs: number,
   leadMinutes?: number,
+  meta?: Pick<ClientPushReminder, 'category' | 'title' | 'localTime' | 'place'>,
 ): ClientPushReminder[] {
   if (!timeZone) return [];
   const eventAt = zonedDateTimeToEpochMs(date, time, timeZone);
   if (!eventAt || eventAt <= nowMs) return [];
-  return [{ kind, eventAt, ...(leadMinutes === undefined ? {} : { leadMinutes }) }];
+  return [{ kind, eventAt, ...(leadMinutes === undefined ? {} : { leadMinutes }), ...(meta || {}) }];
 }
 
 export function diagnoseClientPushReminders(
@@ -506,6 +581,7 @@ export function buildClientPushReminders(
   if (entityType === 'trasporto' || entityType === 'trasporti') {
     if (!isConfirmedCardTime(data, true)) return [];
     const depDate = readEntityDate(data, entityType);
+    const depTime = data.departureTime || data.time || data.orario;
     const depTz = resolveReliableEntityTimeZone(entityType, data, { dateHint: depDate, context });
     const dropDate = typeof data.dropoffDate === 'string' ? data.dropoffDate : undefined;
     const dropTz = ['auto', 'camper'].includes(String(data.type || ''))
@@ -513,9 +589,28 @@ export function buildClientPushReminders(
       : null;
 
     return [
-      ...futureUtcCandidate('transport_departure', depDate, data.departureTime || data.time || data.orario, depTz, nowMs),
+      ...futureUtcCandidate(
+        'transport_departure',
+        depDate,
+        depTime,
+        depTz,
+        nowMs,
+        undefined,
+        buildReminderMeta(entityType, data, depTime, { placeOverride: data.departureLocation || data.location || data.indirizzo }),
+      ),
       ...(['auto', 'camper'].includes(String(data.type || '')) && data.dropoffDone !== true
-        ? futureUtcCandidate('rental_return', dropDate, data.dropoffTime, dropTz, nowMs)
+        ? futureUtcCandidate(
+            'rental_return',
+            dropDate,
+            data.dropoffTime,
+            dropTz,
+            nowMs,
+            undefined,
+            buildReminderMeta(entityType, data, data.dropoffTime, {
+              isRentalReturn: true,
+              placeOverride: data.dropoffLocation || data.arrivalLocation,
+            }),
+          )
         : []),
     ];
   }
@@ -523,13 +618,16 @@ export function buildClientPushReminders(
   if (entityType === 'attivita' || entityType === 'activity') {
     if (!isConfirmedCardTime(data, true)) return [];
     const date = readEntityDate(data, entityType);
+    const time = data.orarioInizio || data.time || data.orario || data.orarioRitrovo;
     const timeZone = resolveReliableEntityTimeZone(entityType, data, { dateHint: date, context });
     return futureUtcCandidate(
       'activity_start',
       date,
-      data.orarioInizio || data.time || data.orario || data.orarioRitrovo,
+      time,
       timeZone,
       nowMs,
+      undefined,
+      buildReminderMeta(entityType, data, time),
     );
   }
 
@@ -537,23 +635,49 @@ export function buildClientPushReminders(
     if (!isConfirmedCardTime(data, true)) return [];
     const checkInDate = typeof data.checkIn === 'string' ? data.checkIn : undefined;
     const checkOutDate = typeof data.checkOut === 'string' ? data.checkOut : undefined;
+    const checkInTime = data.arrivalTime || data.checkInTime;
     const tzIn = resolveReliableEntityTimeZone(entityType, data, { dateHint: checkInDate, context });
     const tzOut = resolveReliableEntityTimeZone(entityType, data, { dateHint: checkOutDate, context }) || tzIn;
     return [
       ...(data.checkInDone === true
         ? []
-        : futureUtcCandidate('lodging_checkin', checkInDate, data.arrivalTime || data.checkInTime, tzIn, nowMs)),
+        : futureUtcCandidate(
+            'lodging_checkin',
+            checkInDate,
+            checkInTime,
+            tzIn,
+            nowMs,
+            undefined,
+            buildReminderMeta(entityType, data, checkInTime),
+          )),
       ...(data.checkOutDone === true
         ? []
-        : futureUtcCandidate('lodging_checkout', checkOutDate, data.checkOutTime, tzOut, nowMs)),
+        : futureUtcCandidate(
+            'lodging_checkout',
+            checkOutDate,
+            data.checkOutTime,
+            tzOut,
+            nowMs,
+            undefined,
+            buildReminderMeta(entityType, data, data.checkOutTime),
+          )),
     ];
   }
 
   if (['ristorante', 'ristoranti', 'tappa', 'tappe', 'shopping'].includes(entityType)) {
     if (!isConfirmedCardTime(data, false)) return [];
     const date = readEntityDate(data, entityType);
+    const time = data.orario || data.time;
     const timeZone = resolveReliableEntityTimeZone(entityType, data, { dateHint: date, context });
-    return futureUtcCandidate('activity_start', date, data.orario || data.time, timeZone, nowMs);
+    return futureUtcCandidate(
+      'activity_start',
+      date,
+      time,
+      timeZone,
+      nowMs,
+      undefined,
+      buildReminderMeta(entityType, data, time),
+    );
   }
 
   if ((entityType === 'note' || entityType === 'nota' || entityType === 'scadenza' || entityType === 'scadenze')
@@ -564,7 +688,15 @@ export function buildClientPushReminders(
     if (!Number.isFinite(leadMinutes) || leadMinutes < 0 || leadMinutes > 43_200) return [];
     const dueDate = typeof data.dueDate === 'string' ? data.dueDate : undefined;
     const timeZone = resolveReliableEntityTimeZone(entityType, data, { dateHint: dueDate, context });
-    return futureUtcCandidate('deadline_due', dueDate, data.dueTime, timeZone, nowMs, leadMinutes);
+    return futureUtcCandidate(
+      'deadline_due',
+      dueDate,
+      data.dueTime,
+      timeZone,
+      nowMs,
+      leadMinutes,
+      buildReminderMeta(entityType, data, data.dueTime),
+    );
   }
 
   return [];

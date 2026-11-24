@@ -54,8 +54,8 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
     assert.equal(wrangler.includes('FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY'), false);
     assert.ok(worker.includes('webpush.setVapidDetails(env.VAPID_SUBJECT'));
   });
-  test('cron unico a frequenza ridotta', () => {
-    assert.ok(wrangler.includes('"crons": ["*/5 * * * *"]'));
+  test('cron ogni minuto compatibile con piano Free', () => {
+    assert.ok(wrangler.includes('"crons": ["*/1 * * * *"]'));
   });
 
   const asyncTest = async (name, fn) => { await fn(); passed += 1; console.log(`[PASS ${passed}] ${name}`); };
@@ -269,6 +269,29 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
     } finally {
       globalThis.fetch = origFetch;
     }
+  });
+
+  await asyncTest('payload descrittivo categoria/titolo/ora/luogo con sanitizzazione PII e fallback legacy', async () => {
+    const now = Date.UTC(2027, 0, 2, 23, 15, 0);
+    const eventAt = now + 15 * 60_000;
+    const rich = helpers.genericPayload('activity_start', {
+      category: 'Attività',
+      title: 'Ritrovo TAO PNR: AB12CD',
+      localTime: '07:30',
+      place: 'El Nido test@example.com +39 333 1234567 €120',
+      eventAt,
+      now,
+    });
+    assert.equal(rich.title, 'Attività: Ritrovo TAO');
+    assert.equal(rich.body, 'Ore 07:30 · El Nido · Tra 15 minuti');
+    assert.equal(rich.body.includes('test@example.com'), false);
+    assert.equal(rich.body.includes('333'), false);
+    assert.equal(rich.body.includes('120'), false);
+    assert.equal(rich.title.includes('AB12CD'), false);
+
+    const legacyFallback = helpers.genericPayload('activity_start', {});
+    assert.equal(legacyFallback.title, 'Attività in programma');
+    assert.equal(legacyFallback.body, 'Controlla orario e dettagli in HOUNIGO.');
   });
 
   console.log(`\n${passed}/${passed} verifiche push Cloudflare superate.`);

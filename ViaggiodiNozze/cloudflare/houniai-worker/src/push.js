@@ -54,17 +54,52 @@ function formatActualLeadText(eventAt, now = Date.now()) {
   const numEventAt = Number(eventAt);
   if (!Number.isFinite(numEventAt)) return '';
   const remainingMin = Math.max(0, Math.round((numEventAt - now) / 60_000));
-  if (remainingMin <= 1) return 'Adesso';
-  if (remainingMin < 50) return `Tra ${remainingMin} min`;
+  if (remainingMin <= 1) return remainingMin === 1 ? 'Tra 1 minuto' : 'Adesso';
+  if (remainingMin < 50) return `Tra ${remainingMin} minuti`;
   if (remainingMin <= 70) return 'Tra circa 1 ora';
   if (remainingMin < 1410) return `Tra ${Math.max(2, Math.round(remainingMin / 60))} ore`;
   const days = Math.max(1, Math.round(remainingMin / 1440));
   return days === 1 ? 'Tra circa 1 giorno' : `Tra ${days} giorni`;
 }
 
-function sanitizeEventLabel(raw) {
+function sanitizeEventLabel(raw, maxLen = 64) {
   if (typeof raw !== 'string') return '';
-  return raw.replace(/\b(pnr|booking\s*code|ticket\s*id)\b/gi, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+  return raw
+    .replace(/\S+@\S+\.\S+/g, '')
+    .replace(/\b(?:pnr|booking\s*code|codice|code|prenotazione|ticket\s*id|biglietto|conferma|voucher|ref|rif)\b\s*[:#=-]?\s*[A-Z0-9-]{3,}/gi, '')
+    .replace(/(?:\+?\d[\d\s().-]{6,}\d)/g, '')
+    .replace(/(?:€|\$|£|¥|AUD|NZD|PHP|CNY|EUR|USD)\s*\d[\d.,]*|\d[\d.,]*\s*(?:€|\$|£|¥|EUR|USD)/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLen)
+    .trim();
+}
+
+function buildReminderMetaJson(reminder) {
+  if (!reminder || typeof reminder !== 'object') return null;
+  const category = sanitizeEventLabel(reminder.category, 24);
+  const title = sanitizeEventLabel(reminder.title, 64);
+  const localTime = typeof reminder.localTime === 'string' && /^\d{2}:\d{2}$/.test(reminder.localTime.trim())
+    ? reminder.localTime.trim()
+    : '';
+  const place = sanitizeEventLabel(reminder.place, 48);
+  if (!category && !title && !localTime && !place) return null;
+  return JSON.stringify({
+    ...(category ? { category } : {}),
+    ...(title ? { title } : {}),
+    ...(localTime ? { localTime } : {}),
+    ...(place ? { place } : {}),
+  }).slice(0, 300);
+}
+
+function parseJobMeta(rawMetaJson) {
+  if (typeof rawMetaJson !== 'string' || !rawMetaJson.trim()) return null;
+  try {
+    const parsed = JSON.parse(rawMetaJson);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function genericPayload(kind, context = {}) {
@@ -72,25 +107,27 @@ function genericPayload(kind, context = {}) {
     title: 'Viaggio aggiornato', body: 'Il roadbook condiviso contiene un aggiornamento.',
     url: `${BASE_PATH}?pushView=oggi`, type: kind,
   };
-  const cleanTitle = sanitizeEventLabel(context?.title);
+  const cleanCategory = sanitizeEventLabel(context?.category, 24);
+  const cleanTitle = sanitizeEventLabel(context?.title, 64);
+  const cleanPlace = sanitizeEventLabel(context?.place, 48);
   const localTime = typeof context?.localTime === 'string' && /^\d{2}:\d{2}$/.test(context.localTime.trim())
     ? context.localTime.trim()
     : '';
   const leadText = context?.eventAt != null ? formatActualLeadText(context.eventAt, context?.now) : '';
-  const detailParts = [localTime ? `Alle ${localTime}` : '', leadText].filter(Boolean);
+  const detailParts = [localTime ? `Ore ${localTime}` : '', cleanPlace, leadText].filter(Boolean);
   const detailLine = detailParts.join(' · ');
 
   if (kind === 'deadline_due') return {
-    title: cleanTitle ? `Scadenza: ${cleanTitle}` : 'Scadenza del viaggio',
+    title: cleanTitle ? `${cleanCategory || 'Scadenza'}: ${cleanTitle}` : 'Scadenza del viaggio',
     body: detailLine || 'Hai un promemoria da controllare in HOUNIGO.',
     url: `${BASE_PATH}?pushView=scadenze`, type: 'reminder',
   };
   const labels = {
-    transport_departure: [cleanTitle ? `Partenza: ${cleanTitle}` : 'Trasporto in programma', detailLine || 'Controlla orario e dettagli in HOUNIGO.'],
-    rental_return: [cleanTitle ? `Riconsegna: ${cleanTitle}` : 'Riconsegna noleggio', detailLine || 'Controlla orario e luogo di riconsegna in HOUNIGO.'],
-    activity_start: [cleanTitle ? `In programma: ${cleanTitle}` : 'Attività in programma', detailLine || 'Controlla orario e dettagli in HOUNIGO.'],
-    lodging_checkin: [cleanTitle ? `Check-in: ${cleanTitle}` : 'Check-in in programma', detailLine || 'Controlla orario e indirizzo in HOUNIGO.'],
-    lodging_checkout: [cleanTitle ? `Check-out: ${cleanTitle}` : 'Check-out in programma', detailLine || 'Verifica orario e dettagli in HOUNIGO.'],
+    transport_departure: [cleanTitle ? `${cleanCategory || 'Partenza'}: ${cleanTitle}` : 'Trasporto in programma', detailLine || 'Controlla orario e dettagli in HOUNIGO.'],
+    rental_return: [cleanTitle ? `${cleanCategory || 'Riconsegna'}: ${cleanTitle}` : 'Riconsegna noleggio', detailLine || 'Controlla orario e luogo di riconsegna in HOUNIGO.'],
+    activity_start: [cleanTitle ? `${cleanCategory || 'In programma'}: ${cleanTitle}` : 'Attività in programma', detailLine || 'Controlla orario e dettagli in HOUNIGO.'],
+    lodging_checkin: [cleanTitle ? `${cleanCategory || 'Check-in'}: ${cleanTitle}` : 'Check-in in programma', detailLine || 'Controlla orario e indirizzo in HOUNIGO.'],
+    lodging_checkout: [cleanTitle ? `${cleanCategory || 'Check-out'}: ${cleanTitle}` : 'Check-out in programma', detailLine || 'Verifica orario e dettagli in HOUNIGO.'],
   };
   const [title, body] = labels[kind] || ['Promemoria HOUNIGO', detailLine || 'Apri HOUNIGO per i dettagli.'];
   return { title, body, url: `${BASE_PATH}?pushView=oggi`, type: 'reminder' };
@@ -323,11 +360,13 @@ async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, e
       const jobId = (await sha256(`reminder|${subscriber.subscriber_id}|${entityKey}|${reminder.kind}`)).slice(0, 56);
       desiredJobIds.add(jobId);
 
+      const metaJson = buildReminderMetaJson(reminder);
       const existing = existingJobsMap?.get(jobId);
       if (
         existing
         && Number(existing.event_at) === eventAt
         && Number(existing.lead_minutes) === leadMinutes
+        && (existing.meta_json || null) === (metaJson || null)
         && (Number(existing.due_at) === dueAt || Number(existing.attempts || 0) > 0)
       ) {
         continue;
@@ -340,9 +379,9 @@ async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, e
 
       const stmt = env.RATE_LIMITS.prepare(`
         INSERT OR REPLACE INTO push_jobs
-          (job_id, trip_id, subscriber_id, actor_uid, entity_key, kind, event_at, lead_minutes, due_at, attempts, created_at)
-        VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8, 0, ?9)
-      `).bind(jobId, tripId, subscriber.subscriber_id, entityKey, reminder.kind, eventAt, leadMinutes, dueAt, now);
+          (job_id, trip_id, subscriber_id, actor_uid, entity_key, kind, event_at, lead_minutes, due_at, attempts, created_at, meta_json)
+        VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8, 0, ?9, ?10)
+      `).bind(jobId, tripId, subscriber.subscriber_id, entityKey, reminder.kind, eventAt, leadMinutes, dueAt, now, metaJson);
       if (pendingStatements) pendingStatements.push(stmt);
       else await stmt.run();
       scheduledCount += 1;
@@ -418,7 +457,7 @@ async function syncTripReminders(tripId, payload, env) {
 
   const [existingRes, sentRes] = await Promise.all([
     env.RATE_LIMITS.prepare(
-      "SELECT job_id, entity_key, kind, event_at, lead_minutes, due_at, attempts FROM push_jobs WHERE trip_id = ?1 AND kind <> 'collaboration'"
+      "SELECT job_id, entity_key, kind, event_at, lead_minutes, due_at, attempts, meta_json FROM push_jobs WHERE trip_id = ?1 AND kind <> 'collaboration'"
     ).bind(tripId).all(),
     env.RATE_LIMITS.prepare(
       'SELECT dispatch_key FROM push_dispatches WHERE trip_id = ?1'
@@ -656,11 +695,13 @@ async function processJob(job, env, membershipCache) {
       continue;
     }
     try {
+      const jobMeta = parseJobMeta(job.meta_json);
       await sendPush(JSON.parse(subscriber.subscription_json), {
         ...genericPayload(job.kind, {
           eventAt: job.event_at,
-          title: job.event_title,
-          localTime: job.local_time,
+          ...(jobMeta || {}),
+          ...(job.event_title ? { title: job.event_title } : {}),
+          ...(job.local_time ? { localTime: job.local_time } : {}),
         }),
         tag: `hounigo-${job.kind}-${job.job_id}`,
       }, env);

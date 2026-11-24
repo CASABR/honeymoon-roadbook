@@ -105,7 +105,7 @@ class InMemoryD1 {
         if (norm.startsWith('SELECT * FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1')) {
           return { results: db.subscriptions.filter(s => s.trip_id === params[0] && s.enabled === 1) };
         }
-        if (norm.startsWith("SELECT job_id, entity_key, kind, event_at, lead_minutes, due_at, attempts FROM push_jobs WHERE trip_id = ?1 AND kind <> 'collaboration'")) {
+        if (norm.startsWith("SELECT job_id, entity_key, kind, event_at, lead_minutes, due_at, attempts, meta_json FROM push_jobs WHERE trip_id = ?1 AND kind <> 'collaboration'")) {
           return { results: db.jobs.filter(j => j.trip_id === params[0] && j.kind !== 'collaboration') };
         }
         if (norm.startsWith('SELECT dispatch_key FROM push_dispatches WHERE trip_id = ?1')) {
@@ -147,11 +147,11 @@ class InMemoryD1 {
         } else if (norm.startsWith('DELETE FROM push_jobs WHERE job_id = ?1')) {
           db.jobs = db.jobs.filter(j => j.job_id !== params[0]);
         } else if (norm.startsWith('INSERT OR REPLACE INTO push_jobs')) {
-          const [job_id, trip_id, subscriber_id, entity_key, kind, event_at, lead_minutes, due_at, created_at] = params;
+          const [job_id, trip_id, subscriber_id, entity_key, kind, event_at, lead_minutes, due_at, created_at, meta_json] = params;
           db.jobs = db.jobs.filter(j => j.job_id !== job_id);
           db.jobs.push({
             job_id, trip_id, subscriber_id, actor_uid: null, entity_key, kind,
-            event_at, lead_minutes, due_at, attempts: 0, created_at,
+            event_at, lead_minutes, due_at, attempts: 0, created_at, meta_json: meta_json ?? null,
           });
         } else if (norm.startsWith('INSERT INTO push_jobs') && norm.includes("'collaboration'")) {
           const [job_id, trip_id, actor_uid, entity_key, due_at, created_at] = params;
@@ -732,6 +732,60 @@ class InMemoryD1 {
     } finally {
       Date.now = realDateNow;
     }
+  });
+
+  await asyncCheck('8. Metadati descrittivi Push (categoria, titolo, ora locale, luogo), sanitizzazione dati sensibili e migrazione additiva D1', async () => {
+    const remindersMod = loadTsGraph('src/utils/pushReminders.ts');
+    const nowMs = Date.UTC(2026, 10, 23, 22, 0, 0); // 2026-11-24 06:00 Asia/Manila
+
+    const rems = remindersMod.buildClientPushReminders('attivita', {
+      id: 'act_meta_1',
+      date: '2026-11-24',
+      orarioInizio: '7:30',
+      timeStatus: 'confermato',
+      timeZone: 'Asia/Manila',
+      titolo: 'Ritrovo TAO codice: XYZ987',
+      location: 'El Nido user@mail.it +39 340 9988776 €250',
+    }, { nowMs });
+
+    assert.equal(rems.length, 1);
+    assert.equal(rems[0].category, 'Attività');
+    assert.equal(rems[0].title, 'Ritrovo TAO');
+    assert.equal(rems[0].localTime, '07:30');
+    assert.equal(rems[0].place, 'El Nido');
+
+    const db = new InMemoryD1();
+    const env = { RATE_LIMITS: db };
+    const realDateNow = Date.now;
+    Date.now = () => nowMs;
+    try {
+      const uid = 'owner_meta';
+      const tripId = 'trip_meta';
+      const subId = crypto.createHash('sha256').update(`${uid}\n${tripId}\ndev_meta_1`).digest('hex').slice(0, 48);
+      await workerPush.handlePushRequest('/v1/push/register', uid, tripId, {
+        deviceId: 'dev_meta_1', subscriberId: subId,
+        subscription: { endpoint: 'https://web.push.apple.com/meta1', keys: { p256dh: 'x'.repeat(40), auth: 'y'.repeat(16) } },
+        preferences: { transports: true, activities: true, lodging: true, deadlines: true, collaboration: true, reminderMinutes: 15 },
+      }, env);
+
+      await workerPush.handlePushRequest('/v1/push/mutation', uid, tripId, {
+        entityType: 'attivita', action: 'save', entityId: 'act_meta_1', mutationId: 'mut-meta-0001',
+        reminders: rems,
+      }, env);
+
+      const job = db.jobs.find(j => j.entity_key === 'attivita:act_meta_1');
+      assert.ok(job && job.meta_json, 'Worker deve salvare meta_json in push_jobs');
+      const parsedMeta = JSON.parse(job.meta_json);
+      assert.equal(parsedMeta.category, 'Attività');
+      assert.equal(parsedMeta.title, 'Ritrovo TAO');
+      assert.equal(parsedMeta.localTime, '07:30');
+      assert.equal(parsedMeta.place, 'El Nido');
+    } finally {
+      Date.now = realDateNow;
+    }
+
+    const migrationSql = fs.readFileSync(path.join(projectRoot, 'cloudflare/houniai-worker/migrations/0004_push_job_meta.sql'), 'utf8');
+    assert.ok(/ALTER TABLE push_jobs ADD COLUMN meta_json TEXT/i.test(migrationSql));
   });
 
   console.log(`\n=== TEST P1 COMPLETATI: ${passed}/${passed} PASS ===`);
