@@ -1,7 +1,7 @@
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
-import { Handshake, Check } from 'lucide-react';
+import { Handshake, Check, Clock } from 'lucide-react';
 import type { Trasporto, TipoTrasporto, TransportSegmentContext } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
@@ -271,9 +271,9 @@ export default function TrasportoCard({
   const isCheckedIn = isRental && isDropoffDay ? Boolean(transport.dropoffDone) : Boolean(transport.checkInDone);
   const checkInBadgeLabel = isRental
     ? isDropoffDay
-      ? (isCheckedIn ? '✓ Riconsegnato' : 'Da riconsegnare')
-      : (isCheckedIn ? '✓ Ritirato' : 'Da ritirare')
-    : (isCheckedIn ? '✓ Check-in fatto' : 'Check-in da fare');
+      ? (isCheckedIn ? 'Riconsegnato' : 'Da riconsegnare')
+      : (isCheckedIn ? 'Ritirato' : 'Da ritirare')
+    : (isCheckedIn ? 'Check-in fatto' : 'Check-in da fare');
 
   const handleToggleCheckIn = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -457,11 +457,36 @@ export default function TrasportoCard({
           )}
         </div>
 
-        {/* 2. BODY: OPERATORE, TRACCIATO PARTENZA/ARRIVO E CASELLARIO OPERATIVO */}
+        {/* 2. BODY: OPERATORE, CHECK-IN, TRACCIATO PARTENZA/ARRIVO E CASELLARIO OPERATIVO */}
         <div className="hounigo-ds-card-body">
-          <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
-            {transport.carrier || currentType.label}
-          </h3>
+          <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1.5">
+            <h3 className="min-w-[140px] flex-1 font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
+              {transport.carrier || currentType.label}
+            </h3>
+
+            {supportsCheckIn && (
+              <button
+                type="button"
+                onClick={handleToggleCheckIn}
+                disabled={!canEdit}
+                data-testid={`transport-checkin-toggle-${transport.id}`}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.5rem] shrink-0 whitespace-nowrap rounded-md text-[11px] font-extrabold border transition-all ${
+                  isCheckedIn
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700'
+                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                } ${canEdit ? 'cursor-pointer active:scale-95' : 'cursor-default opacity-80'}`}
+                title={canEdit ? 'Tocca per aggiornare lo stato di check-in / ritiro' : 'Stato check-in'}
+                aria-label={`Stato check-in: ${checkInBadgeLabel}`}
+              >
+                {isCheckedIn ? (
+                  <Check className="w-3 h-3 shrink-0" aria-hidden="true" />
+                ) : (
+                  <Clock className="w-3 h-3 shrink-0" aria-hidden="true" />
+                )}
+                <span>{checkInBadgeLabel}</span>
+              </button>
+            )}
+          </div>
 
           {/* Tracciato di tratta (Segnaletica Partenza → Arrivo) */}
           {isRental && (isPickupDay || isDropoffDay) ? (
@@ -567,7 +592,7 @@ export default function TrasportoCard({
           )}
         </div>
 
-        {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO, CHECK-IN & AZIONI OPERATIVE */}
+        {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI OPERATIVE */}
         <div className="hounigo-ds-card-footer">
           <div className="flex items-center gap-1.5 flex-wrap">
             {isPackageIncluded ? (
@@ -595,24 +620,6 @@ export default function TrasportoCard({
                 {compactPaymentText}
               </button>
             ) : null}
-
-            {supportsCheckIn && (
-              <button
-                type="button"
-                onClick={handleToggleCheckIn}
-                disabled={!canEdit}
-                data-testid={`transport-checkin-toggle-${transport.id}`}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.5rem] rounded-md text-[11px] font-extrabold border transition-all ${
-                  isCheckedIn
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700'
-                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-                } ${canEdit ? 'cursor-pointer active:scale-95' : 'cursor-default opacity-80'}`}
-                title={canEdit ? 'Tocca per aggiornare lo stato di check-in / ritiro' : 'Stato check-in'}
-                aria-label={`Stato check-in: ${checkInBadgeLabel}`}
-              >
-                <span>{checkInBadgeLabel}</span>
-              </button>
-            )}
           </div>
 
           <div className="hounigo-ds-actions-group">
