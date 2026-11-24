@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.12",
+      "publishedAt": "2026-11-24",
+      "sourceCommit": "e8b83e01bf3180fc56c432aedf10ba24e9cdf45e",
+      "changes": [
+        "Card Trasporti: indicatore Check-in da fare spostato nel body accanto all'operatore con icona e testo compatto."
+      ],
+      "publishedAtIso": "2026-11-24T15:23:36.000Z"
+    },
+    {
       "version": "1.7.11",
       "publishedAt": "2026-11-24",
       "sourceCommit": "b1f5b1cd7b4463d0bd1062aa30923df640588a00",
@@ -90,147 +99,6 @@
         "Test di regressione esteso alla modifica di card esistenti a +65 min senza duplicazione dei job."
       ],
       "publishedAtIso": "2026-11-23T08:08:00.000Z"
-    },
-    {
-      "version": "1.7.2",
-      "publishedAt": "2026-11-22",
-      "sourceCommit": "278a2086d714bb0ea9719a8d27057f7740550185",
-      "changes": [
-        "Finestra allegati compatta con miniature uniformi, badge Offline discreto e azioni Visualizza, Apri ed Elimina distinte.",
-        "Visualizzatore a schermo intero con contatore orizzontale, zoom naturale, frecce esterne al QR e supporto Dynamic Island."
-      ],
-      "publishedAtIso": "2026-11-22T11:37:30.000Z"
-    },
-    {
-      "version": "1.7.1",
-      "publishedAt": "2026-11-22",
-      "sourceCommit": "c20285e9928f36b956aa0f32ece1462b6ecc814a",
-      "changes": [
-        "Shopping: salvataggio automatico locale della bozza sul dispositivo con recupero conflitti manuale.",
-        "Salvataggio manuale esplicito senza falsi stati Sincronizzato né duplicazione delle spese."
-      ],
-      "publishedAtIso": "2026-11-22T10:47:00.000Z"
-    },
-    {
-      "version": "1.7.0",
-      "publishedAt": "2026-11-22",
-      "sourceCommit": "666f79bfd55e1e23b988c55aed76d58c2c49ee96",
-      "changes": [
-        "LIVE 4 tab completi (Mappa, Foto, Diario, Messaggi) con icone ed etichette sempre leggibili.",
-        "Foto separate dal Diario e commenti per singola foto con moderazione Owner."
-      ],
-      "publishedAtIso": "2026-11-22T09:05:17.989Z"
-    },
-    {
-      "version": "1.6.41",
-      "publishedAt": "2026-11-22",
-      "sourceCommit": "8d75d696f22d05a3ed4d95a899ed7f34ce0e0574",
-      "changes": [
-        "Foto LIVE: attivato archivio gratuito Cloudflare KV Free con privacy ospiti e blocco EXIF.",
-        "Nuova UX LIVE a 4 tab (Mappa, Foto, Diario, Messaggi) con ultima foto sfogliabile e indicatori novità."
-      ],
-      "publishedAtIso": "2026-11-22T08:36:00.291Z"
-    },
-    {
-      "version": "1.6.40",
-      "publishedAt": "2026-11-22",
-      "sourceCommit": "96d60139f78fb310e82cf130e297ab7849a90b36",
-      "changes": [
-        "Budget obiettivo: persistenza privata sincronizzata tra dispositivi autorizzati tramite raccolta note.",
-        "Conversioni multivaluta, budget locale esistente e vista LIVE ospiti preservati."
-      ],
-      "publishedAtIso": "2026-11-22T07:26:07.928Z"
-    },
-    {
-      "version": "1.6.39",
-      "publishedAt": "2026-11-21",
-      "sourceCommit": "cc2c866f373d5e7634dccd37d3cbdde375d591f2",
-      "changes": [
-        "LIVE: centratura automatica al primo GPS valido, una sola volta per apertura.",
-        "Navigazione manuale, ricentratura GPS e vista ospiti preservate."
-      ],
-      "publishedAtIso": "2026-11-21T15:53:55.833Z"
-    },
-    {
-      "version": "1.6.38",
-      "publishedAt": "2026-11-21",
-      "sourceCommit": "d86abd5ec97d6edc02e87c0ef43ad746dc06b44a",
-      "changes": [
-        "Spese e Budget: caricamenti affidabili, importi originali e riepilogo multivaluta.",
-        "Allegati PDF: messaggio chiaro quando il documento non e disponibile.",
-        "Piattaforma di prenotazione ricercabile, con nomi personalizzati."
-      ],
-      "publishedAtIso": "2026-11-21T15:34:59.607Z"
-    },
-    {
-      "version": "1.6.37",
-      "publishedAt": "2026-11-20",
-      "sourceCommit": "491fdc5ec20baddb9cad50473aee1e890d6856e0",
-      "changes": [
-        "Note Copilota indipendenti per ciascun giorno del viaggio.",
-        "LIVE riordinata con mappa in evidenza e diario più leggibile."
-      ],
-      "publishedAtIso": "2026-11-20T14:28:20Z"
-    },
-    {
-      "version": "1.6.36",
-      "publishedAt": "2026-11-20",
-      "sourceCommit": "ae30cf2",
-      "changes": [
-        "Notifiche Push: promemoria automatici 60 min prima degli eventi confermati con fusi IANA attendibili, eventi imminenti e backfill idempotente",
-        "Agenda Oggi: evidenziazione della card attiva e selezione automatica una-tantum del giorno locale durante il viaggio",
-        "Vista LIVE: frecce nella mini-card trasporti, eta reale GPS in minuti, doppio orologio Italia/locale sole-luna e layout compatto"
-      ],
-      "publishedAtIso": "2026-11-20T12:15:00.000Z"
-    },
-    {
-      "version": "1.6.35",
-      "publishedAt": "2026-11-20",
-      "sourceCommit": "e823577",
-      "changes": [
-        "Aggiunta mini-card compatta Prossimo Spostamento nella vista LIVE interna ed esterna per voli, treni a lunga percorrenza e traghetti con link Flightradar24 solo sui voli",
-        "Proiettati nel feed LIVE pubblico i soli campi pubblici delle tratte future (zero PNR o dati privati) con avanzamento automatico anche a PWA Owner chiusa"
-      ],
-      "publishedAtIso": "2026-11-20T10:45:00.000Z"
-    },
-    {
-      "version": "1.6.34",
-      "publishedAt": "2026-11-19",
-      "sourceCommit": "4861a3c",
-      "changes": [
-        "Ottimizzato il layout responsive della vista LIVE su iPad mini 6 orizzontale evitando colonne interne troppo strette senza modificare GPS, dati o vista iPhone"
-      ],
-      "publishedAtIso": "2026-11-19T13:07:34.771Z"
-    },
-    {
-      "version": "1.6.33",
-      "publishedAt": "2026-11-19",
-      "sourceCommit": "f39c20d",
-      "changes": [
-        "Evitata la sovrapposizione tra la freccia sinistra e la pillola TUTTI in DayPickerStrip mostrando le frecce solo in presenza di scorrimento",
-        "Aggiunti indicatori di scorrimento laterale con sfumatura e pulsanti sulle barre filtri orizzontali di TrasportiView su iPad, iPhone e desktop"
-      ],
-      "publishedAtIso": "2026-11-19T12:49:02.766Z"
-    },
-    {
-      "version": "1.6.32",
-      "publishedAt": "2026-11-19",
-      "sourceCommit": "ca0355a",
-      "changes": [
-        "Resi accessibili su iPad mini 6 campo di testo, allegati e pulsanti di SmartInsertModal anche con tastiera aperta",
-        "Ottimizzati Modal e fogli informativi con layout flex/dvh, adattamento visualViewport e scroll interno sopra la tastiera senza alterare iPhone e desktop"
-      ],
-      "publishedAtIso": "2026-11-19T12:33:58.682Z"
-    },
-    {
-      "version": "1.6.31",
-      "publishedAt": "2026-11-19",
-      "sourceCommit": "adc9803",
-      "changes": [
-        "Migliorata la barra laterale su iPad mini orizzontale con larghezza compatta e scorrimento evidente per raggiungere tutte le sezioni",
-        "Ottimizzata l'area Prenotazioni su schermi medi a 2 colonne con filtri e titoli leggibili senza alterare iPhone e desktop"
-      ],
-      "publishedAtIso": "2026-11-19T10:51:23.528Z"
     }
   ]
 }

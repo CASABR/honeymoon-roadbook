@@ -1,10 +1,10 @@
 {
-  "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.7.11-202611240818",
-  "requestedAt": "2026-11-24T08:18:10.000Z",
-  "requestedBy": "CASABR",
-  "action": "deploy",
-  "ref": "main",
-  "confirm": "CONFERMA",
-  "note": "Release 1.7.11 cron */1 e payload push descrittivi sanitizzati (migrazione D1 0004 e Worker già distribuiti; esclusi 6 file estranei)."
+    "requestedAt":  "2026-11-24T15:23:36.000Z",
+    "action":  "deploy",
+    "confirm":  "CONFERMA",
+    "requestId":  "release-1.7.12-202611241523",
+    "requestedBy":  "CASABR",
+    "ref":  "main",
+    "$schema":  "./hounigo-deploy-request.schema.json",
+    "note":  "Micro-release 1.7.12: indicatore Check-in da fare spostato nel body di TrasportoCard (esclusa sincronizzazione impostazioni e file locali)."
 }

@@ -2,53 +2,51 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
-## 1.6.40 — 2026-11-22
+## 1.7.12 — 2026-11-24
 
-- Budget obiettivo: persistenza privata sincronizzata tra dispositivi autorizzati tramite raccolta note.
-- Conversioni multivaluta, budget locale esistente e vista LIVE ospiti preservati.
+- Card Trasporti: indicatore Check-in da fare spostato nel body accanto all'operatore con icona e testo compatto.
 
-## 1.6.39 — 2026-11-21
+## 1.7.11 — 2026-11-24
 
-- LIVE: centratura automatica al primo GPS valido, una sola volta per apertura.
-- Navigazione manuale, ricentratura GPS e vista ospiti preservate.
+- Notifiche Push puntuali al minuto (cron */1 * * * * compatibile con piano Free e indice D1 due_at).
+- Payload descrittivi con categoria, titolo reale, ora locale HH:MM e luogo breve, sanitizzati lato client e Worker con fallback legacy.
 
-## 1.6.38 — 2026-11-21
+## 1.7.10 — 2026-11-23
 
-- Spese e Budget: caricamenti affidabili, importi originali e riepilogo multivaluta.
-- Allegati PDF: messaggio chiaro quando il documento non e disponibile.
-- Piattaforma di prenotazione ricercabile, con nomi personalizzati.
+- Push multi-fuso: associazione automatica imbarco→aeroporto di partenza del volo e checkout→località dell'alloggio collegato.
+- Preservato orario locale su tappe del 09/01 (Taipei e Cebu) senza eccezioni per ID e senza inventare fusi su casi ambigui.
 
-## 1.6.37 — 2026-11-20
+## 1.7.9 — 2026-11-23
 
-- Note Copilota indipendenti per ciascun giorno del viaggio.
-- LIVE riordinata con mappa in evidenza e diario più leggibile.
+- Push Destinazione Prima: risoluzione fusi automatica multi-fonte (tappe, trasporti, alloggi) con blocco fallback su giorni multi-fuso o esteri futuri.
+- Corretti TAO 03/01 (Asia/Manila), Imbarco Taipei 09/01 (Asia/Taipei) e prevenzione falsi positivi IATA di destinazione.
 
-## 1.6.36 — 2026-11-20
+## 1.7.8 — 2026-11-23
 
-- Notifiche Push: promemoria automatici 60 min prima degli eventi confermati con fusi IANA attendibili, eventi imminenti e backfill idempotente
-- Agenda Oggi: evidenziazione della card attiva e selezione automatica una-tantum del giorno locale durante il viaggio
-- Vista LIVE: frecce nella mini-card trasporti, eta reale GPS in minuti, doppio orologio Italia/locale sole-luna e layout compatto
+- Fusi orari automatici per promemoria Push: priorità card/luogo/tappa e fallback fuso dispositivo registrato in diagnostica.
+- Rilevamento cambio fuso dispositivo e recupero limitato (max 2, deduplicato) per soli eventi futuri.
 
-## 1.6.35 — 2026-11-20
+## 1.7.7 — 2026-11-23
 
-- Aggiunta mini-card compatta Prossimo Spostamento nella vista LIVE interna ed esterna per voli, treni a lunga percorrenza e traghetti con link Flightradar24 solo sui voli
-- Proiettati nel feed LIVE pubblico i soli campi pubblici delle tratte future (zero PNR o dati privati) con avanzamento automatico anche a PWA Owner chiusa
+- Diagnostica Push iPhone: storico ultime 10 mutazioni, evidenza dedicata all'ultima Attività e conferma D1 esplicita.
+- Pulsante Copia diagnostica senza dati personali né credenziali.
 
-## 1.6.34 — 2026-11-19
+## 1.7.6 — 2026-11-23
 
-- Ottimizzato il layout responsive della vista LIVE su iPad mini 6 orizzontale evitando colonne interne troppo strette senza modificare GPS, dati o vista iPhone
+- Push Sync: programmazione idempotente garantita anche dopo syncAllLocalToCloud e flushPendingPushes senza loop.
+- Fuso orario risolto anche dalla tappa del giorno senza sovrascrivere fusi esteri; diagnostica a 4 fasi in Notifiche.
 
-## 1.6.33 — 2026-11-19
+## 1.7.5 — 2026-11-23
 
-- Evitata la sovrapposizione tra la freccia sinistra e la pillola TUTTI in DayPickerStrip mostrando le frecce solo in presenza di scorrimento
-- Aggiunti indicatori di scorrimento laterale con sfumatura e pulsanti sulle barre filtri orizzontali di TrasportiView su iPad, iPhone e desktop
+- Notifiche Push: pannello Diagnostica Push su iPhone con stato Auth/Sync, ultima mutazione, motivo esclusione e preferenza effettiva.
+- Tracciamento locale non-PII anche su uscite anticipate auth/permessi senza credenziali esposte.
 
-## 1.6.32 — 2026-11-19
+## 1.7.4 — 2026-11-23
 
-- Resi accessibili su iPad mini 6 campo di testo, allegati e pulsanti di SmartInsertModal anche con tastiera aperta
-- Ottimizzati Modal e fogli informativi con layout flex/dvh, adattamento visualViewport e scroll interno sopra la tastiera senza alterare iPhone e desktop
+- Push: diagnostica non-PII client/Worker, protezione job oltre 200 elementi e chiarezza preferenze 15/60 min sulle card.
+- Scadenze: fuso dispositivo applicato solo se assente un fuso di destinazione verificato.
 
-## 1.6.31 — 2026-11-19
+## 1.7.3 — 2026-11-23
 
-- Migliorata la barra laterale su iPad mini orizzontale con larghezza compatta e scorrimento evidente per raggiungere tutte le sezioni
-- Ottimizzata l'area Prenotazioni su schermi medi a 2 colonne con filtri e titoli leggibili senza alterare iPhone e desktop
+- Promemoria Push: priorità al campo data aggiornato rispetto a date legacy su tappe, ristoranti e shopping.
+- Test di regressione esteso alla modifica di card esistenti a +65 min senza duplicazione dei job.
