@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.13",
+      "publishedAt": "2026-11-24",
+      "sourceCommit": "6151151169e477d4b28e020c1a54aa471082fd7f",
+      "changes": [
+        "Uniformati pulsanti Aggiorna/Annulla/Elimina nei form card con conferma esplicita e corretto layout orario Modifica Tappa."
+      ],
+      "publishedAtIso": "2026-11-24T15:53:48.000Z"
+    },
+    {
       "version": "1.7.12",
       "publishedAt": "2026-11-24",
       "sourceCommit": "e8b83e01bf3180fc56c432aedf10ba24e9cdf45e",
@@ -89,16 +98,6 @@
         "Scadenze: fuso dispositivo applicato solo se assente un fuso di destinazione verificato."
       ],
       "publishedAtIso": "2026-11-23T08:40:30.000Z"
-    },
-    {
-      "version": "1.7.3",
-      "publishedAt": "2026-11-23",
-      "sourceCommit": "d5bc3355a1fb694021beb9f9bd11c23eb0456145",
-      "changes": [
-        "Promemoria Push: priorità al campo data aggiornato rispetto a date legacy su tappe, ristoranti e shopping.",
-        "Test di regressione esteso alla modifica di card esistenti a +65 min senza duplicazione dei job."
-      ],
-      "publishedAtIso": "2026-11-23T08:08:00.000Z"
     }
   ]
 }

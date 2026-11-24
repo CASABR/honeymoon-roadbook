@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.13 — 2026-11-24
+
+- Uniformati pulsanti Aggiorna/Annulla/Elimina nei form card con conferma esplicita e corretto layout orario Modifica Tappa.
+
 ## 1.7.12 — 2026-11-24
 
 - Card Trasporti: indicatore Check-in da fare spostato nel body accanto all'operatore con icona e testo compatto.
@@ -45,8 +49,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Push: diagnostica non-PII client/Worker, protezione job oltre 200 elementi e chiarezza preferenze 15/60 min sulle card.
 - Scadenze: fuso dispositivo applicato solo se assente un fuso di destinazione verificato.
-
-## 1.7.3 — 2026-11-23
-
-- Promemoria Push: priorità al campo data aggiornato rispetto a date legacy su tappe, ristoranti e shopping.
-- Test di regressione esteso alla modifica di card esistenti a +65 min senza duplicazione dei job.
