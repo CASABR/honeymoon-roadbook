@@ -1,7 +1,7 @@
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
-import { Handshake, Check, Clock } from 'lucide-react';
+import { Handshake, Check, Clock, Armchair } from 'lucide-react';
 import type { Trasporto, TipoTrasporto, TransportSegmentContext } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
@@ -566,10 +566,26 @@ export default function TrasportoCard({
               )}
 
               {transport.posti && (
-                <div className="hounigo-ds-spec-cell">
-                  <span className="hounigo-ds-spec-label">{seatOrVehicleLabel}</span>
-                  <span className="hounigo-ds-spec-value">{transport.posti}</span>
-                </div>
+                transport.type === 'treno' || isRental ? (
+                  <div className="hounigo-ds-spec-cell">
+                    <span className="hounigo-ds-spec-label">{seatOrVehicleLabel}</span>
+                    <span className="hounigo-ds-spec-value">{transport.posti}</span>
+                  </div>
+                ) : (
+                  <div
+                    className="inline-flex items-center flex-nowrap gap-1.5 h-7 max-w-full px-2.5 rounded-lg bg-[#F8F7F3] dark:bg-slate-900/60 border border-[#E2E6EE] dark:border-slate-700 self-center whitespace-nowrap overflow-hidden"
+                    title={`Posto assegnato: ${transport.posti}`}
+                    aria-label={`Posto assegnato: ${transport.posti}`}
+                  >
+                    <Armchair className="w-3.5 h-3.5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">
+                      Posto
+                    </span>
+                    <span className="text-xs font-semibold font-mono text-slate-900 dark:text-slate-100 truncate min-w-0">
+                      {transport.posti}
+                    </span>
+                  </div>
+                )
               )}
 
               {isRental && !isPickupDay && !isDropoffDay && transport.dropoffDate && (
