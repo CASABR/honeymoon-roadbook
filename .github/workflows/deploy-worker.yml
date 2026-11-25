@@ -1,0 +1,72 @@
+name: Deploy Cloudflare Worker (hounigo-ai)
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Operazione da eseguire'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - rollback
+      version_id:
+        description: 'ID Versione Cloudflare (obbligatorio SOLO se scegli rollback)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy-worker:
+    name: Cloudflare Worker Deploy / Rollback
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ViaggiodiNozze/cloudflare/houniai-worker
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies (se presente package.json)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          elif [ -f package.json ]; then
+            npm install
+          fi
+
+      - name: Verifica configurazione Wrangler (Dry Run)
+        if: ${{ github.event.inputs.action == 'deploy' }}
+        run: npx wrangler@latest deploy --dry-run
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy Worker in Produzione
+        if: ${{ github.event.inputs.action == 'deploy' }}
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: ViaggiodiNozze/cloudflare/houniai-worker
+
+      - name: Rollback a versione precedente
+        if: ${{ github.event.inputs.action == 'rollback' }}
+        run: |
+          if [ -z "${{ github.event.inputs.version_id }}" ]; then
+            echo "Errore: per il rollback devi inserire il version_id."
+            exit 1
+          fi
+          npx wrangler@latest rollback "${{ github.event.inputs.version_id }}" --yes
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
