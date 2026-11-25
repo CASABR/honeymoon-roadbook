@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-25T13:29:47.634Z",
+  "requestedAt": "2026-11-25T13:40:18.203Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.20-public-guestbook-20261125",
+  "requestId": "release-1.7.21-photo-comments-d1-20261125",
   "requestedBy": "CASABR",
-  "ref": "main",
+  "ref": "23edfb2a2d5ad039d7343e098317554263624cb6",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.20: Guestbook pubblico Cloudflare D1 senza login con lettura da tutti i dispositivi e moderazione Owner/Copilota; Worker smoke GET pubblico 200."
+  "note": "HOUNIGO 1.7.21: commenti foto D1; CI pass e deploy Worker riuscito."
 }
