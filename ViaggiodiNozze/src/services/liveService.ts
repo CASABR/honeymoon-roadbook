@@ -571,6 +571,9 @@ export const liveService = {
       } catch {}
     }
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('hounigo-guest-message-saved'));
+    }
     return String(body?.id || '');
   },
 
@@ -585,7 +588,19 @@ export const liveService = {
     const base = collection(db, 'live_feeds', tripId, 'guest_messages');
     let unsubCurrent: (() => void) | null = null;
     let disposed = false;
+    let firestoreMessages: LiveGuestMessage[] = [];
+    let d1Messages: LiveGuestMessage[] = [];
+    let d1Loading = false;
 
+    const publishCombined = () => {
+      if (disposed) return;
+      callback([...d1Messages, ...firestoreMessages]
+        .filter(item => !item.deleted && (includeHidden || !item.hidden))
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, 50));
+    };
+
+    // The historical Firestore feed remains readable and unchanged.
     const attach = (useStrictV2Query: boolean) => {
       const q = includeHidden
         ? query(base, orderBy('createdAt', 'desc'), limit(50))
@@ -594,48 +609,92 @@ export const liveService = {
               where('deleted', '==', false), orderBy('createdAt', 'desc'), limit(50))
           : query(base, where('hidden', '==', false), orderBy('createdAt', 'desc'), limit(50));
 
-      unsubCurrent = onSnapshot(
-        q,
-        (snap) => {
-          const results: LiveGuestMessage[] = [];
-          snap.forEach((docSnap) => {
-            const data = docSnap.data() as any;
-            if (data.deleted === true) return;
-            if (!includeHidden && data.hidden === true) return;
-            if (!includeHidden && classifyLegacyGuestMessage(data) === 'requires_classification') return;
-            results.push({
-              id: docSnap.id,
-              visitorId: String(data.visitorId || ''),
-              authorName: String(data.authorName || 'Ospite'),
-              message: String(data.message || ''),
-              createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
-              hidden: Boolean(data.hidden),
-            });
+      unsubCurrent = onSnapshot(q, (snap) => {
+        firestoreMessages = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data() as any;
+          if (data.deleted === true || (!includeHidden && data.hidden === true)) return;
+          if (!includeHidden && classifyLegacyGuestMessage(data) === 'requires_classification') return;
+          firestoreMessages.push({
+            id: docSnap.id,
+            visitorId: String(data.visitorId || ''),
+            authorName: String(data.authorName || 'Ospite'),
+            message: String(data.message || ''),
+            createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
+            hidden: Boolean(data.hidden),
           });
-          callback(results);
-        },
-        (err: any) => {
-          if (!disposed && !includeHidden && !useStrictV2Query && err?.code === 'permission-denied') {
-            attach(true);
-            return;
-          }
-          console.warn('[LiveService] Errore sottoscrizione guest_messages:', err);
-          callback([]);
+        });
+        publishCombined();
+      }, (err: any) => {
+        if (!disposed && !includeHidden && !useStrictV2Query && err?.code === 'permission-denied') {
+          unsubCurrent?.();
+          attach(true);
+          return;
         }
-      );
+        console.warn('[LiveService] Errore sottoscrizione guest_messages:', err);
+        firestoreMessages = [];
+        publishCombined();
+      });
+    };
+
+    const refreshD1 = async () => {
+      if (disposed || d1Loading || (typeof document !== 'undefined' && document.hidden)) return;
+      d1Loading = true;
+      try {
+        const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
+        if (!LIVE_PHOTO_ORIGIN) return;
+        const user = auth?.currentUser;
+        const privateView = includeHidden && user && !user.isAnonymous;
+        const token = privateView ? await user.getIdToken() : '';
+        const url = `${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/guest-messages${token ? '?includeHidden=1' : ''}`;
+        const res = await fetch(url, {
+          cache: 'no-store',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const result = await res.json();
+        if (disposed) return;
+        d1Messages = (Array.isArray(result.messages) ? result.messages : [])
+          .filter((item: any) => /^d1_[a-f0-9]{32}$/.test(item?.id) && typeof item?.message === 'string')
+          .map((item: any) => ({
+            id: item.id,
+            visitorId: '',
+            authorName: String(item.authorName || 'Ospite'),
+            message: String(item.message),
+            createdAt: Number(item.createdAt) || 0,
+            hidden: Boolean(item.hidden),
+            deleted: Boolean(item.deleted),
+          }));
+        publishCombined();
+      } catch (err) {
+        console.warn('[LiveService] Lettura guestbook D1 temporaneamente non disponibile:', err);
+      } finally {
+        d1Loading = false;
+      }
     };
 
     attach(false);
+    void refreshD1();
+    // Poll only while the tab is visible, plus an immediate refresh after a post.
+    const timer = typeof window !== 'undefined' ? window.setInterval(() => { void refreshD1(); }, 20_000) : null;
+    const handleRefresh = () => { void refreshD1(); };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('hounigo-guest-message-saved', handleRefresh);
+      window.addEventListener('online', handleRefresh);
+      document.addEventListener('visibilitychange', handleRefresh);
+    }
     return () => {
       disposed = true;
       unsubCurrent?.();
+      if (timer !== null) window.clearInterval(timer);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('hounigo-guest-message-saved', handleRefresh);
+        window.removeEventListener('online', handleRefresh);
+        document.removeEventListener('visibilitychange', handleRefresh);
+      }
     };
   },
 
-  /**
-   * Modera (nasconde, mostra o elimina) un messaggio degli ospiti.
-   * Consentito solo a Owner e Copilota del viaggio.
-   */
   async moderateGuestMessage(
     tripId: string,
     messageId: string,
@@ -644,6 +703,22 @@ export const liveService = {
     const user = auth?.currentUser;
     if (!user) throw new Error('Autenticazione richiesta per moderare i messaggi.');
     if (!tripId || !messageId) return;
+
+    if (/^d1_[a-f0-9]{32}$/.test(messageId)) {
+      const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
+      if (!isMember) throw new Error('Solo Owner e Copilota possono moderare.');
+      const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
+      const token = await user.getIdToken();
+      const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/guest-messages/moderate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ messageId, action }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || 'Moderazione non riuscita.');
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('hounigo-guest-message-saved'));
+      return;
+    }
 
     const msgRef = doc(db, 'live_feeds', tripId, 'guest_messages', messageId);
     const now = Date.now();
