@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.20",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "6382f45e948f61e169965f1fb7c34fffb19bad73",
+      "changes": [
+        "LIVE ospiti: messaggi senza account, salvati su Cloudflare D1, condivisi tra dispositivi, con antispam e moderazione Owner/Copilota."
+      ],
+      "publishedAtIso": "2026-11-25T13:21:28.459Z"
+    },
+    {
       "version": "1.7.19",
       "publishedAt": "2026-11-25",
       "sourceCommit": "cb1a60460783c5cbf0cee978d2c643f52aa066db",
