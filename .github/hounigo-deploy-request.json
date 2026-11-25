@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-25T11:09:58.353Z",
+  "requestedAt": "2026-11-25T13:29:47.634Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.19-20261125-mobile",
+  "requestId": "release-1.7.20-public-guestbook-20261125",
   "requestedBy": "CASABR",
   "ref": "main",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.19: ultima posizione GPS autorizzata sulla mappa anche dopo perdita segnale, revoca STOP, diagnostica LIVE."
+  "note": "HOUNIGO 1.7.20: Guestbook pubblico Cloudflare D1 senza login con lettura da tutti i dispositivi e moderazione Owner/Copilota; Worker smoke GET pubblico 200."
 }
