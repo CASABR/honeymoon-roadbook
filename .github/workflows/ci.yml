@@ -52,6 +52,10 @@ jobs:
         working-directory: ViaggiodiNozze
         run: node scripts/test_live_p0_pre_departure.cjs
 
+      - name: Test - Guestbook D1 pubblico (nessun account)
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_live_guest_d1.cjs
+
       - name: Test - Google Drive & Duplica
         working-directory: ViaggiodiNozze
         run: node scripts/test_release_166_drive_and_duplica.cjs
