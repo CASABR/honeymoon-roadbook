@@ -502,7 +502,7 @@ async function runPlaywrightUiTests() {
           cardTop: cr?.top ?? -1,
           cardHeight: cr?.height ?? 0,
           headerBottom: hr?.bottom ?? -1,
-          navTop: nr?.top ?? -1,
+          navBottom: nr?.bottom ?? -1,
           routeHeight: rr?.height ?? 0,
           metaHeight: mr?.height ?? 0,
           routeText: route?.textContent || '',
@@ -515,7 +515,7 @@ async function runPlaywrightUiTests() {
       assert.equal(ui.docOverflow, false, `${vp.name}: horizontal overflow`);
       assert.equal(ui.cardOverflow, false, `${vp.name}: card internal overflow`);
       assert.ok(ui.cardTop >= ui.headerBottom - 2, `${vp.name}: card must be below header`);
-      assert.ok(ui.cardTop < ui.navTop, `${vp.name}: card must be above LIVE subheader nav`);
+      assert.ok(ui.cardTop >= ui.navBottom - 2, `${vp.name}: card must be below LIVE subheader nav`);
       assert.ok(ui.cardHeight <= 82, `${vp.name}: mini-card too tall (${ui.cardHeight}px)`);
       assert.ok(ui.routeHeight <= 24, `${vp.name}: route wrapped (${ui.routeHeight}px)`);
       assert.ok(ui.metaHeight <= 20, `${vp.name}: meta wrapped (${ui.metaHeight}px)`);

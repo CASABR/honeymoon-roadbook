@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { MapPin, Camera, BookOpen, MessageCircle, Compass, Clock, Radio, MapPinOff } from 'lucide-react';
 import type { LiveUpdate, LiveGuestMessage } from '../../services/liveService';
 import { GPS_STALE_THRESHOLD_MS, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
@@ -639,95 +640,119 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   );
 
   return (
-    <div className="hounigo-live-entry mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-5xl lg:max-w-7xl flex-col overflow-x-hidden px-3 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] text-slate-900 dark:text-slate-100 sm:px-6">
+    <div className="hounigo-live-entry mx-auto flex min-h-[100dvh] w-full max-w-5xl lg:max-w-7xl flex-col overflow-x-hidden px-3 pb-[calc(env(safe-area-inset-bottom,0px)+5.5rem)] sm:pb-[calc(env(safe-area-inset-bottom,0px)+2rem)] text-slate-900 dark:text-slate-100 sm:px-6">
       {/* A. INTESTAZIONE ESSENZIALE + ORARI ITALIA / LOCALE */}
       <header
         data-testid="live-section-header"
-        className="border-b border-slate-200 pb-2.5 dark:border-slate-800"
+        className="border-b border-slate-200 pb-2 dark:border-slate-800"
       >
-        <div className="flex items-start justify-between gap-2.5">
-          <div className="flex min-w-0 items-start gap-2.5">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
             {!props.isExternal && props.onBack && (
-              <button type="button" onClick={props.onBack} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg dark:bg-slate-800 cursor-pointer" aria-label="Torna ad Altro">←</button>
+              <button type="button" onClick={props.onBack} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base dark:bg-slate-800 cursor-pointer" aria-label="Torna ad Altro">←</button>
             )}
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                <span className="text-xs font-black tracking-[0.18em] text-[#FF6B5F]">LIVE</span>
-                <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${gpsVisualState.tone}`}>
-                  <span className={`h-2 w-2 rounded-full ${gpsVisualState.dot}`} />
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <span className="text-[11px] font-black tracking-[0.18em] text-[#FF6B5F]">LIVE</span>
+                <span className={`inline-flex items-center gap-1 text-[11px] font-bold ${gpsVisualState.tone}`}>
+                  <span className={`h-1.5 w-1.5 rounded-full ${gpsVisualState.dot}`} />
                   {gpsVisualState.label}
                 </span>
               </div>
-              <h1 className="mt-1 break-words text-xl font-black leading-tight tracking-tight text-[#172033] dark:text-white sm:text-2xl">{tripTitle}</h1>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">Il viaggio, mentre accade.</p>
+              <h1 className="mt-0.5 truncate text-lg font-black leading-tight tracking-tight text-[#172033] dark:text-white sm:text-xl">{tripTitle}</h1>
             </div>
           </div>
-          <button type="button" onClick={props.onShare} className="min-h-10 shrink-0 rounded-full bg-[#172033] px-3.5 text-xs font-bold text-white dark:bg-white dark:text-[#172033] cursor-pointer">
+          <button type="button" onClick={props.onShare} className="min-h-9 shrink-0 rounded-full bg-[#172033] px-3 text-xs font-bold text-white dark:bg-white dark:text-[#172033] cursor-pointer">
             {props.copiedLink ? 'Copiato ✓' : 'Condividi'}
           </button>
         </div>
 
-        {/* Orari compatti: Ora locale viaggio + Ora italiana con indicatore giorno/notte e cambio data */}
+        {/* Orari compatti: evita duplicazione se il fuso è identico a quello italiano */}
         <div
           data-testid="live-dual-clock"
-          className="mt-3 grid grid-cols-2 gap-2 sm:max-w-lg"
+          className="mt-2 grid grid-cols-2 gap-2 sm:max-w-lg"
           aria-label="Orario locale del viaggio e orario italiano"
         >
           <div
             data-testid="live-clock-travel"
-            className="min-w-0 rounded-2xl border border-slate-200/80 bg-white px-2.5 py-1.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70 sm:px-3 sm:py-2"
+            className="min-w-0 rounded-xl border border-slate-200/80 bg-white px-2.5 py-1.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70"
           >
-            <div className="flex items-center justify-between gap-1.5">
-              <span className="truncate text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                {dualClock.travelLabel}
-              </span>
-              {dualClock.travel && (
-                <span
-                  data-testid="live-clock-travel-period"
-                  className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400"
-                  title={dualClock.travel.dayNightLabel}
-                >
-                  <span aria-hidden="true">{dualClock.travel.dayNightIcon}</span>
-                  <span>{dualClock.travel.dayNightLabel}</span>
-                </span>
-              )}
-            </div>
-            {dualClock.travel ? (
+            {dualClock.travel && (!dualClock.offsetLabel || dualClock.offsetLabel === '0h') ? (
               <>
-                <p
-                  data-testid="live-clock-travel-time"
-                  className="mt-0.5 font-mono text-lg font-black tracking-tight text-[#172033] tabular-nums dark:text-white sm:text-xl"
-                >
-                  {dualClock.travel.timeStr}
+                <div className="flex items-center justify-between gap-1">
+                  <span className="truncate text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Stato viaggio
+                  </span>
+                  <Compass className="w-3 h-3 shrink-0 text-[#FF6B5F]" aria-hidden="true" />
+                </div>
+                <p className="mt-0.5 truncate text-sm font-black leading-tight text-[#172033] dark:text-white">
+                  {props.liveIntelligence?.tripStatus === 'pre_trip'
+                    ? 'In preparazione'
+                    : props.liveIntelligence?.tripStatus === 'in_trip'
+                      ? 'In viaggio'
+                      : props.liveIntelligence?.tripStatus === 'post_trip'
+                        ? 'Viaggio concluso'
+                        : gpsVisualState.label}
                 </p>
-                <p
-                  data-testid="live-clock-travel-date"
-                  className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400"
-                >
-                  <span className="capitalize">{dualClock.travel.dateStr}</span>
-                  {dualClock.offsetLabel && dualClock.offsetLabel !== '0h' ? (
-                    <span className={dualClock.isDifferentDate ? ' font-bold text-[#C83E31] dark:text-[#FF8C82]' : ''}>
-                      {` · ${dualClock.offsetLabel}`}
-                    </span>
-                  ) : null}
+                <p className="truncate text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                  {plannedLocation?.title || positionAgeLabel || 'Stesso fuso dell’Italia'}
                 </p>
               </>
             ) : (
-              <p
-                data-testid="live-clock-travel-fallback"
-                className="mt-1 text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400"
-              >
-                Fuso disponibile con posizione condivisa
-              </p>
+              <>
+                <div className="flex items-center justify-between gap-1.5">
+                  <span className="truncate text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                    {dualClock.travelLabel}
+                  </span>
+                  {dualClock.travel && (
+                    <span
+                      data-testid="live-clock-travel-period"
+                      className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400"
+                      title={dualClock.travel.dayNightLabel}
+                    >
+                      <span aria-hidden="true">{dualClock.travel.dayNightIcon}</span>
+                      <span>{dualClock.travel.dayNightLabel}</span>
+                    </span>
+                  )}
+                </div>
+                {dualClock.travel ? (
+                  <>
+                    <p
+                      data-testid="live-clock-travel-time"
+                      className="mt-0.5 font-mono text-base font-black leading-tight tracking-tight text-[#172033] tabular-nums dark:text-white sm:text-lg"
+                    >
+                      {dualClock.travel.timeStr}
+                    </p>
+                    <p
+                      data-testid="live-clock-travel-date"
+                      className="truncate text-[10px] font-medium text-slate-500 dark:text-slate-400"
+                    >
+                      <span className="capitalize">{dualClock.travel.dateStr}</span>
+                      {dualClock.offsetLabel && dualClock.offsetLabel !== '0h' ? (
+                        <span className={dualClock.isDifferentDate ? ' font-bold text-[#C83E31] dark:text-[#FF8C82]' : ''}>
+                          {` · ${dualClock.offsetLabel}`}
+                        </span>
+                      ) : null}
+                    </p>
+                  </>
+                ) : (
+                  <p
+                    data-testid="live-clock-travel-fallback"
+                    className="mt-0.5 text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400"
+                  >
+                    Fuso disponibile con posizione condivisa
+                  </p>
+                )}
+              </>
             )}
           </div>
 
           <div
             data-testid="live-clock-italy"
-            className="min-w-0 rounded-2xl border border-slate-200/80 bg-white px-2.5 py-1.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70 sm:px-3 sm:py-2"
+            className="min-w-0 rounded-xl border border-slate-200/80 bg-white px-2.5 py-1.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70"
           >
             <div className="flex items-center justify-between gap-1.5">
-              <span className="truncate text-[11px] font-bold text-slate-500 dark:text-slate-400">
+              <span className="truncate text-[10px] font-bold text-slate-500 dark:text-slate-400">
                 🇮🇹 Italia
               </span>
               <span
@@ -741,13 +766,13 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </div>
             <p
               data-testid="live-clock-italy-time"
-              className="mt-0.5 font-mono text-lg font-black tracking-tight text-[#172033] tabular-nums dark:text-white sm:text-xl"
+              className="mt-0.5 font-mono text-base font-black leading-tight tracking-tight text-[#172033] tabular-nums dark:text-white sm:text-lg"
             >
               {dualClock.italy.timeStr}
             </p>
             <p
               data-testid="live-clock-italy-date"
-              className="truncate text-[11px] font-medium capitalize text-slate-500 dark:text-slate-400"
+              className="truncate text-[10px] font-medium capitalize text-slate-500 dark:text-slate-400"
             >
               {dualClock.italy.dateStr}
             </p>
@@ -757,18 +782,19 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
       {/* Navigazione principale a 4 tab: Mappa | Foto | Diario | Messaggi */}
       <nav
-        className="mt-2.5 grid grid-cols-4 gap-1.5 rounded-2xl border border-slate-200/80 bg-white/90 p-1 shadow-2xs dark:border-slate-800 dark:bg-slate-900/80 lg:max-w-2xl"
+        className="mt-2 grid grid-cols-4 gap-1 rounded-2xl border border-slate-200/80 bg-white/90 p-1 shadow-2xs dark:border-slate-800 dark:bg-slate-900/80 lg:max-w-2xl"
         role="tablist"
         aria-label="Sezioni LIVE"
       >
         {([
-          { id: 'mappa', icon: '📍', label: 'Mappa' },
-          { id: 'foto', icon: '📷', label: 'Foto' },
-          { id: 'diario', icon: '📖', label: 'Diario' },
-          { id: 'messaggi', icon: '💬', label: 'Messaggi' }
+          { id: 'mappa', Icon: MapPin, label: 'Mappa' },
+          { id: 'foto', Icon: Camera, label: 'Foto' },
+          { id: 'diario', Icon: BookOpen, label: 'Diario' },
+          { id: 'messaggi', Icon: MessageCircle, label: 'Messaggi' }
         ] as const).map(tab => {
           const isActive = activeTab === tab.id;
           const showDot = hasTabNovelty(tab.id);
+          const TabIcon = tab.Icon;
           return (
             <button
               key={tab.id}
@@ -777,13 +803,13 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               aria-selected={isActive}
               data-testid={`live-tab-${tab.id}`}
               onClick={() => handleSelectTab(tab.id)}
-              className={`relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 transition cursor-pointer ${
+              className={`relative flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1 transition cursor-pointer ${
                 isActive
                   ? 'bg-[#172033] text-white shadow-xs dark:bg-white dark:text-[#172033]'
                   : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
               }`}
             >
-              <span aria-hidden="true" className="text-base leading-none">{tab.icon}</span>
+              <TabIcon className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span className="whitespace-nowrap text-[11px] sm:text-xs font-bold leading-tight">{tab.label}</span>
               {showDot && (
                 <span
@@ -824,7 +850,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           )}
         </div>
 
-        <div className="relative min-h-[340px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[440px] lg:min-h-[480px]">
+        {props.tileGrid && !props.tileLoadFailed && (hasRealLocation || hasPlannedLocation) ? (
+        <div className="relative min-h-[300px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[420px] lg:min-h-[460px]">
           {!props.isExternal && (hasRealLocation || hasPlannedLocation) && (
             <div className="absolute left-3 right-3 top-3 z-20 grid grid-cols-3 gap-1 rounded-full bg-[#172033]/90 p-1 text-[10px] font-bold text-white backdrop-blur" role="group" aria-label="Centra mappa">
               {(['both', 'real', 'planned'] as const).map(mode => (
@@ -842,20 +869,14 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </div>
           )}
 
-          {props.tileGrid && !props.tileLoadFailed ? (
-            <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-              <div
-                className="absolute left-1/2 top-1/2 grid h-[768px] w-[768px] -translate-x-1/2 -translate-y-1/2 grid-cols-3 grid-rows-3 opacity-95 dark:opacity-60"
-                style={{ marginLeft: -(props.tileGrid.pixelOffset?.x || 0), marginTop: -(props.tileGrid.pixelOffset?.y || 0) }}
-              >
-                {props.tileGrid.tiles.map((tile: any) => <img key={tile.key} src={tile.url} alt="" onError={props.onTileError} className="h-64 w-64 object-cover" />)}
-              </div>
+          <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
+            <div
+              className="absolute left-1/2 top-1/2 grid h-[768px] w-[768px] -translate-x-1/2 -translate-y-1/2 grid-cols-3 grid-rows-3 opacity-95 dark:opacity-60"
+              style={{ marginLeft: -(props.tileGrid.pixelOffset?.x || 0), marginTop: -(props.tileGrid.pixelOffset?.y || 0) }}
+            >
+              {props.tileGrid.tiles.map((tile: any) => <img key={tile.key} src={tile.url} alt="" onError={props.onTileError} className="h-64 w-64 object-cover" />)}
             </div>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-100 px-8 text-center text-sm font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-400">
-              Nessuna coordinata disponibile.
-            </div>
-          )}
+          </div>
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(15,23,42,.78),transparent_55%)]" />
 
           {showRealMarker && (
@@ -930,6 +951,46 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             )}
           </div>
         </div>
+        ) : (
+          <div
+            data-testid="live-map-empty-state"
+            className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70"
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+              isFreshGps
+                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
+                : isStaleGps
+                ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/50 dark:text-amber-400'
+                : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+            }`}>
+              {isFreshGps ? (
+                <Radio className="w-5 h-5" aria-hidden="true" />
+              ) : isStaleGps ? (
+                <Clock className="w-5 h-5" aria-hidden="true" />
+              ) : (
+                <MapPinOff className="w-5 h-5" aria-hidden="true" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-extrabold text-[#172033] dark:text-white">
+                {isFreshGps
+                  ? `GPS LIVE attivo${displayLocation?.city ? ` · ${displayLocation.city}` : ''}`
+                  : isStaleGps
+                  ? `Ultima posizione nota${positionAgeLabel ? ` · ${positionAgeLabel}` : ''}`
+                  : 'Posizione assente'}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400">
+                {isFreshGps
+                  ? 'Segnale attivo; anteprima mappa non disponibile.'
+                  : isStaleGps
+                  ? 'Nessun aggiornamento recente; anteprima mappa non disponibile.'
+                  : plannedLocation?.title
+                  ? `Nessuna coordinata GPS condivisa · In programma: ${plannedLocation.title}`
+                  : 'Nessuna coordinata disponibile.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5">
           <div className={`border-l-3 pl-3 py-0.5 rounded-r-xl transition ${isFreshGps ? 'border-[#FF6B5F] bg-[#FFF0ED]/20 dark:bg-slate-900/40' : isStaleGps ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/10' : 'border-slate-300 dark:border-slate-700'}`}>
