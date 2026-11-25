@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.22",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "a59fb895d6d2113f01d962a2b81fc44ae7a60225",
+      "changes": [
+        "Fix P0 LIVE: eliminato il loop infinito di sottoscrizione ai commenti foto nella lightbox che saturava il rate-limit IP (429) bloccando commenti e caricamento foto."
+      ],
+      "publishedAtIso": "2026-11-25T14:36:40.000Z"
+    },
+    {
       "version": "1.7.21",
       "publishedAt": "2026-11-25",
       "sourceCommit": "877964b132863bfe4686795f0342e2dbce37eb6d",
