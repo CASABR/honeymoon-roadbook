@@ -48,6 +48,10 @@ jobs:
         working-directory: ViaggiodiNozze
         run: node scripts/test_release_versioning.cjs
 
+      - name: Test - LIVE P0, guestbook e GPS stale con revoca
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_live_p0_pre_departure.cjs
+
       - name: Test - Google Drive & Duplica
         working-directory: ViaggiodiNozze
         run: node scripts/test_release_166_drive_and_duplica.cjs
@@ -55,10 +59,6 @@ jobs:
       - name: Test - Restyling LIVE & Auto GPS
         working-directory: ViaggiodiNozze
         run: node scripts/test_live_restyling_gps_auto.cjs
-
-      - name: Test - LIVE P0, guestbook e GPS stale con revoca
-        working-directory: ViaggiodiNozze
-        run: node scripts/test_live_p0_pre_departure.cjs
 
       - name: Test - Menu Altro 2x2 & UI Safe Guards
         working-directory: ViaggiodiNozze
