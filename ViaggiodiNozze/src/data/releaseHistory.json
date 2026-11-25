@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.26",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "0e44855fd90d3925057f29f05320e8740d22d6cf",
+      "changes": [
+        "Retro card Trasporti ottimizzato per sottocategoria (Aereo, Treno, Traghetto, Auto, Camper, Bus/Transfer, Taxi, Metro): altezza ridotta con sezioni espandibili per dettagli secondari, quadro economico e note, mantenendo sempre visibili e modificabili tutti i dati già compilati anche cambiando mezzo."
+      ],
+      "publishedAtIso": "2026-11-25T18:04:35.000Z"
+    },
+    {
       "version": "1.7.25",
       "publishedAt": "2026-11-25",
       "sourceCommit": "b46b0c396aa16e03e58e873ef1f4c726b6c81cf9",
