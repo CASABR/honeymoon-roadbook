@@ -25,7 +25,7 @@ const root = path.resolve(__dirname, '..');
     for(const [w,h,insets] of [[393,852,[59,0,34,0]],[852,393,[0,59,21,59]],[744,1133,[24,0,20,0]]]){
       await page.setViewportSize({width:w,height:h});
       for(const centered of [false,true]){
-        await page.goto('http://127.0.0.1:5203/honeymoon-roadbook/'+fixtureName+'/index.html'+(centered?'?centered=1':''));
+        await page.goto('http://127.0.0.1:5203/'+fixtureName+'/index.html'+(centered?'?centered=1':''));
         await page.getByRole('dialog').waitFor();
         await page.evaluate(v=>['top','right','bottom','left'].forEach((e,i)=>document.documentElement.style.setProperty('--app-safe-'+e,v[i]+'px')),insets);
         const geometry=()=>page.evaluate(()=>{const o=document.querySelector('.modal-backdrop-layer'),d=document.querySelector('.modal-sheet-container'),f=document.querySelector('.modal-sheet-footer');const a=o.getBoundingClientRect(),b=d.getBoundingClientRect(),c=f.getBoundingClientRect();return {top:a.top,bottom:a.bottom,dt:b.top,db:b.bottom,dl:b.left,dr:b.right,footer:c.bottom};});

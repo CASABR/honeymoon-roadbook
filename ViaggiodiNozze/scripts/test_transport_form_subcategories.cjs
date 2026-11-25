@@ -185,7 +185,7 @@ async function run() {
     await page.waitForTimeout(500);
 
     // 1. Apri il retro della card vuota (Test Vettore Vuoto) direttamente da OggiView e verifica tutte le sottocategorie
-    await page.locator('text=Test Vettore Vuoto').first().click();
+    await page.locator('h3:visible').filter({ hasText: 'Test Vettore Vuoto' }).first().click();
 
     const form = page.getByTestId('trasporto-form');
     await form.waitFor({ state: 'visible' });
@@ -251,7 +251,7 @@ async function run() {
     await page.waitForTimeout(250);
 
     // 2. Apri la card volo precompilata e cambia sottocategoria in Taxi: zero campi persi!
-    await page.locator('text=Air China CA950').first().click();
+    await page.locator('h3:visible').filter({ hasText: 'Air China CA950' }).first().click();
     await form.waitFor({ state: 'visible' });
     await page.getByTestId('transport-subcategory-taxi').click();
 
