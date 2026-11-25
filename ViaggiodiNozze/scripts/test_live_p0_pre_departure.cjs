@@ -169,6 +169,13 @@ async function run() {
         return doc ? new Response(JSON.stringify({ name: docPath, ...doc }), { status: 200 }) : new Response('{}', { status: 404 });
       }
       if (method === 'PATCH') {
+        if (simulateDenied && docPath.includes('/reactions/')) {
+          return new Response(JSON.stringify({ error: {
+            status: 'PERMISSION_DENIED',
+            message: denialDetails ? 'Permission datastore.entities.create denied on private/path/email@example.com SECRET' : 'Synthetic denial only',
+            details: denialDetails ? [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'IAM_PERMISSION_DENIED', metadata: { permission: 'datastore.entities.create' } }] : []
+          } }), { status: 403 });
+        }
         const body = JSON.parse(init.body);
         const existing = fsStore.get(docPath) || { fields: {} };
         if (query && query.includes('updateMask.fieldPaths=reactionCounts')) {
@@ -278,7 +285,8 @@ async function run() {
     assert.equal(guestReadBody.messages[0].id, m1Body.id);
     assert.equal(guestReadBody.messages[0].visitorId, undefined);
 
-    // POST photo comment + verify persisted doc
+    // POST photo comment while Firestore comment writes are denied; verify D1 persistence.
+    simulateDenied = true;
     const c1 = await handleRequest(new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/comments', {
       method: 'POST',
       headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': '1.2.3.4' },
@@ -287,19 +295,31 @@ async function run() {
     assert.equal(c1.status, 201);
     const c1Body = await c1.json();
     assert.ok(c1Body.id);
-    const savedComment = fsStore.get(`live_feeds/synth_trip/updates/upd_1/comments/${c1Body.id}`);
-    assert.equal(savedComment.fields.authorName.stringValue, 'Marco');
-    assert.equal(savedComment.fields.text.stringValue, 'Bellissima foto!');
-    assert.equal(savedComment.fields.publicSchemaVersion.integerValue, '2');
-    console.log('✓ [PASS] Guestbook D1 pubblico, foto/reazioni legacy Firestore e lettura seconda sessione verificati');
+    assert.match(c1Body.id, /^d1pc_[a-f0-9]{32}$/);
+    const savedComment = db.prepare('SELECT * FROM live_photo_comments WHERE id=?1').get(c1Body.id);
+    assert.equal(savedComment.author_name, 'Marco');
+    assert.equal(savedComment.text, 'Bellissima foto!');
+    assert.equal(savedComment.post_id, 'upd_1');
+    assert.equal(fsStore.has(`live_feeds/synth_trip/updates/upd_1/comments/${c1Body.id}`), false);
+    const readComments = (postId) => handleRequest(new Request(`https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/comments?postId=${postId}`, {
+      headers: { Origin: origin, 'CF-Connecting-IP': '6.6.6.6' }
+    }), env);
+    const comments = await readComments('upd_1');
+    assert.equal(comments.status, 200);
+    assert.equal((await comments.json()).comments[0].id, c1Body.id);
+    assert.equal((await readComments('missing')).status, 404);
+    const deniedModeration = await handleRequest(new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/comments/moderate', {
+      method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postId: 'upd_1', commentId: c1Body.id })
+    }), env);
+    assert.equal(deniedModeration.status, 401);
+    simulateDenied = false;
+    console.log('✓ [PASS] Commenti foto D1 con scrittura Firestore negata, seconda sessione, foto inesistente e moderazione anonima negata');
 
-    // Production 403 diagnostic must distinguish the active service identity from IAM
-    // without exposing account address, credentials or user data.
     simulateDenied = true;
-    const deniedReq = () => new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/comments', {
-      method: 'POST',
-      headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': '9.8.7.6' },
-      body: JSON.stringify({ postId: 'upd_1', authorName: 'Synthetic', text: 'Synthetic check' }),
+    const deniedReq = () => new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/reactions', {
+      method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': '9.8.7.6' },
+      body: JSON.stringify({ updateId: 'upd_1', type: '😂', visitorId: 'denied_test' }),
     });
     const identityMismatch = await handleRequest(deniedReq(), env);
     assert.equal(identityMismatch.status, 503);
@@ -316,7 +336,6 @@ async function run() {
     assert.doesNotMatch(explainedBody.error, /private|email@example|SECRET|projects\//i);
     simulateDenied = false;
     denialDetails = false;
-    console.log('✓ [PASS] Diagnostica IAM / ErrorInfo Google con codici consentiti, senza fughe di dati');
 
     // Read-only stale GPS, then verify that an explicit STOP revokes its public projection.
     fsStore.set('live_feeds/synth_trip/gps_control/current', {
