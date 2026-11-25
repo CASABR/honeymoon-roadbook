@@ -541,3 +541,28 @@ export async function syncPushRemindersFromStorage(options: {
 
   return inFlightReminderSync;
 }
+
+export async function recordLivePushEvent(input: {
+  tripId: string;
+  eventType: 'live_photo' | 'live_comment' | 'live_guest_msg';
+  dedupeKey?: string;
+  photoId?: string;
+  authorName?: string;
+  isReply?: boolean;
+}): Promise<void> {
+  if (!BACKGROUND_PUSH_ENABLED || !input.tripId) return;
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous || !isCloudAuthorized(input.tripId)) return;
+  try {
+    await callPush('live-event', {
+      tripId: input.tripId,
+      eventType: input.eventType,
+      dedupeKey: input.dedupeKey || '',
+      photoId: input.photoId || '',
+      authorName: input.authorName || '',
+      isReply: Boolean(input.isReply),
+    });
+  } catch {
+    // Non bloccare mai l'azione LIVE se la notifica push fallisce
+  }
+}

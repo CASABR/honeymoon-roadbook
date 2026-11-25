@@ -72,8 +72,12 @@ async function ensureGuestSchema(database) {
         created_at INTEGER NOT NULL,
         hidden INTEGER NOT NULL DEFAULT 0,
         deleted INTEGER NOT NULL DEFAULT 0,
-        ip_hash TEXT NOT NULL
+        ip_hash TEXT NOT NULL,
+        reply_to_id TEXT,
+        reply_to_author TEXT,
+        reply_to_preview TEXT
       )`).run();
+      await ensureReplyColumns(database, 'live_guest_messages');
       await database.prepare(
         'CREATE INDEX IF NOT EXISTS idx_live_guest_messages_trip_created ON live_guest_messages(trip_id, created_at DESC)'
       ).run();
@@ -85,6 +89,16 @@ async function ensureGuestSchema(database) {
   await guestSchemaInitPromise;
 }
 
+async function ensureReplyColumns(database, tableName) {
+  const info = await database.prepare(`PRAGMA table_info(${tableName})`).all();
+  const cols = new Set((info.results || []).map(c => c.name));
+  for (const col of ['reply_to_id', 'reply_to_author', 'reply_to_preview']) {
+    if (!cols.has(col)) {
+      await database.prepare(`ALTER TABLE ${tableName} ADD COLUMN ${col} TEXT`).run();
+    }
+  }
+}
+
 // Photo comments use their own D1 table; legacy Firestore comments remain readable.
 let photoCommentSchemaInitPromise = null;
 async function ensurePhotoCommentSchema(database) {
@@ -93,12 +107,87 @@ async function ensurePhotoCommentSchema(database) {
       await database.prepare(`CREATE TABLE IF NOT EXISTS live_photo_comments (
         id TEXT PRIMARY KEY, trip_id TEXT NOT NULL, post_id TEXT NOT NULL,
         author_name TEXT NOT NULL, text TEXT NOT NULL,
-        created_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0
+        created_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0,
+        reply_to_id TEXT, reply_to_author TEXT, reply_to_preview TEXT
       )`).run();
+      await ensureReplyColumns(database, 'live_photo_comments');
       await database.prepare('CREATE INDEX IF NOT EXISTS idx_live_photo_comments_post ON live_photo_comments(trip_id, post_id, deleted, created_at)').run();
     })().catch(err => { photoCommentSchemaInitPromise = null; throw err; });
   }
   await photoCommentSchemaInitPromise;
+}
+
+function cleanReplyText(value, maxLen) {
+  return String(value || '').replace(/<[^>]*>/g, '').trim().replace(/\s+/g, ' ').slice(0, maxLen);
+}
+
+async function resolveGuestMessageReply(database, security, env, tripId, rawReplyToId, saToken) {
+  if (!rawReplyToId) return null;
+  const replyToId = String(rawReplyToId).trim();
+  if (/^d1_[a-f0-9]{32}$/.test(replyToId)) {
+    const row = await database.prepare(
+      'SELECT id, author_name AS authorName, message, hidden, deleted FROM live_guest_messages WHERE id=?1 AND trip_id=?2'
+    ).bind(replyToId, tripId).first();
+    if (!row || Number(row.deleted) === 1 || Number(row.hidden) === 1) {
+      throw error(400, 'Messaggio originale non trovato o non più disponibile.');
+    }
+    return {
+      replyToId: row.id,
+      replyToAuthor: cleanReplyText(row.authorName || 'Ospite', 40),
+      replyToPreview: cleanReplyText(row.message, 100),
+    };
+  }
+  const safeId = validateTripId(replyToId);
+  if (!safeId) throw error(400, 'Riferimento risposta non valido.');
+  const doc = await security.getFirestoreDocument(
+    `live_feeds/${encodeURIComponent(tripId)}/guest_messages/${encodeURIComponent(safeId)}`,
+    saToken,
+    env
+  ).catch(() => null);
+  const data = readFirestoreFields(doc?.fields || {});
+  if (!doc?.fields || data.deleted === true || data.hidden === true || typeof data.message !== 'string') {
+    throw error(400, 'Messaggio originale non trovato o non più disponibile.');
+  }
+  return {
+    replyToId: safeId,
+    replyToAuthor: cleanReplyText(data.authorName || 'Ospite', 40),
+    replyToPreview: cleanReplyText(data.message, 100),
+  };
+}
+
+async function resolvePhotoCommentReply(database, security, env, tripId, postId, rawReplyToId) {
+  if (!rawReplyToId) return null;
+  const replyToId = String(rawReplyToId).trim();
+  if (/^d1pc_[a-f0-9]{32}$/.test(replyToId)) {
+    const row = await database.prepare(
+      'SELECT id, author_name AS authorName, text, deleted FROM live_photo_comments WHERE id=?1 AND trip_id=?2 AND post_id=?3'
+    ).bind(replyToId, tripId, postId).first();
+    if (!row || Number(row.deleted) === 1) {
+      throw error(400, 'Commento originale non trovato o non più disponibile.');
+    }
+    return {
+      replyToId: row.id,
+      replyToAuthor: cleanReplyText(row.authorName || 'Ospite', 40),
+      replyToPreview: cleanReplyText(row.text, 100),
+    };
+  }
+  const safeId = validateTripId(replyToId);
+  if (!safeId) throw error(400, 'Riferimento risposta non valido.');
+  const saToken = await security.getServiceAccountToken(env);
+  const doc = await security.getFirestoreDocument(
+    `live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(postId)}/comments/${encodeURIComponent(safeId)}`,
+    saToken,
+    env
+  ).catch(() => null);
+  const data = readFirestoreFields(doc?.fields || {});
+  if (!doc?.fields || data.deleted === true || typeof data.text !== 'string') {
+    throw error(400, 'Commento originale non trovato o non più disponibile.');
+  }
+  return {
+    replyToId: safeId,
+    replyToAuthor: cleanReplyText(data.authorName || 'Ospite', 40),
+    replyToPreview: cleanReplyText(data.text, 100),
+  };
 }
 
 async function requirePublicPhoto(security, env, tripId, postId) {
@@ -280,12 +369,13 @@ export async function handleLivePhotoRequest(request, env, security) {
       }
       await ensureGuestSchema(database);
       const sql = privateView
-        ? 'SELECT id,author_name AS authorName,message,created_at AS createdAt,hidden,deleted FROM live_guest_messages WHERE trip_id=?1 ORDER BY created_at DESC LIMIT 50'
-        : 'SELECT id,author_name AS authorName,message,created_at AS createdAt,hidden,deleted FROM live_guest_messages WHERE trip_id=?1 AND hidden=0 AND deleted=0 ORDER BY created_at DESC LIMIT 50';
+        ? 'SELECT id,author_name AS authorName,message,created_at AS createdAt,hidden,deleted,reply_to_id AS replyToId,reply_to_author AS replyToAuthor,reply_to_preview AS replyToPreview FROM live_guest_messages WHERE trip_id=?1 ORDER BY created_at DESC LIMIT 50'
+        : 'SELECT id,author_name AS authorName,message,created_at AS createdAt,hidden,deleted,reply_to_id AS replyToId,reply_to_author AS replyToAuthor,reply_to_preview AS replyToPreview FROM live_guest_messages WHERE trip_id=?1 AND hidden=0 AND deleted=0 ORDER BY created_at DESC LIMIT 50';
       const rows = await database.prepare(sql).bind(tripId).all();
       return reply(200, { messages: (rows.results || []).map(item => ({
         id: item.id, authorName: item.authorName, message: item.message,
-        createdAt: Number(item.createdAt), hidden: Boolean(item.hidden), deleted: Boolean(item.deleted)
+        createdAt: Number(item.createdAt), hidden: Boolean(item.hidden), deleted: Boolean(item.deleted),
+        ...(item.replyToId ? { replyToId: item.replyToId, replyToAuthor: item.replyToAuthor || '', replyToPreview: item.replyToPreview || '' } : {})
       })) });
     }
     if (isCommentGet) {
@@ -293,10 +383,11 @@ export async function handleLivePhotoRequest(request, env, security) {
       await requirePublicPhoto(security, env, tripId, postId);
       await ensurePhotoCommentSchema(database);
       const rows = await database.prepare(
-        'SELECT id,author_name AS authorName,text,created_at AS createdAt FROM live_photo_comments WHERE trip_id=?1 AND post_id=?2 AND deleted=0 ORDER BY created_at DESC LIMIT 50'
+        'SELECT id,author_name AS authorName,text,created_at AS createdAt,reply_to_id AS replyToId,reply_to_author AS replyToAuthor,reply_to_preview AS replyToPreview FROM live_photo_comments WHERE trip_id=?1 AND post_id=?2 AND deleted=0 ORDER BY created_at DESC LIMIT 50'
       ).bind(tripId, postId).all();
       return reply(200, { comments: (rows.results || []).map(row => ({
-        id: row.id, authorName: row.authorName, text: row.text, createdAt: Number(row.createdAt)
+        id: row.id, authorName: row.authorName, text: row.text, createdAt: Number(row.createdAt),
+        ...(row.replyToId ? { replyToId: row.replyToId, replyToAuthor: row.replyToAuthor || '', replyToPreview: row.replyToPreview || '' } : {})
       })) });
     }
     if (read) {
@@ -323,11 +414,24 @@ export async function handleLivePhotoRequest(request, env, security) {
       }
       await requirePublicPhoto(security, env, tripId, postId);
       await ensurePhotoCommentSchema(database);
+      const replyRef = await resolvePhotoCommentReply(database, security, env, tripId, postId, body?.replyToId);
       const commentId = `d1pc_${crypto.randomUUID().replace(/-/g, '')}`;
       await database.prepare(
-        'INSERT INTO live_photo_comments(id,trip_id,post_id,author_name,text,created_at,deleted) VALUES (?1,?2,?3,?4,?5,?6,0)'
-      ).bind(commentId, tripId, postId, cleanAuthor, cleanText, now).run();
-      return reply(201, { id: commentId, createdAt: now });
+        'INSERT INTO live_photo_comments(id,trip_id,post_id,author_name,text,created_at,deleted,reply_to_id,reply_to_author,reply_to_preview) VALUES (?1,?2,?3,?4,?5,?6,0,?7,?8,?9)'
+      ).bind(
+        commentId, tripId, postId, cleanAuthor, cleanText, now,
+        replyRef?.replyToId || null, replyRef?.replyToAuthor || null, replyRef?.replyToPreview || null
+      ).run();
+      await security.enqueueLivePushEvent?.(env, {
+        tripId,
+        eventType: 'live_comment',
+        actorUid: null,
+        dedupeKey: commentId,
+        photoId: postId,
+        authorName: cleanAuthor,
+        isReply: Boolean(replyRef),
+      }).catch(() => {});
+      return reply(201, { id: commentId, createdAt: now, ...(replyRef || {}) });
     }
     if (isReactionPost) {
       await gate(database, `reaction_day:${day}`, 2000, now + 172800000);
@@ -433,10 +537,22 @@ export async function handleLivePhotoRequest(request, env, security) {
       // store for NEW guestbook messages; Firestore historical messages remain readable.
       const messageId = `d1_${crypto.randomUUID().replace(/-/g, '')}`;
       await ensureGuestSchema(database);
+      const replyRef = await resolveGuestMessageReply(database, security, env, tripId, body?.replyToId, saToken);
       await database.prepare(
-        'INSERT INTO live_guest_messages(id,trip_id,visitor_id,author_name,message,created_at,hidden,deleted,ip_hash) VALUES (?1,?2,?3,?4,?5,?6,0,0,?7)'
-      ).bind(messageId, tripId, rawVisitor, cleanAuthor, cleanMsg, now, ip).run();
-      return reply(201, { id: messageId, createdAt: now });
+        'INSERT INTO live_guest_messages(id,trip_id,visitor_id,author_name,message,created_at,hidden,deleted,ip_hash,reply_to_id,reply_to_author,reply_to_preview) VALUES (?1,?2,?3,?4,?5,?6,0,0,?7,?8,?9,?10)'
+      ).bind(
+        messageId, tripId, rawVisitor, cleanAuthor, cleanMsg, now, ip,
+        replyRef?.replyToId || null, replyRef?.replyToAuthor || null, replyRef?.replyToPreview || null
+      ).run();
+      await security.enqueueLivePushEvent?.(env, {
+        tripId,
+        eventType: 'live_guest_msg',
+        actorUid: null,
+        dedupeKey: messageId,
+        authorName: cleanAuthor,
+        isReply: Boolean(replyRef),
+      }).catch(() => {});
+      return reply(201, { id: messageId, createdAt: now, ...(replyRef || {}) });
     }
     const token = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
     if (!token || token.length > 8192) throw error(401, 'Sessione Firebase non valida.');
@@ -524,6 +640,13 @@ export async function handleLivePhotoRequest(request, env, security) {
       const published = await database.prepare("UPDATE live_photo_objects SET status='published',post_id=?3 WHERE id=?1 AND trip_id=?2 AND status IN ('pending','published') RETURNING id")
         .bind(id, tripId, postId).first();
       if (!published) throw error(409, 'Foto rimossa o non pubblicabile.');
+      await security.enqueueLivePushEvent?.(env, {
+        tripId,
+        eventType: 'live_photo',
+        actorUid: uid,
+        dedupeKey: `${id}:${postId}`,
+        photoId: postId,
+      }).catch(() => {});
       return reply(200, { published: true });
     }
     throw error(405, 'Operazione non supportata.');

@@ -2081,9 +2081,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       onDeletePhoto={hasPrivateGalleryAccess ? handleDeletePhoto : undefined}
       onDeleteUpdate={hasPrivateGalleryAccess ? handleDeleteLiveUpdate : undefined}
       guestMessages={guestMessages}
-      onSendGuestMessage={async (authorName, message) => {
+      onSendGuestMessage={async (authorName, message, replyTo) => {
         if (!activeTripId) return;
-        await liveService.sendGuestMessage(activeTripId, authorName, message);
+        await liveService.sendGuestMessage(activeTripId, authorName, message, replyTo);
       }}
       onModerateGuestMessage={async (messageId, action) => {
         if (!activeTripId) return;
@@ -2091,9 +2091,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       }}
       photoComments={photoComments}
       onSubscribePhotoComments={handleSubscribePhotoComments}
-      onAddPhotoComment={async (photoId, authorName, text) => {
+      onAddPhotoComment={async (photoId, authorName, text, replyTo) => {
         if (!activeTripId) return;
-        await liveService.addPhotoComment(activeTripId, photoId, authorName, text);
+        await liveService.addPhotoComment(activeTripId, photoId, authorName, text, replyTo);
       }}
       onDeletePhotoComment={async (photoId, commentId) => {
         if (!activeTripId) return;

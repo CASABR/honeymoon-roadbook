@@ -12,7 +12,7 @@ import {
   normalizeAiResponse,
   validateTripId,
 } from './core.js';
-import { dispatchDuePushJobs, getServiceAccountToken, handlePushRequest } from './push.js';
+import { dispatchDuePushJobs, enqueueLivePushEvent, getServiceAccountToken, handlePushRequest } from './push.js';
 import { handleLivePhotoRequest } from './livePhotos.js';
 
 function corsHeaders(origin, env) {
@@ -196,7 +196,7 @@ async function runAi(requestBody, env) {
 
 export async function handleRequest(request, env) {
   if (new URL(request.url).pathname.startsWith('/v1/live-photos/')) {
-    return handleLivePhotoRequest(request, env, { verifyFirebaseIdentity, assertEditor, getFirestoreDocument, getServiceAccountToken });
+    return handleLivePhotoRequest(request, env, { verifyFirebaseIdentity, assertEditor, getFirestoreDocument, getServiceAccountToken, enqueueLivePushEvent });
   }
   const origin = request.headers.get('Origin') || '';
   if (origin !== env.ALLOWED_ORIGIN) return json(origin, env, 403, { error: 'Origine non autorizzata.' });

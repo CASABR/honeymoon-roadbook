@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MapPin, Camera, BookOpen, MessageCircle, Compass, Clock, Radio, MapPinOff } from 'lucide-react';
-import type { LiveUpdate, LiveGuestMessage } from '../../services/liveService';
+import { MapPin, Camera, BookOpen, MessageCircle, Compass, Clock, Radio, MapPinOff, Reply, X } from 'lucide-react';
+import type { LiveUpdate, LiveGuestMessage, LiveReplyTarget } from '../../services/liveService';
 import { GPS_STALE_THRESHOLD_MS, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 import type { PublicNextTransportInfo } from '../../utils/liveNextTransport';
@@ -34,6 +34,9 @@ export interface LivePhotoComment {
   authorName: string;
   text: string;
   createdAt: number;
+  replyToId?: string;
+  replyToAuthor?: string;
+  replyToPreview?: string;
 }
 
 export interface LiveEditorialExperienceProps {
@@ -105,11 +108,11 @@ export interface LiveEditorialExperienceProps {
   onDeletePhoto?: (photoId: string) => void;
   onDeleteUpdate?: (updateId: string) => Promise<void>;
   guestMessages?: LiveGuestMessage[];
-  onSendGuestMessage?: (authorName: string, message: string) => Promise<void>;
+  onSendGuestMessage?: (authorName: string, message: string, replyTo?: LiveReplyTarget | null) => Promise<void>;
   onModerateGuestMessage?: (messageId: string, action: 'hide' | 'unhide' | 'delete') => Promise<void>;
   photoComments?: Record<string, LivePhotoComment[]>;
   onSubscribePhotoComments?: (photoId: string) => (() => void) | void;
-  onAddPhotoComment?: (photoId: string, authorName: string, text: string) => Promise<void>;
+  onAddPhotoComment?: (photoId: string, authorName: string, text: string, replyTo?: LiveReplyTarget | null) => Promise<void>;
   onDeletePhotoComment?: (photoId: string, commentId: string) => Promise<void>;
 }
 
@@ -348,9 +351,14 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const [photoCommentInput, setPhotoCommentInput] = useState('');
   const [isSendingPhotoComment, setIsSendingPhotoComment] = useState(false);
   const [photoCommentError, setPhotoCommentError] = useState<string | null>(null);
+  const [replyingToGuestMsg, setReplyingToGuestMsg] = useState<LiveReplyTarget | null>(null);
+  const [replyingToPhotoComment, setReplyingToPhotoComment] = useState<LiveReplyTarget | null>(null);
+  const guestMsgInputRef = useRef<HTMLInputElement | null>(null);
+  const photoCommentInputRef = useRef<HTMLInputElement | null>(null);
 
   type LiveSectionTab = 'mappa' | 'foto' | 'diario' | 'messaggi';
   const [activeTab, setActiveTab] = useState<LiveSectionTab>('mappa');
+  const [pendingDeepLinkPhotoId, setPendingDeepLinkPhotoId] = useState<string | null>(null);
   const seenStorageKey = 'hounigo_live_seen_tabs_v1';
   const [seenSignals, setSeenSignals] = useState<Partial<Record<LiveSectionTab, string>>>(() => {
     if (typeof window === 'undefined') return {};
@@ -370,13 +378,14 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     try {
       const cleanAuthor = guestAuthorInput.trim();
       const cleanMsg = guestMessageInput.trim();
-      await props.onSendGuestMessage(cleanAuthor, cleanMsg);
+      await props.onSendGuestMessage(cleanAuthor, cleanMsg, replyingToGuestMsg);
       if (typeof window !== 'undefined' && cleanAuthor) {
         try {
           localStorage.setItem('hounigo_guest_author_name', cleanAuthor);
         } catch { }
       }
       setGuestMessageInput('');
+      setReplyingToGuestMsg(null);
       setGuestMsgSuccess('Messaggio inviato agli sposi! ❤️');
     } catch (err: any) {
       setGuestMsgError(err?.message || 'Impossibile inviare il messaggio. Riprova.');
@@ -444,12 +453,52 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
   useEffect(() => {
     setPhotoCommentError(null);
+    setReplyingToPhotoComment(null);
     if (!activeLightboxPhotoId || !activeLightboxIsPublic || !onSubscribePhotoCommentsRef.current) return;
     const unsub = onSubscribePhotoCommentsRef.current(activeLightboxPhotoId);
     return () => {
       if (typeof unsub === 'function') unsub();
     };
   }, [activeLightboxPhotoId, activeLightboxIsPublic]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const applyDeepLink = (detail?: { liveTab?: string; photoId?: string } | null) => {
+      if (!detail) return;
+      if (detail.liveTab === 'messaggi' || detail.liveTab === 'foto' || detail.liveTab === 'diario' || detail.liveTab === 'mappa') {
+        setActiveTab(detail.liveTab);
+      }
+      if (detail.photoId) {
+        setActiveTab('foto');
+        setPendingDeepLinkPhotoId(detail.photoId);
+      }
+    };
+    try {
+      const raw = sessionStorage.getItem('hounigo_live_deeplink');
+      if (raw) {
+        sessionStorage.removeItem('hounigo_live_deeplink');
+        const parsed = JSON.parse(raw);
+        if (parsed && Date.now() - Number(parsed.ts || 0) < 60_000) {
+          applyDeepLink(parsed);
+        }
+      }
+    } catch {}
+    const onDeepLink = (e: Event) => {
+      applyDeepLink((e as CustomEvent)?.detail);
+    };
+    window.addEventListener('hounigo_live_deeplink', onDeepLink);
+    return () => window.removeEventListener('hounigo_live_deeplink', onDeepLink);
+  }, []);
+
+  useEffect(() => {
+    if (!pendingDeepLinkPhotoId || displayPhotos.length === 0) return;
+    const idx = displayPhotos.findIndex(p => p.id === pendingDeepLinkPhotoId);
+    if (idx >= 0) {
+      setActiveTab('foto');
+      setActiveLightboxIndex(idx);
+      setPendingDeepLinkPhotoId(null);
+    }
+  }, [pendingDeepLinkPhotoId, displayPhotos]);
 
   const handlePhotoCommentSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -463,11 +512,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     setPhotoCommentError(null);
     setIsSendingPhotoComment(true);
     try {
-      await props.onAddPhotoComment(activeLightboxPhotoId, cleanAuthor, cleanText);
+      await props.onAddPhotoComment(activeLightboxPhotoId, cleanAuthor, cleanText, replyingToPhotoComment);
       if (typeof window !== 'undefined') {
         try { localStorage.setItem('hounigo_guest_author_name', cleanAuthor); } catch { }
       }
       setPhotoCommentInput('');
+      setReplyingToPhotoComment(null);
     } catch (err: any) {
       setPhotoCommentError(err?.message || 'Impossibile inviare il commento.');
     } finally {
@@ -1200,6 +1250,25 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
             {props.onSendGuestMessage ? (
               <form onSubmit={handleGuestMessageSubmit} className="space-y-2.5 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+                {replyingToGuestMsg && (
+                  <div
+                    data-testid="live-guest-reply-preview"
+                    className="flex items-start justify-between gap-2 rounded-xl border-l-3 border-[#FF6B5F] bg-slate-100/90 px-3 py-2 text-xs dark:bg-slate-800/80"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold text-[#FF6B5F]">Risposta a {replyingToGuestMsg.authorName}</p>
+                      <p className="truncate text-[11px] text-slate-600 dark:text-slate-300">{replyingToGuestMsg.preview}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingToGuestMsg(null)}
+                      aria-label="Annulla risposta"
+                      className="shrink-0 rounded-full p-1 text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
                 <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Nome</label>
@@ -1219,12 +1288,13 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                       <span className="text-[10px] text-slate-400">{guestMessageInput.length}/280</span>
                     </div>
                     <input
+                      ref={guestMsgInputRef}
                       type="text"
                       maxLength={280}
                       required
                       value={guestMessageInput}
                       onChange={(e) => setGuestMessageInput(e.target.value)}
-                      placeholder="Scrivi un pensiero per il diario…"
+                      placeholder={replyingToGuestMsg ? `Rispondi a ${replyingToGuestMsg.authorName}…` : 'Scrivi un pensiero per il diario…'}
                       className="mt-1 min-h-10 w-full rounded-xl border border-slate-200 bg-[#F8F7F3] px-3 text-xs text-[#172033] focus:border-[#FF6B5F] focus:outline-none dark:border-slate-700 dark:bg-[#172033] dark:text-white"
                     />
                   </div>
@@ -1276,9 +1346,32 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                             </span>
                           )}
                         </div>
+                        {msg.replyToAuthor && (
+                          <div className="mt-1.5 rounded-lg border-l-2 border-[#FF6B5F] bg-slate-100/80 px-2.5 py-1 text-[11px] dark:bg-slate-800/70">
+                            <p className="font-bold text-[#FF6B5F]">{msg.replyToAuthor}</p>
+                            <p className="truncate text-slate-600 dark:text-slate-300">{msg.replyToPreview}</p>
+                          </div>
+                        )}
                         <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-700 dark:text-slate-200">
                           {msg.message}
                         </p>
+                        {props.onSendGuestMessage && !msg.hidden && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplyingToGuestMsg({
+                                id: msg.id,
+                                authorName: msg.authorName,
+                                preview: msg.message.slice(0, 100),
+                              });
+                              guestMsgInputRef.current?.focus();
+                            }}
+                            className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-bold text-[#FF6B5F] hover:text-[#e85c50] cursor-pointer"
+                          >
+                            <Reply className="w-3 h-3" aria-hidden="true" />
+                            <span>Rispondi</span>
+                          </button>
+                        )}
                       </div>
                       {!props.isExternal && (props.isOwner || props.isCopilota) && props.onModerateGuestMessage && (
                         <div className="flex shrink-0 flex-wrap items-center gap-1.5">
@@ -1669,11 +1762,34 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   ) : (
                     (props.photoComments?.[displayPhotos[activeLightboxIndex].id] || []).map(comment => (
                       <div key={comment.id} className="flex items-start justify-between gap-2 rounded-xl bg-black/30 px-2.5 py-1.5 text-xs">
-                        <div className="min-w-0">
-                          <span className="font-bold text-white">{comment.authorName}: </span>
-                          <span className="break-words text-white/90">{comment.text}</span>
+                        <div className="min-w-0 flex-1">
+                          {comment.replyToAuthor && (
+                            <div className="mb-1 rounded-md border-l-2 border-[#FF6B5F] bg-white/10 px-2 py-0.5 text-[10px]">
+                              <span className="font-bold text-[#FF8C82]">{comment.replyToAuthor}: </span>
+                              <span className="truncate text-white/75">{comment.replyToPreview}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="font-bold text-white">{comment.authorName}: </span>
+                            <span className="break-words text-white/90">{comment.text}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplyingToPhotoComment({
+                                id: comment.id,
+                                authorName: comment.authorName,
+                                preview: comment.text.slice(0, 100),
+                              });
+                              photoCommentInputRef.current?.focus();
+                            }}
+                            className="mt-0.5 inline-flex items-center gap-1 text-[10px] font-bold text-[#FF8C82] hover:text-white cursor-pointer"
+                          >
+                            <Reply className="w-2.5 h-2.5" aria-hidden="true" />
+                            <span>Rispondi</span>
+                          </button>
                         </div>
-                        {props.canPublish && !props.isExternal && props.onDeletePhotoComment && (
+                        {!props.isExternal && (props.isOwner || props.isCopilota || props.canPublish) && props.onDeletePhotoComment && (
                           <button
                             type="button"
                             onClick={() => props.onDeletePhotoComment?.(displayPhotos[activeLightboxIndex].id, comment.id)}
@@ -1688,6 +1804,26 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   )}
                 </div>
 
+                {replyingToPhotoComment && (
+                  <div
+                    data-testid="live-photo-reply-preview"
+                    className="mt-2 flex items-start justify-between gap-2 rounded-xl border-l-2 border-[#FF6B5F] bg-black/40 px-2.5 py-1.5 text-[11px]"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-[#FF8C82]">Risposta a {replyingToPhotoComment.authorName}</p>
+                      <p className="truncate text-white/75">{replyingToPhotoComment.preview}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReplyingToPhotoComment(null)}
+                      aria-label="Annulla risposta"
+                      className="shrink-0 p-0.5 text-white/60 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" aria-hidden="true" />
+                    </button>
+                  </div>
+                )}
+
                 <form onSubmit={handlePhotoCommentSubmit} className="mt-2 flex flex-wrap gap-1.5">
                   <input
                     type="text"
@@ -1700,12 +1836,13 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                     className="min-h-9 w-28 shrink-0 rounded-xl bg-white/15 px-2.5 text-xs text-white placeholder:text-white/55 focus:outline-none focus:ring-1 focus:ring-white/40"
                   />
                   <input
+                    ref={photoCommentInputRef}
                     type="text"
                     maxLength={280}
                     required
                     value={photoCommentInput}
                     onChange={e => setPhotoCommentInput(e.target.value)}
-                    placeholder="Scrivi un commento…"
+                    placeholder={replyingToPhotoComment ? `Rispondi a ${replyingToPhotoComment.authorName}…` : 'Scrivi un commento…'}
                     aria-label="Scrivi un commento"
                     className="min-h-9 min-w-0 flex-1 rounded-xl bg-white/15 px-2.5 text-xs text-white placeholder:text-white/55 focus:outline-none focus:ring-1 focus:ring-white/40"
                   />

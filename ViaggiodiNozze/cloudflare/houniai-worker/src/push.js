@@ -102,11 +102,26 @@ function parseJobMeta(rawMetaJson) {
   }
 }
 
+function sanitizeDeepLinkUrl(rawUrl) {
+  if (typeof rawUrl !== 'string') return `${BASE_PATH}?pushView=oggi`;
+  const trimmed = rawUrl.trim();
+  if (!trimmed.startsWith(`${BASE_PATH}?pushView=`)) return `${BASE_PATH}?pushView=oggi`;
+  return trimmed.slice(0, 180);
+}
+
 function genericPayload(kind, context = {}) {
-  if (kind === 'collaboration') return {
-    title: 'Viaggio aggiornato', body: 'Il roadbook condiviso contiene un aggiornamento.',
-    url: `${BASE_PATH}?pushView=oggi`, type: kind,
-  };
+  if (kind === 'collaboration') {
+    const cleanTitle = sanitizeEventLabel(context?.title, 64) || 'Viaggio aggiornato';
+    const cleanBody = sanitizeEventLabel(context?.body, 140) || 'Il roadbook condiviso contiene un aggiornamento.';
+    const cleanTag = sanitizeEventLabel(context?.tag, 64).replace(/[^A-Za-z0-9_-]/g, '') || undefined;
+    return {
+      title: cleanTitle,
+      body: cleanBody,
+      url: sanitizeDeepLinkUrl(context?.url),
+      ...(cleanTag ? { tag: cleanTag } : {}),
+      type: kind,
+    };
+  }
   const cleanCategory = sanitizeEventLabel(context?.category, 24);
   const cleanTitle = sanitizeEventLabel(context?.title, 64);
   const cleanPlace = sanitizeEventLabel(context?.place, 48);
@@ -391,6 +406,89 @@ async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, e
   return { desiredJobIds, scheduledCount, recoveredCount, skippedAlreadySentCount, skippedPastLeadCount };
 }
 
+const ENTITY_TO_PUSH_VIEW = {
+  trasporto: 'trasporti',
+  attivita: 'attivita',
+  alloggio: 'alloggi',
+  tappa: 'tappe',
+  ristorante: 'ristoranti',
+  shopping: 'shopping',
+};
+
+export async function enqueueLivePushEvent(env, {
+  tripId,
+  eventType,
+  actorUid = null,
+  dedupeKey = '',
+  photoId = '',
+  authorName = '',
+  isReply = false,
+} = {}) {
+  if (!env?.RATE_LIMITS || !tripId) return { queued: false };
+  const now = Date.now();
+  if (dedupeKey) {
+    const dispatchKey = (await sha256(`live_evt|${tripId}|${eventType}|${dedupeKey}`)).slice(0, 56);
+    const accepted = await env.RATE_LIMITS.prepare(`
+      INSERT OR IGNORE INTO push_dispatches (dispatch_key, trip_id, created_at) VALUES (?1, ?2, ?3)
+      RETURNING dispatch_key
+    `).bind(dispatchKey, tripId, now).first();
+    if (!accepted) return { queued: false, duplicate: true };
+  }
+
+  const cleanAuthor = sanitizeEventLabel(authorName, 36);
+  const cleanPhotoId = typeof photoId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(photoId) ? photoId : '';
+  let groupKey = `live_msg:${tripId}`;
+  let url = `${BASE_PATH}?pushView=live&liveTab=messaggi`;
+  let tag = `live-msg-${tripId}`;
+  if (eventType === 'live_photo') {
+    groupKey = `live_photo:${tripId}`;
+    url = `${BASE_PATH}?pushView=live&liveTab=foto${cleanPhotoId ? `&photoId=${encodeURIComponent(cleanPhotoId)}` : ''}`;
+    tag = `live-photo-${tripId}`;
+  } else if (eventType === 'live_comment') {
+    groupKey = `live_comment:${tripId}:${cleanPhotoId || 'all'}`;
+    url = `${BASE_PATH}?pushView=live&liveTab=foto${cleanPhotoId ? `&photoId=${encodeURIComponent(cleanPhotoId)}` : ''}`;
+    tag = `live-comment-${tripId}-${cleanPhotoId || 'all'}`;
+  }
+
+  const jobId = (await sha256(`live_push|${groupKey}`)).slice(0, 56);
+  const existing = await env.RATE_LIMITS.prepare(
+    'SELECT meta_json FROM push_jobs WHERE job_id = ?1'
+  ).bind(jobId).first().catch(() => null);
+  const prevMeta = parseJobMeta(existing?.meta_json);
+  const count = Math.max(1, Number(prevMeta?.count || 0) + 1);
+
+  let title = 'Nuovo messaggio nel LIVE';
+  let body = cleanAuthor ? `${cleanAuthor} ha scritto nel Diario LIVE.` : 'Nuovo messaggio dagli ospiti.';
+  if (eventType === 'live_photo') {
+    title = count > 1 ? `${count} nuove foto nel LIVE` : 'Nuova foto nel LIVE';
+    body = count > 1 ? `Sono state pubblicate ${count} nuove foto nel LIVE.` : 'È stato pubblicato un nuovo scatto nel LIVE.';
+  } else if (eventType === 'live_comment') {
+    title = count > 1 ? `${count} nuovi commenti alle foto` : (isReply ? 'Nuova risposta a una foto' : 'Nuovo commento a una foto');
+    body = count > 1
+      ? `${count} nuovi commenti su una foto del LIVE.`
+      : (cleanAuthor ? `${cleanAuthor} ha commentato una foto.` : 'Nuovo commento su una foto del LIVE.');
+  } else if (count > 1) {
+    title = `${count} nuovi messaggi nel LIVE`;
+    body = `Ci sono ${count} nuovi messaggi nella bacheca LIVE.`;
+  } else if (isReply) {
+    title = 'Nuova risposta nel LIVE';
+    body = cleanAuthor ? `${cleanAuthor} ha risposto a un messaggio nel LIVE.` : 'Nuova risposta nella bacheca LIVE.';
+  }
+
+  const metaJson = JSON.stringify({ title, body, url, tag, count }).slice(0, 480);
+  const entityKey = `live:${eventType}:${cleanPhotoId || tripId}`.slice(0, 200);
+  await env.RATE_LIMITS.prepare(`
+    INSERT INTO push_jobs (job_id, trip_id, subscriber_id, actor_uid, entity_key, kind, event_at, lead_minutes, due_at, attempts, created_at, meta_json)
+    VALUES (?1, ?2, NULL, ?3, ?4, 'collaboration', NULL, NULL, ?5, 0, ?6, ?7)
+    ON CONFLICT(job_id) DO UPDATE SET
+      actor_uid = CASE WHEN push_jobs.actor_uid IS NULL OR excluded.actor_uid IS NULL THEN NULL ELSE excluded.actor_uid END,
+      due_at = MIN(push_jobs.created_at + 120000, excluded.due_at),
+      meta_json = excluded.meta_json
+  `).bind(jobId, tripId, actorUid || null, entityKey, now + 20_000, now, metaJson).run();
+
+  return { queued: true, count };
+}
+
 async function scheduleMutationJobs(uid, tripId, payload, env) {
   const entityType = String(payload.entityType || '');
   const action = String(payload.action || '');
@@ -433,11 +531,25 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
   }
 
   const collaborationId = (await sha256(`collaboration|${tripId}`)).slice(0, 56);
+  const canonical = canonicalEntityType(entityType);
+  const pushView = ENTITY_TO_PUSH_VIEW[canonical] || 'oggi';
+  const existingCollab = await env.RATE_LIMITS.prepare(
+    'SELECT meta_json FROM push_jobs WHERE job_id = ?1'
+  ).bind(collaborationId).first().catch(() => null);
+  const prevCollabMeta = parseJobMeta(existingCollab?.meta_json);
+  const collabCount = Math.max(1, Number(prevCollabMeta?.count || 0) + 1);
+  const collabMetaJson = JSON.stringify({
+    title: collabCount > 1 ? `Viaggio aggiornato (${collabCount})` : 'Viaggio aggiornato',
+    body: collabCount > 1 ? `Ci sono ${collabCount} nuovi aggiornamenti nel roadbook.` : 'Il roadbook condiviso contiene un aggiornamento.',
+    url: `${BASE_PATH}?pushView=${collabCount > 1 ? 'oggi' : pushView}`,
+    tag: `collab-${tripId}`,
+    count: collabCount,
+  }).slice(0, 480);
   await env.RATE_LIMITS.prepare(`
-    INSERT INTO push_jobs (job_id, trip_id, subscriber_id, actor_uid, entity_key, kind, event_at, lead_minutes, due_at, attempts, created_at)
-    VALUES (?1, ?2, NULL, ?3, ?4, 'collaboration', NULL, NULL, ?5, 0, ?6)
-    ON CONFLICT(job_id) DO UPDATE SET due_at = MIN(push_jobs.created_at + 300000, excluded.due_at)
-  `).bind(collaborationId, tripId, uid, entityKey, Date.now() + 90_000, Date.now()).run();
+    INSERT INTO push_jobs (job_id, trip_id, subscriber_id, actor_uid, entity_key, kind, event_at, lead_minutes, due_at, attempts, created_at, meta_json)
+    VALUES (?1, ?2, NULL, ?3, ?4, 'collaboration', NULL, NULL, ?5, 0, ?6, ?7)
+    ON CONFLICT(job_id) DO UPDATE SET due_at = MIN(push_jobs.created_at + 300000, excluded.due_at), meta_json = excluded.meta_json
+  `).bind(collaborationId, tripId, uid, entityKey, Date.now() + 90_000, Date.now(), collabMetaJson).run();
   console.info('[push-mutation]', { entityType, action, scheduledCount, recoveredCount, skippedPastLeadCount });
   return { accepted: true, duplicate: false, scheduledCount, recoveredCount, skippedPastLeadCount };
 }
@@ -519,7 +631,23 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
   if (!env.RATE_LIMITS) throw new Error('PUSH_STORAGE_NOT_CONFIGURED');
   if (path === '/v1/push/register') {
     const deviceId = String(payload.deviceId || '');
-    const subscriberId = String(payload.subscriberId || '');
+    if (path === '/v1/push/live-event') {
+    const eventType = String(payload?.eventType || '');
+    if (!['live_photo', 'live_comment', 'live_guest_msg'].includes(eventType)) {
+      throw new Error('INVALID_LIVE_EVENT');
+    }
+    return enqueueLivePushEvent(env, {
+      tripId,
+      eventType,
+      actorUid: uid,
+      dedupeKey: typeof payload?.dedupeKey === 'string' ? payload.dedupeKey.slice(0, 80) : '',
+      photoId: typeof payload?.photoId === 'string' ? payload.photoId : '',
+      authorName: typeof payload?.authorName === 'string' ? payload.authorName : '',
+      isReply: Boolean(payload?.isReply),
+    });
+  }
+
+  const subscriberId = String(payload.subscriberId || '');
     if (!/^[A-Za-z0-9_-]{8,128}$/.test(deviceId) || subscriberId !== await expectedSubscriberId(uid, tripId, deviceId)
       || !validSubscription(payload.subscription)) throw new Error('INVALID_SUBSCRIPTION');
     const endpointHash = await sha256(payload.subscription.endpoint);
@@ -629,6 +757,22 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
       recipientCount: sentCount,
       message: `Notifica manuale inviata con successo a ${sentCount} dispositivi autorizzati.`
     };
+  }
+
+  if (path === '/v1/push/live-event') {
+    const eventType = String(payload?.eventType || '');
+    if (!['live_photo', 'live_comment', 'live_guest_msg'].includes(eventType)) {
+      throw new Error('INVALID_LIVE_EVENT');
+    }
+    return enqueueLivePushEvent(env, {
+      tripId,
+      eventType,
+      actorUid: uid,
+      dedupeKey: typeof payload?.dedupeKey === 'string' ? payload.dedupeKey.slice(0, 80) : '',
+      photoId: typeof payload?.photoId === 'string' ? payload.photoId : '',
+      authorName: typeof payload?.authorName === 'string' ? payload.authorName : '',
+      isReply: Boolean(payload?.isReply),
+    });
   }
 
   const subscriberId = String(payload.subscriberId || '');

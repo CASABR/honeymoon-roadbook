@@ -518,10 +518,33 @@ export default function App() {
     window.addEventListener('navigate_to', handleNavigateTo);
     const pushParams = new URLSearchParams(window.location.search);
     const pushView = pushParams.get('pushView');
-    if (pushView === 'oggi' || pushView === 'trasporti' || pushView === 'attivita' || pushView === 'alloggi' || pushView === 'scadenze') {
-      if (pushView === 'scadenze') handleTabChange('altro', undefined, 'scadenze');
-      else handleTabChange(pushView === 'oggi' ? 'oggi' : 'categorie', pushView === 'oggi' ? undefined : pushView as CategoriaTab);
+    const pushLiveTab = pushParams.get('liveTab');
+    const pushPhotoId = pushParams.get('photoId');
+    if (
+      pushView === 'oggi' || pushView === 'trasporti' || pushView === 'attivita' ||
+      pushView === 'alloggi' || pushView === 'tappe' || pushView === 'ristoranti' ||
+      pushView === 'shopping' || pushView === 'scadenze' || pushView === 'live'
+    ) {
+      if (pushView === 'live') {
+        try {
+          sessionStorage.setItem('hounigo_live_deeplink', JSON.stringify({
+            liveTab: pushLiveTab || 'mappa',
+            photoId: pushPhotoId || '',
+            ts: Date.now(),
+          }));
+        } catch {}
+        window.dispatchEvent(new CustomEvent('hounigo_live_deeplink', {
+          detail: { liveTab: pushLiveTab || 'mappa', photoId: pushPhotoId || '' },
+        }));
+        handleTabChange('altro', undefined, 'live');
+      } else if (pushView === 'scadenze') {
+        handleTabChange('altro', undefined, 'scadenze');
+      } else {
+        handleTabChange(pushView === 'oggi' ? 'oggi' : 'categorie', pushView === 'oggi' ? undefined : pushView as CategoriaTab);
+      }
       pushParams.delete('pushView');
+      pushParams.delete('liveTab');
+      pushParams.delete('photoId');
       const cleanQuery = pushParams.toString();
       window.history.replaceState({}, '', `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ''}${window.location.hash}`);
     }

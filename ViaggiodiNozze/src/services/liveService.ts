@@ -64,6 +64,15 @@ export interface LiveGuestMessage {
   createdAt: number;
   hidden?: boolean;
   deleted?: boolean;
+  replyToId?: string;
+  replyToAuthor?: string;
+  replyToPreview?: string;
+}
+
+export interface LiveReplyTarget {
+  id: string;
+  authorName: string;
+  preview: string;
 }
 
 const MAX_TITLE = 120;
@@ -507,7 +516,12 @@ export const liveService = {
    * Invia un messaggio pubblico dagli ospiti nel LIVE (Guestbook).
    * Protetto da validazione lunghezza, rimozione HTML e rate limit per visitatore.
    */
-  async sendGuestMessage(tripId: string, authorName: string, message: string): Promise<string> {
+  async sendGuestMessage(
+    tripId: string,
+    authorName: string,
+    message: string,
+    replyTo?: LiveReplyTarget | null
+  ): Promise<string> {
     if (!tripId) throw new Error('Viaggio non configurato.');
     const safe = sanitizeGuestMessageInput(authorName, message);
     if (!safe.authorName) {
@@ -534,7 +548,7 @@ export const liveService = {
     const visitorId = this.getVisitorId();
     const now = Date.now();
     const user = auth?.currentUser;
-    if (user && !user.isAnonymous) {
+    if (user && !user.isAnonymous && !replyTo?.id) {
       const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
       if (isMember) {
         const msgRef = doc(collection(db, 'live_feeds', tripId, 'guest_messages'));
@@ -552,6 +566,15 @@ export const liveService = {
             localStorage.setItem(`hounigo_guest_msg_last_ts_${tripId}`, String(now));
           } catch {}
         }
+        void import('./pushNotificationService')
+          .then(({ recordLivePushEvent }) => recordLivePushEvent({
+            tripId,
+            eventType: 'live_guest_msg',
+            dedupeKey: msgRef.id,
+            authorName: safe.authorName,
+            isReply: false,
+          }))
+          .catch(() => {});
         return msgRef.id;
       }
     }
@@ -563,7 +586,12 @@ export const liveService = {
     const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/guest-messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ visitorId, authorName: safe.authorName, message: safe.message }),
+      body: JSON.stringify({
+        visitorId,
+        authorName: safe.authorName,
+        message: safe.message,
+        ...(replyTo?.id ? { replyToId: replyTo.id } : {}),
+      }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -669,6 +697,13 @@ export const liveService = {
             createdAt: Number(item.createdAt) || 0,
             hidden: Boolean(item.hidden),
             deleted: Boolean(item.deleted),
+            ...(typeof item.replyToId === 'string' && item.replyToId
+              ? {
+                  replyToId: item.replyToId,
+                  replyToAuthor: typeof item.replyToAuthor === 'string' ? item.replyToAuthor : '',
+                  replyToPreview: typeof item.replyToPreview === 'string' ? item.replyToPreview : '',
+                }
+              : {}),
           }));
         publishCombined();
       } catch (err) {
@@ -766,7 +801,16 @@ export const liveService = {
       callback([]);
       return () => {};
     }
-    type Comment = { id: string; photoId: string; authorName: string; text: string; createdAt: number };
+    type Comment = {
+      id: string;
+      photoId: string;
+      authorName: string;
+      text: string;
+      createdAt: number;
+      replyToId?: string;
+      replyToAuthor?: string;
+      replyToPreview?: string;
+    };
     let legacy: Comment[] = [];
     let remote: Comment[] = [];
     let disposed = false;
@@ -791,7 +835,20 @@ export const liveService = {
         if (disposed) return;
         remote = (Array.isArray(body.comments) ? body.comments : [])
           .filter((item: any) => /^d1pc_[a-f0-9]{32}$/.test(item?.id) && typeof item.authorName === 'string' && typeof item.text === 'string')
-          .map((item: any) => ({ id: item.id, photoId, authorName: item.authorName, text: item.text, createdAt: Number(item.createdAt) || 0 }));
+          .map((item: any) => ({
+            id: item.id,
+            photoId,
+            authorName: item.authorName,
+            text: item.text,
+            createdAt: Number(item.createdAt) || 0,
+            ...(typeof item.replyToId === 'string' && item.replyToId
+              ? {
+                  replyToId: item.replyToId,
+                  replyToAuthor: typeof item.replyToAuthor === 'string' ? item.replyToAuthor : '',
+                  replyToPreview: typeof item.replyToPreview === 'string' ? item.replyToPreview : '',
+                }
+              : {}),
+          }));
         publish();
       } catch (err) {
         console.warn('[LiveService] Commenti foto D1 temporaneamente non disponibili:', err);
@@ -853,7 +910,13 @@ export const liveService = {
     };
   },
 
-  async addPhotoComment(tripId: string, photoId: string, authorName: string, text: string): Promise<void> {
+  async addPhotoComment(
+    tripId: string,
+    photoId: string,
+    authorName: string,
+    text: string,
+    replyTo?: LiveReplyTarget | null
+  ): Promise<void> {
     if (!tripId || !photoId) throw new Error('Foto non valida.');
     const cleanAuthor = cleanString(authorName, 40);
     const cleanText = cleanString(text, 280);
@@ -874,7 +937,7 @@ export const liveService = {
 
     const user = auth?.currentUser;
     const now = Date.now();
-    if (user && !user.isAnonymous) {
+    if (user && !user.isAnonymous && !replyTo?.id) {
       const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
       if (isMember) {
         const commentRef = doc(collection(db, 'live_feeds', tripId, 'updates', photoId, 'comments'));
@@ -888,6 +951,16 @@ export const liveService = {
         if (typeof window !== 'undefined') {
           try { localStorage.setItem(`hounigo_photo_comment_ts_${tripId}_${photoId}`, String(now)); } catch {}
         }
+        void import('./pushNotificationService')
+          .then(({ recordLivePushEvent }) => recordLivePushEvent({
+            tripId,
+            eventType: 'live_comment',
+            dedupeKey: commentRef.id,
+            photoId,
+            authorName: cleanAuthor,
+            isReply: false,
+          }))
+          .catch(() => {});
         return;
       }
     }
@@ -897,7 +970,12 @@ export const liveService = {
     const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ postId: photoId, authorName: cleanAuthor, text: cleanText }),
+      body: JSON.stringify({
+        postId: photoId,
+        authorName: cleanAuthor,
+        text: cleanText,
+        ...(replyTo?.id ? { replyToId: replyTo.id } : {}),
+      }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body?.error || 'Impossibile inviare il commento.');
