@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.24",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "0e5c6788d1c57b20df317d18869075c40b3b6e18",
+      "changes": [
+        "LIVE offline: coda locale persistente per messaggi, commenti foto e risposte di Owner e Copiloti con stato «In attesa di invio», annullamento e invio automatico alla riconnessione."
+      ],
+      "publishedAtIso": "2026-11-25T17:39:00.000Z"
+    },
+    {
       "version": "1.7.23",
       "publishedAt": "2026-11-25",
       "sourceCommit": "33b4279603010ff13d225e8e1772fb29c34ea764",

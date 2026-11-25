@@ -1,10 +1,10 @@
 ﻿{
-    "requestedAt":  "2026-11-25T17:22:30.000Z",
+    "requestedAt":  "2026-11-25T17:39:00.000Z",
     "action":  "deploy",
     "confirm":  "CONFERMA",
-    "requestId":  "release-1.7.23-live-replies-push-20261125-r2",
+    "requestId":  "release-1.7.24-live-offline-queue-20261125",
     "requestedBy":  "CASABR",
     "ref":  "main",
     "$schema":  "./hounigo-deploy-request.schema.json",
-    "note":  "HOUNIGO 1.7.23: risposte WhatsApp-style LIVE, moderazione e push deep-link."
+    "note":  "HOUNIGO 1.7.24: coda offline persistente LIVE per Owner e Copiloti."
 }
