@@ -151,6 +151,7 @@ async function run() {
   const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
 
   let simulateDenied = false;
+  let denialDetails = false;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
@@ -178,7 +179,20 @@ async function run() {
       }
       if (method === 'POST') {
         if (simulateDenied && docPath.endsWith('/guest_messages')) {
-          return new Response(JSON.stringify({ error: { status: 'PERMISSION_DENIED', message: 'Synthetic denial only' } }), { status: 403 });
+          return new Response(JSON.stringify({ error: {
+            status: 'PERMISSION_DENIED',
+            message: denialDetails
+              ? 'Permission datastore.entities.create denied on private/path/email@example.com SECRET'
+              : 'Synthetic denial only',
+            details: denialDetails ? [{
+              '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+              reason: 'IAM_PERMISSION_DENIED',
+              metadata: {
+                permission: 'datastore.entities.create',
+                resource: '//firestore.googleapis.com/projects/private/path',
+              }
+            }] : []
+          } }), { status: 403 });
         }
         const body = JSON.parse(init.body);
         const newId = `doc_${fsStore.size + 1}`;
@@ -281,8 +295,15 @@ async function run() {
     const iamDenied = await handleRequest(deniedReq(), env);
     assert.equal(iamDenied.status, 503);
     assert.match((await iamDenied.json()).error, /^LIVE-IAM:/);
+    denialDetails = true;
+    const explained = await handleRequest(deniedReq(), env);
+    assert.equal(explained.status, 503);
+    const explainedBody = await explained.json();
+    assert.match(explainedBody.error, /LIVE-IAM: IAM_PERMISSION_DENIED \/ datastore\.entities\.create \/ ENTITY_PERMISSION/);
+    assert.doesNotMatch(explainedBody.error, /private|email@example|SECRET|projects\//i);
     simulateDenied = false;
-    console.log('✓ [PASS] Diagnostica IAM vs account mismatch su 403 (nessun dato privato esposto)');
+    denialDetails = false;
+    console.log('✓ [PASS] Diagnostica IAM / ErrorInfo Google con codici consentiti, senza fughe di dati');
 
     // Read-only stale GPS, then verify that an explicit STOP revokes its public projection.
     fsStore.set('live_feeds/synth_trip/gps_control/current', {
