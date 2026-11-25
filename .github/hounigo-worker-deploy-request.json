@@ -1,8 +1,8 @@
 {
-  "requestId": "live-auth403-reason-20261125-01",
+  "requestId": "release-1.7.20-worker-20261125",
   "action": "deploy",
   "version_id": "",
   "confirm": "CONFERMA",
   "requestedBy": "ChatGPT",
-  "purpose": "Read-only diagnostic enhancement: expose whitelisted Firestore ErrorInfo reason / permission to explain persistent LIVE-IAM 403; PWA and trip 0000 untouched"
+  "purpose": "HOUNIGO 1.7.20 guestbook D1: apply idempotent 0005 schema then deploy Worker; keep Firestore historical data and Push/GPS unchanged"
 }
