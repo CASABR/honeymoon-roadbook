@@ -163,15 +163,28 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     return {};
   });
 
+  const [reactionError, setReactionError] = useState<string | null>(null);
+  const pendingReactionsRef = useRef<Set<string>>(new Set());
+
   const handleReaction = async (updateId: string, emoji: string) => {
-    if (!activeTripId) return;
-    const newReactions = { ...localReactions, [updateId]: emoji };
-    setLocalReactions(newReactions);
-    localStorage.setItem('hounigo_local_reactions', JSON.stringify(newReactions));
+    if (!activeTripId || pendingReactionsRef.current.has(updateId)) return;
+    if (localReactions[updateId] === emoji) return;
+    setReactionError(null);
+    pendingReactionsRef.current.add(updateId);
     try {
-      await liveService.addReaction(activeTripId, updateId, emoji as any);
-    } catch (err) {
-      console.warn('Salvataggio offline pending', err);
+      const result = await liveService.addReaction(activeTripId, updateId, emoji as any);
+      const newReactions = { ...localReactions, [updateId]: emoji };
+      setLocalReactions(newReactions);
+      localStorage.setItem('hounigo_local_reactions', JSON.stringify(newReactions));
+      if (result?.reactionCounts) {
+        setLiveUpdates((prev) =>
+          prev.map((u) => (u.id === updateId ? { ...u, reactionCounts: result.reactionCounts } : u))
+        );
+      }
+    } catch (err: any) {
+      setReactionError(err?.message || 'Impossibile salvare la reazione. Riprova.');
+    } finally {
+      pendingReactionsRef.current.delete(updateId);
     }
   };
 
@@ -1983,6 +1996,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       updates={liveUpdates}
       reactions={localReactions}
       onReaction={handleReaction}
+      reactionError={reactionError}
       onShare={handleShareLiveLink}
       copiedLink={copiedLink}
       online={isOnline}
@@ -2923,7 +2937,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
                         }`}
                       >
                         <span>{emoji}</span>
-                        <span className="font-semibold">{baseCount + (isSelected ? 1 : 0)}</span>
+                        <span className="font-semibold">{baseCount}</span>
                       </button>
                     );
                   })}

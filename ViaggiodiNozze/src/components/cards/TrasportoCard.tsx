@@ -1,7 +1,7 @@
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
-import { Handshake, Check, Clock, Armchair } from 'lucide-react';
+import { Handshake, Check, Clock, Armchair, Plane, TrainFront, Ship, Bus, Car } from 'lucide-react';
 import type { Trasporto, TipoTrasporto, TransportSegmentContext } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
@@ -535,33 +535,50 @@ export default function TrasportoCard({
               )}
             </div>
           ) : (
-            <div className="hounigo-ds-route-track">
-              <div className="hounigo-ds-route-stop justify-between items-baseline gap-2">
-                <span className="min-w-0 flex-1 font-bold text-slate-900 dark:text-white break-words">
+            <div className="rounded-xl bg-[#F8F7F3]/85 dark:bg-slate-900/55 border border-[#E2E6EE] dark:border-slate-700/80 px-3 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+              <div className="min-w-0 text-left">
+                {transport.departureTime?.trim() && (
+                  <div className="font-mono tabular-nums text-base sm:text-[17px] font-extrabold leading-none text-slate-900 dark:text-white mb-1">
+                    {transport.departureTime.trim()}
+                  </div>
+                )}
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-100 break-words leading-tight">
                   {isFlight
                     ? extractFlightEndpoint(transport.departureLocation, transport.departureIata)
                     : (transport.departureLocation || 'Origine')}
-                </span>
-                {transport.departureTime?.trim() && (
-                  <span className="shrink-0 font-mono tabular-nums text-xs sm:text-[13px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap text-right">
-                    {transport.departureTime.trim()}
-                  </span>
-                )}
+                </div>
               </div>
-              <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end justify-between items-baseline gap-2">
-                <span className="min-w-0 flex-1 font-bold text-slate-900 dark:text-white break-words">
-                  {isFlight
-                    ? extractFlightEndpoint(transport.arrivalLocation, transport.arrivalIata)
-                    : (transport.dropoffLocation || transport.arrivalLocation || 'Destinazione')}
-                </span>
+
+              <div className="shrink-0 flex items-center gap-1 px-1 self-center" aria-hidden="true">
+                <span className="h-[1.5px] w-3.5 sm:w-5 bg-slate-300 dark:bg-slate-600 rounded-full" />
+                {transport.type === 'volo' ? (
+                  <Plane className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                ) : transport.type === 'treno' || transport.type === 'metro' ? (
+                  <TrainFront className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                ) : transport.type === 'traghetto' ? (
+                  <Ship className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                ) : transport.type === 'auto' || transport.type === 'camper' || transport.type === 'taxi' ? (
+                  <Car className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                ) : (
+                  <Bus className="w-3.5 h-3.5 text-sky-600 dark:text-sky-400 shrink-0" />
+                )}
+                <span className="h-[1.5px] w-3.5 sm:w-5 bg-slate-300 dark:bg-slate-600 rounded-full" />
+              </div>
+
+              <div className="min-w-0 text-right">
                 {(transport.dropoffTime || transport.arrivalTime)?.trim() && (
-                  <span className="shrink-0 inline-flex items-baseline justify-end gap-1 font-mono tabular-nums text-xs sm:text-[13px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap text-right">
+                  <div className="inline-flex items-baseline justify-end gap-1 font-mono tabular-nums text-base sm:text-[17px] font-extrabold leading-none text-slate-900 dark:text-white mb-1">
                     {isNextDayArrival && (
                       <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">+1g</span>
                     )}
                     <span>{(transport.dropoffTime || transport.arrivalTime)!.trim()}</span>
-                  </span>
+                  </div>
                 )}
+                <div className="text-xs font-bold text-slate-800 dark:text-slate-100 break-words leading-tight">
+                  {isFlight
+                    ? extractFlightEndpoint(transport.arrivalLocation, transport.arrivalIata)
+                    : (transport.dropoffLocation || transport.arrivalLocation || 'Destinazione')}
+                </div>
               </div>
             </div>
           )}
@@ -588,8 +605,8 @@ export default function TrasportoCard({
                     title={`Posto assegnato: ${transport.posti}`}
                     aria-label={`Posto assegnato: ${transport.posti}`}
                   >
-                    <Armchair className="w-3.5 h-3.5 shrink-0 text-slate-500 dark:text-slate-400" aria-hidden="true" />
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">
+                    <Armchair className="w-3.5 h-3.5 shrink-0 text-sky-600/80 dark:text-sky-400/80" aria-hidden="true" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0">
                       Posto
                     </span>
                     <span className="text-xs font-semibold font-mono text-slate-900 dark:text-slate-100 truncate min-w-0">

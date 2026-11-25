@@ -88,7 +88,10 @@ export async function handleLivePhotoRequest(request, env, security) {
     const url = new URL(request.url), segments = url.pathname.split('/').filter(Boolean);
     const tripId = validateTripId(segments[2]), id = segments[3], action = segments[4];
     const isCommentPost = request.method === 'POST' && id === 'comments' && !action;
-    if (!tripId || (id && !isCommentPost && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish')) throw error(404, 'Foto non disponibile.');
+    const isReactionPost = request.method === 'POST' && id === 'reactions' && !action;
+    const isGuestMessagePost = request.method === 'POST' && id === 'guest-messages' && !action;
+    const isPublicPost = isCommentPost || isReactionPost || isGuestMessagePost;
+    if (!tripId || (id && !isPublicPost && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish')) throw error(404, 'Foto non disponibile.');
     if (request.method === 'OPTIONS') {
       if (origin !== env.ALLOWED_ORIGIN) throw error(403, 'Origine non autorizzata.');
       return new Response(null, { status: 204, headers });
@@ -152,6 +155,118 @@ export async function handleLivePhotoRequest(request, env, security) {
         })
       });
       if (!fsRes.ok) throw error(503, 'Salvataggio commento non riuscito.');
+      const created = await fsRes.json();
+      return reply(201, { id: created.name?.split('/').at(-1) || '', createdAt: now });
+    }
+    if (isReactionPost) {
+      await gate(database, `reaction_day:${day}`, 2000, now + 172800000);
+      await gate(database, `reaction_ip:${Math.floor(now / 60000)}:${ip}`, 20, now + 120000);
+      const rawText = await request.text();
+      if (!rawText || rawText.length > 1024) throw error(400, 'Richiesta reazione non valida.');
+      let body;
+      try { body = JSON.parse(rawText); } catch { throw error(400, 'JSON non valido.'); }
+      const ALLOWED_REACTIONS = ['❤️', '😍', '😂', '👋'];
+      const updateId = validateTripId(body?.updateId);
+      const type = String(body?.type || '');
+      const visitorId = typeof body?.visitorId === 'string' && /^[A-Za-z0-9_-]{4,128}$/.test(body.visitorId) ? body.visitorId : null;
+      if (!updateId || !ALLOWED_REACTIONS.includes(type) || !visitorId) throw error(400, 'Reazione o visitatore non validi.');
+      if (typeof security.getServiceAccountToken !== 'function') throw error(503, 'Servizio reazioni non configurato.');
+      const saToken = await security.getServiceAccountToken(env);
+      const feedDoc = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}`, saToken, env);
+      const feedData = readFirestoreFields(feedDoc?.fields || {});
+      if (!feedDoc?.fields || feedData.deleted === true || feedData.status === 'disabled') {
+        throw error(404, 'Feed LIVE non attivo.');
+      }
+      const updateDoc = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(updateId)}`, saToken, env);
+      const updateData = readFirestoreFields(updateDoc?.fields || {});
+      if (!updateDoc?.fields || updateData.publicSchemaVersion !== 2 || updateData.deleted === true) {
+        throw error(404, 'Aggiornamento pubblico non trovato.');
+      }
+      let prevType = null;
+      try {
+        const existingReaction = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(updateId)}/reactions/${encodeURIComponent(visitorId)}`, saToken, env);
+        if (existingReaction?.fields) prevType = readFirestoreFields(existingReaction.fields).type || null;
+      } catch {}
+      const currentCounts = updateData.reactionCounts && typeof updateData.reactionCounts === 'object' ? updateData.reactionCounts : {};
+      const nextCounts = {};
+      for (const emoji of ALLOWED_REACTIONS) {
+        const n = Number(currentCounts[emoji]);
+        nextCounts[emoji] = Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+      }
+      if (prevType === type) {
+        return reply(200, { reactionCounts: nextCounts, selected: type, unchanged: true });
+      }
+      if (prevType && ALLOWED_REACTIONS.includes(prevType) && nextCounts[prevType] > 0) {
+        nextCounts[prevType] -= 1;
+      }
+      nextCounts[type] = (nextCounts[type] || 0) + 1;
+
+      const reactionUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(updateId)}/reactions/${encodeURIComponent(visitorId)}`;
+      const rRes = await fetch(reactionUrl, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            type: { stringValue: type },
+            visitorId: { stringValue: visitorId },
+            timestamp: { integerValue: String(now) }
+          }
+        })
+      });
+      if (!rRes.ok) throw error(503, 'Salvataggio reazione non riuscito.');
+
+      const countFields = Object.fromEntries(ALLOWED_REACTIONS.map(emoji => [emoji, { integerValue: String(nextCounts[emoji]) }]));
+      const updatePatchUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(updateId)}?updateMask.fieldPaths=reactionCounts`;
+      const uRes = await fetch(updatePatchUrl, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            reactionCounts: { mapValue: { fields: countFields } }
+          }
+        })
+      });
+      if (!uRes.ok) throw error(503, 'Aggiornamento conteggio reazioni non riuscito.');
+      return reply(200, { reactionCounts: nextCounts, selected: type });
+    }
+    if (isGuestMessagePost) {
+      await gate(database, `guest_msg_day:${day}`, 300, now + 172800000);
+      await gate(database, `guest_msg_ip:${Math.floor(now / 60000)}:${ip}`, 3, now + 120000);
+      await gate(database, `guest_msg_trip_ip:${tripId}:${day}:${ip}`, 15, now + 172800000);
+      const rawText = await request.text();
+      if (!rawText || rawText.length > 2048) throw error(400, 'Richiesta messaggio non valida.');
+      let body;
+      try { body = JSON.parse(rawText); } catch { throw error(400, 'JSON non valido.'); }
+      const cleanAuthor = String(body?.authorName || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+      const cleanMsg = String(body?.message || '').trim().replace(/\s+/g, ' ').slice(0, 280);
+      const rawVisitor = typeof body?.visitorId === 'string' && /^[A-Za-z0-9_-]{4,128}$/.test(body.visitorId) ? body.visitorId : `vis_${ip.slice(0, 24)}`;
+      if (!cleanAuthor || !cleanMsg || /[<>]|javascript:|data:text\/html/i.test(`${cleanAuthor} ${cleanMsg}`)) {
+        throw error(400, 'Nome o messaggio non validi.');
+      }
+      if (typeof security.getServiceAccountToken !== 'function') throw error(503, 'Servizio messaggi non configurato.');
+      const saToken = await security.getServiceAccountToken(env);
+      const feedDoc = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}`, saToken, env);
+      const feedData = readFirestoreFields(feedDoc?.fields || {});
+      if (!feedDoc?.fields || feedData.deleted === true || feedData.status === 'disabled') {
+        throw error(404, 'Feed LIVE non attivo.');
+      }
+      const msgUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/live_feeds/${encodeURIComponent(tripId)}/guest_messages`;
+      const fsRes = await fetch(msgUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            visitorId: { stringValue: rawVisitor },
+            authorName: { stringValue: cleanAuthor },
+            message: { stringValue: cleanMsg },
+            createdAt: { integerValue: String(now) },
+            hidden: { booleanValue: false },
+            deleted: { booleanValue: false },
+            publicSchemaVersion: { integerValue: '2' }
+          }
+        })
+      });
+      if (!fsRes.ok) throw error(503, 'Salvataggio messaggio non riuscito.');
       const created = await fsRes.json();
       return reply(201, { id: created.name?.split('/').at(-1) || '', createdAt: now });
     }

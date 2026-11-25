@@ -14,7 +14,6 @@ import {
 import LiveNextTransportCard from './LiveNextTransportCard';
 import { getTripConfig } from '../../utils/tripConfig';
 import { IMAGE_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
-import { FEATURE_FLAGS } from '../../config/featureFlags';
 
 export interface LiveGalleryPhotoItem {
   id: string;
@@ -96,6 +95,7 @@ export interface LiveEditorialExperienceProps {
   updates: LiveUpdate[];
   reactions: Record<string, string>;
   onReaction: (updateId: string, emoji: string) => void;
+  reactionError?: string | null;
   onShare: () => void;
   copiedLink: boolean;
   online: boolean;
@@ -630,6 +630,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           );
         })}
       </div>
+      {props.reactionError && (
+        <p className="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-400" role="alert">
+          {props.reactionError}
+        </p>
+      )}
     </article>
   );
 
@@ -1132,7 +1137,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             <p className="mt-0.5 text-xs text-slate-500">Auguri approvati nel diario del viaggio.</p>
           </div>
 
-          {props.onSendGuestMessage && !props.isExternal && (FEATURE_FLAGS.LIVE_GUEST_MESSAGES_PUBLIC_WRITE || props.isOwner || props.isCopilota) ? (
+          {props.onSendGuestMessage ? (
             <form onSubmit={handleGuestMessageSubmit} className="space-y-2.5 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                 <div>

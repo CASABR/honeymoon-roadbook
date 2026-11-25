@@ -1,6 +1,5 @@
 import { collection, doc, getDoc, writeBatch, onSnapshot, query, orderBy, where, setDoc, limit, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { db, auth } from '../firebase';
-import { FEATURE_FLAGS } from '../config/featureFlags';
 import {
   toPublicUpcomingTransportsFeedProjection,
   toPublicUpcomingTransportTokens,
@@ -341,17 +340,34 @@ export const liveService = {
   },
 
   /**
-   * Aggiunge o aggiorna una reaction a un aggiornamento. Utenti pubblici possono farlo.
+   * Aggiunge o aggiorna una reaction a un aggiornamento tramite backend autoritativo con rate-limit D1
+   * e aggiornamento persistente di reactionCounts su Firestore.
    */
-  async addReaction(tripId: string, updateId: string, type: typeof LIVE_REACTIONS[number]): Promise<void> {
-    if (!LIVE_REACTIONS.includes(type)) return;
+  async addReaction(
+    tripId: string,
+    updateId: string,
+    type: typeof LIVE_REACTIONS[number]
+  ): Promise<{ reactionCounts?: Record<string, number>; selected: string }> {
+    if (!LIVE_REACTIONS.includes(type)) throw new Error('Reazione non valida.');
+    if (!tripId || !updateId) throw new Error('Aggiornamento non valido.');
     const visitorId = this.getVisitorId();
-    const reactionRef = doc(db, 'live_feeds', tripId, 'updates', updateId, 'reactions', visitorId);
-    await setDoc(reactionRef, {
-      type,
-      visitorId,
-      timestamp: Date.now()
-    }, { merge: true });
+    const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
+    if (!LIVE_PHOTO_ORIGIN) {
+      throw new Error('Servizio reazioni non disponibile.');
+    }
+    const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/reactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updateId, type, visitorId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body?.error || 'Impossibile salvare la reazione.');
+    }
+    return {
+      reactionCounts: body?.reactionCounts && typeof body.reactionCounts === 'object' ? body.reactionCounts : undefined,
+      selected: type,
+    };
   },
 
   /**
@@ -488,12 +504,6 @@ export const liveService = {
    */
   async sendGuestMessage(tripId: string, authorName: string, message: string): Promise<string> {
     if (!tripId) throw new Error('Viaggio non configurato.');
-    if (!FEATURE_FLAGS.LIVE_GUEST_MESSAGES_PUBLIC_WRITE) {
-      const user = auth?.currentUser;
-      if (!user) {
-        throw new Error('L’invio di messaggi pubblici dagli ospiti è temporaneamente sospeso per motivi di sicurezza anti-abuso.');
-      }
-    }
     const safe = sanitizeGuestMessageInput(authorName, message);
     if (!safe.authorName) {
       throw new Error('Inserisci il tuo nome (massimo 40 caratteri).');
@@ -518,16 +528,42 @@ export const liveService = {
 
     const visitorId = this.getVisitorId();
     const now = Date.now();
-    const msgRef = doc(collection(db, 'live_feeds', tripId, 'guest_messages'));
-    await setDoc(msgRef, {
-      visitorId,
-      authorName: safe.authorName,
-      message: safe.message,
-      createdAt: now,
-      hidden: false,
-      deleted: false,
-      publicSchemaVersion: 2,
+    const user = auth?.currentUser;
+    if (user && !user.isAnonymous) {
+      const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
+      if (isMember) {
+        const msgRef = doc(collection(db, 'live_feeds', tripId, 'guest_messages'));
+        await setDoc(msgRef, {
+          visitorId,
+          authorName: safe.authorName,
+          message: safe.message,
+          createdAt: now,
+          hidden: false,
+          deleted: false,
+          publicSchemaVersion: 2,
+        });
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(`hounigo_guest_msg_last_ts_${tripId}`, String(now));
+          } catch {}
+        }
+        return msgRef.id;
+      }
+    }
+
+    const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
+    if (!LIVE_PHOTO_ORIGIN) {
+      throw new Error('Invio messaggi pubblici non disponibile.');
+    }
+    const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/guest-messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ visitorId, authorName: safe.authorName, message: safe.message }),
     });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body?.error || 'Impossibile inviare il messaggio.');
+    }
 
     if (typeof window !== 'undefined') {
       try {
@@ -535,7 +571,7 @@ export const liveService = {
       } catch {}
     }
 
-    return msgRef.id;
+    return String(body?.id || '');
   },
 
   /**
