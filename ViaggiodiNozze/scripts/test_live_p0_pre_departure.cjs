@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const path = require('node:path');
+const fs = require('node:fs');
 const { pathToFileURL } = require('node:url');
 const { DatabaseSync } = require('node:sqlite');
 
@@ -15,6 +16,7 @@ function createD1Shim(db) {
         args: [],
         bind(...args) { this.args = args; return this; },
         async first() { return db.prepare(sql).get(...this.args) || null; },
+        async all() { return { results: db.prepare(sql).all(...this.args) }; },
         async run() { return db.prepare(sql).run(...this.args); },
       };
     },
@@ -178,7 +180,7 @@ async function run() {
         return new Response(JSON.stringify({ name: docPath, ...existing }), { status: 200 });
       }
       if (method === 'POST') {
-        if (simulateDenied && docPath.endsWith('/guest_messages')) {
+        if (simulateDenied && docPath.endsWith('/comments')) {
           return new Response(JSON.stringify({ error: {
             status: 'PERMISSION_DENIED',
             message: denialDetails
@@ -206,6 +208,7 @@ async function run() {
 
   try {
     const db = new DatabaseSync(':memory:');
+    db.exec(fs.readFileSync(path.join(root, 'cloudflare/houniai-worker/migrations/0005_live_guest_messages.sql'), 'utf8'));
     const env = {
       ALLOWED_ORIGIN: 'https://casabr.github.io',
       FIREBASE_PROJECT_ID: 'test-proj',
@@ -261,9 +264,19 @@ async function run() {
     assert.equal(m1.status, 201);
     const m1Body = await m1.json();
     assert.ok(m1Body.id);
-    const savedMsg = fsStore.get(`live_feeds/synth_trip/guest_messages/${m1Body.id}`);
-    assert.equal(savedMsg.fields.authorName.stringValue, 'Zia Maria');
-    assert.equal(savedMsg.fields.publicSchemaVersion.integerValue, '2');
+    assert.match(m1Body.id, /^d1_[a-f0-9]{32}$/);
+    const savedMsg = db.prepare('SELECT author_name,message,trip_id FROM live_guest_messages WHERE id=?1').get(m1Body.id);
+    assert.equal(savedMsg.author_name, 'Zia Maria');
+    assert.equal(savedMsg.message, 'Buon viaggio!');
+    assert.equal(savedMsg.trip_id, 'synth_trip');
+    assert.equal(fsStore.has(`live_feeds/synth_trip/guest_messages/${m1Body.id}`), false);
+    const guestRead = await handleRequest(new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/guest-messages', {
+      method: 'GET', headers: { Origin: origin, 'CF-Connecting-IP': '6.6.6.6' }
+    }), env);
+    assert.equal(guestRead.status, 200);
+    const guestReadBody = await guestRead.json();
+    assert.equal(guestReadBody.messages[0].id, m1Body.id);
+    assert.equal(guestReadBody.messages[0].visitorId, undefined);
 
     // POST photo comment + verify persisted doc
     const c1 = await handleRequest(new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/comments', {
@@ -278,15 +291,15 @@ async function run() {
     assert.equal(savedComment.fields.authorName.stringValue, 'Marco');
     assert.equal(savedComment.fields.text.stringValue, 'Bellissima foto!');
     assert.equal(savedComment.fields.publicSchemaVersion.integerValue, '2');
-    console.log('✓ [PASS] Worker POST 200/201 + persistenza Firestore + lettura seconda sessione verificati');
+    console.log('✓ [PASS] Guestbook D1 pubblico, foto/reazioni legacy Firestore e lettura seconda sessione verificati');
 
     // Production 403 diagnostic must distinguish the active service identity from IAM
     // without exposing account address, credentials or user data.
     simulateDenied = true;
-    const deniedReq = () => new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/guest-messages', {
+    const deniedReq = () => new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/comments', {
       method: 'POST',
       headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': '9.8.7.6' },
-      body: JSON.stringify({ visitorId: 'visitor_diagnostic', authorName: 'Synthetic', message: 'Synthetic check' }),
+      body: JSON.stringify({ postId: 'upd_1', authorName: 'Synthetic', text: 'Synthetic check' }),
     });
     const identityMismatch = await handleRequest(deniedReq(), env);
     assert.equal(identityMismatch.status, 503);

@@ -135,12 +135,14 @@ export async function handleLivePhotoRequest(request, env, security) {
     }
     const url = new URL(request.url), segments = url.pathname.split('/').filter(Boolean);
     const tripId = validateTripId(segments[2]), id = segments[3], action = segments[4];
-    const isPublicEndpoint = (id === 'comments' || id === 'reactions' || id === 'guest-messages' || id === 'last-location') && !action;
+    const isGuestMessageModerationPath = id === 'guest-messages' && action === 'moderate';
+    const isGuestMessageGet = request.method === 'GET' && id === 'guest-messages' && !action;
+    const isPublicEndpoint = ((id === 'comments' || id === 'reactions' || id === 'guest-messages' || id === 'last-location') && !action) || isGuestMessageModerationPath;
     const isLastLocationGet = request.method === 'GET' && id === 'last-location' && !action;
     const isCommentPost = request.method === 'POST' && id === 'comments' && !action;
     const isReactionPost = request.method === 'POST' && id === 'reactions' && !action;
     const isGuestMessagePost = request.method === 'POST' && id === 'guest-messages' && !action;
-    if (!tripId || (id && !isPublicEndpoint && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish')) throw error(404, 'Foto non disponibile.');
+    if (!tripId || (id && !isPublicEndpoint && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish' && !isGuestMessageModerationPath)) throw error(404, 'Foto non disponibile.');
     if (request.method === 'OPTIONS') {
       if (origin !== env.ALLOWED_ORIGIN) throw error(403, 'Origine non autorizzata.');
       return new Response(null, { status: 204, headers });
@@ -201,6 +203,29 @@ export async function handleLivePhotoRequest(request, env, security) {
           status: 'active',
         },
       });
+    }
+    if (isGuestMessageGet) {
+      const saToken = await security.getServiceAccountToken(env);
+      const feedDoc = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}`, saToken, env);
+      const feed = readFirestoreFields(feedDoc?.fields || {});
+      if (!feedDoc?.fields || feed.deleted === true || feed.status === 'disabled') {
+        throw error(404, 'Feed LIVE non attivo.');
+      }
+      const privateView = url.searchParams.get('includeHidden') === '1';
+      if (privateView) {
+        const idToken = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
+        if (!idToken || idToken.length > 8192) throw error(401, 'Sessione necessaria.');
+        const uid = await security.verifyFirebaseIdentity(idToken, env);
+        if (!uid || !await security.assertEditor(uid, tripId, idToken, env)) throw error(403, 'Solo gli organizzatori possono vedere messaggi nascosti.');
+      }
+      const sql = privateView
+        ? 'SELECT id,author_name AS authorName,message,created_at AS createdAt,hidden,deleted FROM live_guest_messages WHERE trip_id=?1 ORDER BY created_at DESC LIMIT 50'
+        : 'SELECT id,author_name AS authorName,message,created_at AS createdAt,hidden,deleted FROM live_guest_messages WHERE trip_id=?1 AND hidden=0 AND deleted=0 ORDER BY created_at DESC LIMIT 50';
+      const rows = await database.prepare(sql).bind(tripId).all();
+      return reply(200, { messages: (rows.results || []).map(item => ({
+        id: item.id, authorName: item.authorName, message: item.message,
+        createdAt: Number(item.createdAt), hidden: Boolean(item.hidden), deleted: Boolean(item.deleted)
+      })) });
     }
     if (read) {
       const row = await database.prepare('SELECT status FROM live_photo_objects WHERE id=?1 AND trip_id=?2').bind(id, tripId).first();
@@ -319,9 +344,6 @@ export async function handleLivePhotoRequest(request, env, security) {
       return reply(200, { reactionCounts: nextCounts, selected: type });
     }
     if (isGuestMessagePost) {
-      await gate(database, `guest_msg_day:${day}`, 300, now + 172800000);
-      await gate(database, `guest_msg_ip:${Math.floor(now / 60000)}:${ip}`, 3, now + 120000);
-      await gate(database, `guest_msg_trip_ip:${tripId}:${day}:${ip}`, 15, now + 172800000);
       const rawText = await request.text();
       if (!rawText || rawText.length > 2048) throw error(400, 'Richiesta messaggio non valida.');
       let body;
@@ -332,6 +354,19 @@ export async function handleLivePhotoRequest(request, env, security) {
       if (!cleanAuthor || !cleanMsg || /[<>]|javascript:|data:text\/html/i.test(`${cleanAuthor} ${cleanMsg}`)) {
         throw error(400, 'Nome o messaggio non validi.');
       }
+      // Shared networks: many legitimate guests may have the same public IP.
+      // Enforce both IP-wide guardrails and a per-visitor cooldown; no sign-in required.
+      const visitorHash = await hashIdentity(`${tripId}|${rawVisitor}`);
+      try {
+        await gate(database, `guest_msg_day:${day}`, 600, now + 172800000);
+        await gate(database, `guest_msg_ip:${Math.floor(now / 60000)}:${ip}`, 20, now + 120000);
+        await gate(database, `guest_msg_trip_ip:${tripId}:${day}:${ip}`, 200, now + 172800000);
+        await gate(database, `guest_msg_visitor_30s:${Math.floor(now / 30000)}:${visitorHash}`, 1, now + 60000);
+        await gate(database, `guest_msg_visitor_day:${day}:${visitorHash}`, 15, now + 172800000);
+      } catch (limitError) {
+        if (limitError?.status === 429) throw error(429, 'Troppi messaggi ravvicinati. Riprova tra poco.');
+        throw limitError;
+      }
       if (typeof security.getServiceAccountToken !== 'function') throw error(503, 'Servizio messaggi non configurato.');
       const saToken = await security.getServiceAccountToken(env);
       const feedDoc = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}`, saToken, env);
@@ -339,25 +374,13 @@ export async function handleLivePhotoRequest(request, env, security) {
       if (!feedDoc?.fields || feedData.deleted === true || feedData.status === 'disabled') {
         throw error(404, 'Feed LIVE non attivo.');
       }
-      const msgUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/live_feeds/${encodeURIComponent(tripId)}/guest_messages`;
-      const fsRes = await fetch(msgUrl, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fields: {
-            visitorId: { stringValue: rawVisitor },
-            authorName: { stringValue: cleanAuthor },
-            message: { stringValue: cleanMsg },
-            createdAt: { integerValue: String(now) },
-            hidden: { booleanValue: false },
-            deleted: { booleanValue: false },
-            publicSchemaVersion: { integerValue: '2' }
-          }
-        })
-      });
-      if (!fsRes.ok) await throwFirestoreWriteError(fsRes, 'guest-message', env);
-      const created = await fsRes.json();
-      return reply(201, { id: created.name?.split('/').at(-1) || '', createdAt: now });
+      // Public guests never need Firestore write permissions. D1 is the authoritative
+      // store for NEW guestbook messages; Firestore historical messages remain readable.
+      const messageId = `d1_${crypto.randomUUID().replace(/-/g, '')}`;
+      await database.prepare(
+        'INSERT INTO live_guest_messages(id,trip_id,visitor_id,author_name,message,created_at,hidden,deleted,ip_hash) VALUES (?1,?2,?3,?4,?5,?6,0,0,?7)'
+      ).bind(messageId, tripId, rawVisitor, cleanAuthor, cleanMsg, now, ip).run();
+      return reply(201, { id: messageId, createdAt: now });
     }
     const token = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
     if (!token || token.length > 8192) throw error(401, 'Sessione Firebase non valida.');
@@ -373,6 +396,24 @@ export async function handleLivePhotoRequest(request, env, security) {
     } catch { throw error(401, 'Sessione Firebase non valida o anonima.'); }
     await gate(database, `mutation:${Math.floor(now / 60000)}:${await hashIdentity(uid)}`, 10, now + 120000);
     if (!await security.assertEditor(uid, tripId, token, env)) throw error(403, 'Solo Owner e Copilota possono pubblicare o rimuovere foto.');
+    if (isGuestMessageModerationPath && request.method === 'POST') {
+      const raw = await request.text();
+      if (!raw || raw.length > 1024) throw error(400, 'Richiesta non valida.');
+      let data;
+      try { data = JSON.parse(raw); } catch { throw error(400, 'JSON non valido.'); }
+      const messageId = String(data?.messageId || '');
+      const decision = String(data?.action || '');
+      if (!/^d1_[a-f0-9]{32}$/.test(messageId) || !['hide','unhide','delete'].includes(decision)) {
+        throw error(400, 'Moderazione non valida.');
+      }
+      const hidden = decision !== 'unhide' ? 1 : 0;
+      const deleted = decision === 'delete' ? 1 : 0;
+      const row = await database.prepare(
+        'UPDATE live_guest_messages SET hidden=?3,deleted=CASE WHEN deleted=1 THEN 1 ELSE ?4 END WHERE trip_id=?1 AND id=?2 RETURNING id'
+      ).bind(tripId, messageId, hidden, deleted).first();
+      if (!row) throw error(404, 'Messaggio non trovato.');
+      return reply(200, { updated: true, id: messageId });
+    }
     if (request.method === 'POST' && !id) {
       if (request.headers.get('Content-Type') !== 'image/jpeg') throw error(415, 'Formato richiesto: JPEG.');
       const image = sanitizeJpeg(await boundedBody(request));
