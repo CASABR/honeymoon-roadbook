@@ -47,7 +47,8 @@ test('Workers AI usa binding diretto e non provider esterni', () => {
 });
 
 test('La sincronizzazione accoda push solo per mutazioni esplicite e configurate', () => {
-  assert.equal(sync.includes("import { recordPushMutation } from '../services/pushNotificationService'"), true);
+  const pushImport = sync.split('\n').find(line => line.includes("from '../services/pushNotificationService'")) || '';
+  assert.equal(pushImport.includes('recordPushMutation'), true);
   assert.equal(sync.includes('options.notifyCollaborators && options.mutationId'), true);
   assert.equal(config.includes('PUSH_VAPID_PUBLIC_KEY.length > 40'), true);
   assert.equal(productionEnv.includes('VITE_PUSH_WORKER_URL'), true);

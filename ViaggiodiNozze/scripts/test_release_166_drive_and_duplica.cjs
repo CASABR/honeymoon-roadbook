@@ -124,25 +124,30 @@ assert.ok(
 
 console.log('✓ 3. Selezione file Google Drive con parentFolder e scope drive.file rigorosamente isolato.');
 
-// 4. VERSIONAMENTO 1.6.6
+// 4. COERENZA VERSIONAMENTO (compatibile anche con le release successive alla 1.6.6)
 const pkg = JSON.parse(read('package.json'));
 const pkgLock = JSON.parse(read('package-lock.json'));
 const releaseHistory = JSON.parse(read('src/data/releaseHistory.json'));
 
-assert.ok(pkg.version === '1.6.6' || pkg.version === '1.6.7', 'package.json deve essere 1.6.6 o successiva patch 1.6.7');
-assert.ok(pkgLock.version === '1.6.6' || pkgLock.version === '1.6.7', 'package-lock.json deve essere 1.6.6 o successiva patch 1.6.7');
+const supportedVersion = (value) => {
+  const parts = String(value || '').split('.').map(Number);
+  return parts.length === 3 && parts.every(Number.isInteger)
+    && (parts[0] > 1 || (parts[0] === 1 && (parts[1] > 6 || (parts[1] === 6 && parts[2] >= 6))));
+};
+assert.ok(supportedVersion(pkg.version), 'package.json deve avere versione >= 1.6.6');
+assert.equal(pkgLock.version, pkg.version, 'package-lock.json deve essere sincronizzato con package.json');
 
 if (fs.existsSync(path.join(root, 'release-draft.json'))) {
   const draft = JSON.parse(read('release-draft.json'));
-  assert.ok(draft.version === '1.6.6' || draft.version === '1.6.7', 'release-draft.json deve essere 1.6.6 o 1.6.7');
-  assert.ok(releaseHistory.releases[0].version === '1.6.5' || releaseHistory.releases[0].version === '1.6.6', 'La versione online pubblicata in releaseHistory');
+  assert.ok(supportedVersion(draft.version), 'release-draft.json deve avere versione >= 1.6.6');
+  assert.ok(supportedVersion(releaseHistory.releases[0].version), 'Cronologia deve contenere una release valida');
   assert.ok(draft.changes.length >= 1 && draft.changes.length <= 3, 'Note di rilascio da 1 a 3');
 } else {
-  assert.ok(releaseHistory.releases[0].version === '1.6.6' || releaseHistory.releases[0].version === '1.6.7', 'La versione in releaseHistory deve essere 1.6.6 o 1.6.7');
+  assert.equal(releaseHistory.releases[0].version, pkg.version, 'Versione releaseHistory deve coincidere con package.json');
   assert.ok(releaseHistory.releases[0].changes.length >= 1 && releaseHistory.releases[0].changes.length <= 3, 'Note di rilascio da 1 a 3');
 }
 
-console.log('✓ 4. Versionamento HOUNIGO 1.6.6: metadati coerenti.');
+console.log('✓ 4. Metadati di versionamento coerenti anche dopo la release 1.6.6.');
 
 // 5. ANTI-REGRESSION
 const liveViewSrc = read('src/views/altro/LiveView.tsx');
