@@ -1,0 +1,35 @@
+name: Verifica pubblica LIVE ospiti (sola lettura)
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/live-guest-smoke.yml'
+      - '.github/hounigo-live-smoke-request.json'
+permissions:
+  contents: read
+jobs:
+  public-guestbook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verifica che un ospite anonimo possa leggere il guestbook D1
+        env:
+          LIVE_URL: https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/0000/guest-messages
+        run: |
+          node --input-type=module <<'NODE'
+          const response = await fetch(process.env.LIVE_URL, {
+            headers: { Origin: 'https://casabr.github.io' },
+            signal: AbortSignal.timeout(20000),
+            cache: 'no-store'
+          });
+          const data = await response.json().catch(() => null);
+          // Never log message content or visitor identifiers.
+          console.log('LIVE_PUBLIC_GUESTBOOK_HTTP=' + response.status);
+          console.log('LIVE_GUESTBOOK_ARRAY=' + Array.isArray(data?.messages));
+          if (response.status !== 200 || !Array.isArray(data?.messages)) {
+            process.exitCode = 1;
+          }
+          NODE
