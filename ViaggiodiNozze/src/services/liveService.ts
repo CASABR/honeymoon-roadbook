@@ -73,6 +73,7 @@ const MAX_URL = 2048;
 export const MAX_GUEST_AUTHOR = 40;
 export const MAX_GUEST_MESSAGE = 280;
 export const GUEST_MESSAGE_COOLDOWN_MS = 30_000;
+let volatileVisitorId = '';
 
 const cleanString = (value: unknown, max: number): string =>
   typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -331,10 +332,14 @@ export const liveService = {
 
   getVisitorId(): string {
     if (typeof window === 'undefined') return 'server';
-    let vid = localStorage.getItem('hounigo_live_visitor_id');
+    // Some Safari/private-mode contexts block localStorage. This ID is not used
+    // for authorization; server-side anti-spam is enforced independently by IP.
+    let vid = '';
+    try { vid = localStorage.getItem('hounigo_live_visitor_id') || ''; } catch {}
     if (!vid) {
-      vid = 'vis_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-      localStorage.setItem('hounigo_live_visitor_id', vid);
+      vid = volatileVisitorId || ('vis_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36));
+      volatileVisitorId = vid;
+      try { localStorage.setItem('hounigo_live_visitor_id', vid); } catch {}
     }
     return vid;
   },
