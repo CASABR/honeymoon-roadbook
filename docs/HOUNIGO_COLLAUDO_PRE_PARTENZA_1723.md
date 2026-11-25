@@ -31,3 +31,7 @@ Questa coda integra (non sostituisce) HOUNIGO_BASELINE_STABILE.md e HOUNIGO_TEST
 - [ ] Verifiche operative distinte dai test: riconciliare eventuali stime/valute del budget, Pechino e check-in/transfer Auckland se ancora aperti. La baseline storica non certifica lo stato attuale di queste prenotazioni: verificare prima di modificarle.
 
 Nota: otto test reali dichiarati superati dall’utente; non certificati indipendentemente. I dettagli non esplicitamente confermati (tap/deep-link, auto-notifiche e deduplica, persistenza dopo riapertura e isolamento delle conversazioni, ultimo fix GPS dopo perdita rete) restano da verificare nel collaudo residuo, senza riaprire gli otto risultati confermati. Nessuna modifica al codice, ai deploy o a 0000.
+
+## Feedback reale aggiuntivo — 25/11/2026
+- [ ] P1 — Messaggi LIVE offline: Owner e Copiloti autorizzati devono poter accodare messaggi (e, se previsto nello stesso flusso, risposte/commenti) in una coda persistente locale, visibile come «In attesa di invio». Al ritorno online verificare identità, ruolo e viaggio, inviare in modo idempotente, mostrare conferma solo dopo ACK server; gestire retry, revoca dei permessi e cancellazione del pending. Ospiti pubblici restano online-only. Nessuna scrittura di prova su 0000. Da implementare e collaudare; non confondere con la sync offline delle card.
+- [ ] P3 — Emoji ancora lente secondo l'utente; ottimizzazione rinviabile, non blocca la partenza. Non dichiarare superato il test di velocità/persistenza.
