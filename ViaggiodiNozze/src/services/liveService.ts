@@ -766,6 +766,40 @@ export const liveService = {
       callback([]);
       return () => {};
     }
+    type Comment = { id: string; photoId: string; authorName: string; text: string; createdAt: number };
+    let legacy: Comment[] = [];
+    let remote: Comment[] = [];
+    let disposed = false;
+    let pending = false;
+    let refreshAgain = false;
+    const publish = () => {
+      if (!disposed) callback([...legacy, ...remote].sort((a, b) => a.createdAt - b.createdAt).slice(-50));
+    };
+    const refresh = async () => {
+      if (disposed || (typeof document !== 'undefined' && document.hidden)) return;
+      if (pending) { refreshAgain = true; return; }
+      pending = true;
+      try {
+        const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
+        if (!LIVE_PHOTO_ORIGIN) return;
+        const response = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/comments?postId=${encodeURIComponent(photoId)}`, { cache: 'no-store' });
+        if (!response.ok) {
+          if (response.status === 404) { remote = []; publish(); }
+          return;
+        }
+        const body = await response.json();
+        if (disposed) return;
+        remote = (Array.isArray(body.comments) ? body.comments : [])
+          .filter((item: any) => /^d1pc_[a-f0-9]{32}$/.test(item?.id) && typeof item.authorName === 'string' && typeof item.text === 'string')
+          .map((item: any) => ({ id: item.id, photoId, authorName: item.authorName, text: item.text, createdAt: Number(item.createdAt) || 0 }));
+        publish();
+      } catch (err) {
+        console.warn('[LiveService] Commenti foto D1 temporaneamente non disponibili:', err);
+      } finally {
+        pending = false;
+        if (refreshAgain) { refreshAgain = false; void refresh(); }
+      }
+    };
     const base = collection(db, 'live_feeds', tripId, 'updates', photoId, 'comments');
     const q = query(
       base,
@@ -774,7 +808,7 @@ export const liveService = {
       orderBy('createdAt', 'asc'),
       limit(50)
     );
-    return onSnapshot(
+    const unsubscribe = onSnapshot(
       q,
       (snap) => {
         const list: Array<{ id: string; photoId: string; authorName: string; text: string; createdAt: number }> = [];
@@ -790,13 +824,33 @@ export const liveService = {
             createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
           });
         });
-        callback(list);
+        legacy = list;
+        publish();
       },
       (err) => {
         console.warn('[LiveService] Errore sottoscrizione commenti foto:', err);
-        callback([]);
+        legacy = [];
+        publish();
       }
     );
+    void refresh();
+    const timer = typeof window !== 'undefined' ? window.setInterval(() => { void refresh(); }, 30_000) : null;
+    const onRefresh = () => { void refresh(); };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('hounigo-photo-comment-saved', onRefresh);
+      window.addEventListener('online', onRefresh);
+      document.addEventListener('visibilitychange', onRefresh);
+    }
+    return () => {
+      disposed = true;
+      unsubscribe();
+      if (timer !== null) window.clearInterval(timer);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('hounigo-photo-comment-saved', onRefresh);
+        window.removeEventListener('online', onRefresh);
+        document.removeEventListener('visibilitychange', onRefresh);
+      }
+    };
   },
 
   async addPhotoComment(tripId: string, photoId: string, authorName: string, text: string): Promise<void> {
@@ -849,6 +903,7 @@ export const liveService = {
     if (!res.ok) throw new Error(body?.error || 'Impossibile inviare il commento.');
     if (typeof window !== 'undefined') {
       try { localStorage.setItem(`hounigo_photo_comment_ts_${tripId}_${photoId}`, String(now)); } catch {}
+      window.dispatchEvent(new Event('hounigo-photo-comment-saved'));
     }
   },
 
@@ -858,6 +913,20 @@ export const liveService = {
     if (!tripId || !photoId || !commentId) return;
     const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
     if (!isMember) throw new Error('Solo Owner e Copilota possono eliminare i commenti.');
+    if (/^d1pc_[a-f0-9]{32}$/.test(commentId)) {
+      const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
+      if (!LIVE_PHOTO_ORIGIN) throw new Error('Moderazione commenti non disponibile.');
+      const token = await user.getIdToken();
+      const response = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/comments/moderate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ postId: photoId, commentId })
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || 'Eliminazione non riuscita.');
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('hounigo-photo-comment-saved'));
+      return;
+    }
     const commentRef = doc(db, 'live_feeds', tripId, 'updates', photoId, 'comments', commentId);
     await updateDoc(commentRef, {
       deleted: true,

@@ -37,6 +37,7 @@ const projectId = 'demo-hounigo-comments';
       return {
         bind(...v) { vals = v; return this; },
         async first() { return sql.prepare(q).get(...vals) || null; },
+        async all() { return { results: sql.prepare(q).all(...vals) }; },
         async run() { const r = sql.prepare(q).run(...vals); return { success: true, meta: { changes: Number(r.changes) } }; }
       };
     }
@@ -92,9 +93,10 @@ const projectId = 'demo-hounigo-comments';
       FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY: 'fixture'
     };
     const { handleLivePhotoRequest } = await import(pathToFileURL(path.join(workerDir, 'src/livePhotos.js')).href);
+    const ownerToken = 'test.' + Buffer.from(JSON.stringify({sub:'owner-1',aud:projectId,iss:'https://securetoken.google.com/'+projectId,firebase:{sign_in_provider:'password'}})).toString('base64url') + '.signature';
     const sec = {
-      verifyFirebaseIdentity: async () => null,
-      assertEditor: async () => false,
+      verifyFirebaseIdentity: async (token) => token === ownerToken ? 'owner-1' : null,
+      assertEditor: async (uid) => uid === 'owner-1',
       getFirestoreDocument: async (p, t) => {
         const r = await realFetch(`${emuBase}/${p}`, { headers: { Authorization: `Bearer ${t}` } });
         return r.ok ? r.json() : null;
@@ -124,15 +126,18 @@ const projectId = 'demo-hounigo-comments';
     for (let i = 0; i < 4; i++) assert.equal((await postComment({ postId: 'photo-1', authorName: 'Spam', text: 'Msg ' + i }, '192.0.2.51')).status, 201);
     assert.equal((await postComment({ postId: 'photo-1', authorName: 'Spam', text: 'Too many' }, '192.0.2.51')).status, 429);
 
-    // Guest reads separated comments from Firestore Emulator (survives reload)
-    const q1 = query(collection(guestDb, 'live_feeds/synth-c/updates/photo-1/comments'), where('publicSchemaVersion', '==', 2), where('deleted', '==', false), orderBy('createdAt', 'asc'));
-    const q2 = query(collection(guestDb, 'live_feeds/synth-c/updates/photo-2/comments'), where('publicSchemaVersion', '==', 2), where('deleted', '==', false), orderBy('createdAt', 'asc'));
-    const s1 = await getDocs(q1);
-    const s2 = await getDocs(q2);
-    assert.ok(s1.docs.some(d => d.data().text === 'Bellissima foto 1!'));
-    assert.equal(s1.docs.some(d => d.data().text === 'Stupenda foto 2!'), false);
-    assert.equal(s2.size, 1);
-    assert.equal(s2.docs[0].data().text, 'Stupenda foto 2!');
+    // Second guest session reads D1 comments, isolated by photo.
+    const getComments = async (photoId) => {
+      const response = await handleLivePhotoRequest(new Request('https://worker.test/v1/live-photos/synth-c/comments?postId=' + photoId, {headers:{Origin:origin,'CF-Connecting-IP':'192.0.2.90'}}),env,sec);
+      assert.equal(response.status,200);
+      return (await response.json()).comments;
+    };
+    const s1 = await getComments('photo-1');
+    const s2 = await getComments('photo-2');
+    assert.ok(s1.some(d => d.text === 'Bellissima foto 1!'));
+    assert.equal(s1.some(d => d.text === 'Stupenda foto 2!'), false);
+    assert.equal(s2.length, 1);
+    assert.equal(s2[0].text, 'Stupenda foto 2!');
 
     // Guest CANNOT write directly to Firestore comments or read private_credentials
     let directDenied = false;
@@ -145,14 +150,15 @@ const projectId = 'demo-hounigo-comments';
     try { await getDoc(doc(guestDb, 'trips/synth-c/private_credentials/priv-1')); } catch { privDenied = true; }
     assert.equal(privDenied, true);
 
-    // Owner soft-deletes comment c1 -> disappears from guest query
-    await realFetch(`${emuBase}/live_feeds/synth-c/updates/photo-1/comments/${c1Json.id}?updateMask.fieldPaths=deleted&updateMask.fieldPaths=text`, {
-      method: 'PATCH',
-      headers: { Authorization: 'Bearer owner', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields: { deleted: { booleanValue: true }, text: { stringValue: '[Rimosso]' } } })
-    });
-    const s1After = await getDocs(q1);
-    assert.equal(s1After.docs.some(d => d.id === c1Json.id), false, 'Deleted comment must disappear for guest');
+    // Only authorized editor can delete a D1 comment, scoped to the correct photo.
+    const remove = (photoId, token) => handleLivePhotoRequest(new Request('https://worker.test/v1/live-photos/synth-c/comments/moderate', {
+      method:'POST', headers:{Origin:origin,'Content-Type':'application/json',...(token ? {Authorization:'Bearer '+token}: {})},
+      body:JSON.stringify({postId:photoId,commentId:c1Json.id})
+    }),env,sec);
+    assert.equal((await remove('photo-1')).status,401);
+    assert.equal((await remove('photo-2',ownerToken)).status,404);
+    assert.equal((await remove('photo-1',ownerToken)).status,200);
+    assert.equal((await getComments('photo-1')).some(d => d.id === c1Json.id),false);
     console.log('PASS 2: Photo comments separated per photo, XSS/antispam enforced, direct Firestore write blocked, Owner delete verified');
   } finally {
     global.fetch = realFetch;

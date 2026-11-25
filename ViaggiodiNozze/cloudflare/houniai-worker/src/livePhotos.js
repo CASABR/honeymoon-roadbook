@@ -85,6 +85,35 @@ async function ensureGuestSchema(database) {
   await guestSchemaInitPromise;
 }
 
+// Photo comments use their own D1 table; legacy Firestore comments remain readable.
+let photoCommentSchemaInitPromise = null;
+async function ensurePhotoCommentSchema(database) {
+  if (!photoCommentSchemaInitPromise) {
+    photoCommentSchemaInitPromise = (async () => {
+      await database.prepare(`CREATE TABLE IF NOT EXISTS live_photo_comments (
+        id TEXT PRIMARY KEY, trip_id TEXT NOT NULL, post_id TEXT NOT NULL,
+        author_name TEXT NOT NULL, text TEXT NOT NULL,
+        created_at INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0
+      )`).run();
+      await database.prepare('CREATE INDEX IF NOT EXISTS idx_live_photo_comments_post ON live_photo_comments(trip_id, post_id, deleted, created_at)').run();
+    })().catch(err => { photoCommentSchemaInitPromise = null; throw err; });
+  }
+  await photoCommentSchemaInitPromise;
+}
+
+async function requirePublicPhoto(security, env, tripId, postId) {
+  if (!postId) throw error(400, 'Foto non valida.');
+  const token = await security.getServiceAccountToken(env);
+  const feed = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}`, token, env);
+  const feedData = readFirestoreFields(feed?.fields || {});
+  if (!feed?.fields || feedData.deleted === true || feedData.status === 'disabled') throw error(404, 'Feed LIVE non attivo.');
+  const post = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(postId)}`, token, env);
+  const data = readFirestoreFields(post?.fields || {});
+  if (!post?.fields || data.publicSchemaVersion !== 2 || data.deleted === true || typeof data.photoUrl !== 'string' || !data.photoUrl.trim()) {
+    throw error(404, 'Foto pubblica non trovata.');
+  }
+}
+
 // Only baseline JPEG from the client canvas. Strip ALL APP and comment segments
 // again on the server; reject malformed/trailing data, progressive images and huge dimensions.
 export function sanitizeJpeg(input) {
@@ -164,14 +193,16 @@ export async function handleLivePhotoRequest(request, env, security) {
     }
     const url = new URL(request.url), segments = url.pathname.split('/').filter(Boolean);
     const tripId = validateTripId(segments[2]), id = segments[3], action = segments[4];
+    const isCommentModerationPath = id === 'comments' && action === 'moderate';
+    const isCommentGet = request.method === 'GET' && id === 'comments' && !action;
     const isGuestMessageModerationPath = id === 'guest-messages' && action === 'moderate';
     const isGuestMessageGet = request.method === 'GET' && id === 'guest-messages' && !action;
-    const isPublicEndpoint = ((id === 'comments' || id === 'reactions' || id === 'guest-messages' || id === 'last-location') && !action) || isGuestMessageModerationPath;
+    const isPublicEndpoint = ((id === 'comments' || id === 'reactions' || id === 'guest-messages' || id === 'last-location') && !action) || isGuestMessageModerationPath || isCommentModerationPath;
     const isLastLocationGet = request.method === 'GET' && id === 'last-location' && !action;
     const isCommentPost = request.method === 'POST' && id === 'comments' && !action;
     const isReactionPost = request.method === 'POST' && id === 'reactions' && !action;
     const isGuestMessagePost = request.method === 'POST' && id === 'guest-messages' && !action;
-    if (!tripId || (id && !isPublicEndpoint && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish' && !isGuestMessageModerationPath)) throw error(404, 'Foto non disponibile.');
+    if (!tripId || (id && !isPublicEndpoint && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish' && !isGuestMessageModerationPath && !isCommentModerationPath)) throw error(404, 'Foto non disponibile.');
     if (request.method === 'OPTIONS') {
       if (origin !== env.ALLOWED_ORIGIN) throw error(403, 'Origine non autorizzata.');
       return new Response(null, { status: 204, headers });
@@ -257,6 +288,17 @@ export async function handleLivePhotoRequest(request, env, security) {
         createdAt: Number(item.createdAt), hidden: Boolean(item.hidden), deleted: Boolean(item.deleted)
       })) });
     }
+    if (isCommentGet) {
+      const postId = validateTripId(url.searchParams.get('postId'));
+      await requirePublicPhoto(security, env, tripId, postId);
+      await ensurePhotoCommentSchema(database);
+      const rows = await database.prepare(
+        'SELECT id,author_name AS authorName,text,created_at AS createdAt FROM live_photo_comments WHERE trip_id=?1 AND post_id=?2 AND deleted=0 ORDER BY created_at DESC LIMIT 50'
+      ).bind(tripId, postId).all();
+      return reply(200, { comments: (rows.results || []).map(row => ({
+        id: row.id, authorName: row.authorName, text: row.text, createdAt: Number(row.createdAt)
+      })) });
+    }
     if (read) {
       const row = await database.prepare('SELECT status FROM live_photo_objects WHERE id=?1 AND trip_id=?2').bind(id, tripId).first();
       if (row?.status !== 'published') throw error(404, 'Foto non disponibile.');
@@ -279,30 +321,13 @@ export async function handleLivePhotoRequest(request, env, security) {
       if (!postId || !cleanAuthor || !cleanText || /[<>]|javascript:|data:text\/html/i.test(`${cleanAuthor} ${cleanText}`)) {
         throw error(400, 'Nome o commento non validi.');
       }
-      if (typeof security.getServiceAccountToken !== 'function') throw error(503, 'Servizio commenti non configurato.');
-      const saToken = await security.getServiceAccountToken(env);
-      const post = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(postId)}`, saToken, env);
-      const postData = readFirestoreFields(post?.fields || {});
-      if (postData.publicSchemaVersion !== 2 || postData.deleted === true || !postData.photoUrl) {
-        throw error(404, 'Foto pubblica non trovata.');
-      }
-      const fsUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(postId)}/comments`;
-      const fsRes = await fetch(fsUrl, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fields: {
-            authorName: { stringValue: cleanAuthor },
-            text: { stringValue: cleanText },
-            createdAt: { integerValue: String(now) },
-            deleted: { booleanValue: false },
-            publicSchemaVersion: { integerValue: '2' }
-          }
-        })
-      });
-      if (!fsRes.ok) await throwFirestoreWriteError(fsRes, 'photo-comment', env);
-      const created = await fsRes.json();
-      return reply(201, { id: created.name?.split('/').at(-1) || '', createdAt: now });
+      await requirePublicPhoto(security, env, tripId, postId);
+      await ensurePhotoCommentSchema(database);
+      const commentId = `d1pc_${crypto.randomUUID().replace(/-/g, '')}`;
+      await database.prepare(
+        'INSERT INTO live_photo_comments(id,trip_id,post_id,author_name,text,created_at,deleted) VALUES (?1,?2,?3,?4,?5,?6,0)'
+      ).bind(commentId, tripId, postId, cleanAuthor, cleanText, now).run();
+      return reply(201, { id: commentId, createdAt: now });
     }
     if (isReactionPost) {
       await gate(database, `reaction_day:${day}`, 2000, now + 172800000);
@@ -427,6 +452,21 @@ export async function handleLivePhotoRequest(request, env, security) {
     } catch { throw error(401, 'Sessione Firebase non valida o anonima.'); }
     await gate(database, `mutation:${Math.floor(now / 60000)}:${await hashIdentity(uid)}`, 10, now + 120000);
     if (!await security.assertEditor(uid, tripId, token, env)) throw error(403, 'Solo Owner e Copilota possono pubblicare o rimuovere foto.');
+    if (isCommentModerationPath && request.method === 'POST') {
+      const raw = await request.text();
+      if (!raw || raw.length > 1024) throw error(400, 'Richiesta non valida.');
+      let data;
+      try { data = JSON.parse(raw); } catch { throw error(400, 'JSON non valido.'); }
+      const postId = validateTripId(data?.postId);
+      const commentId = String(data?.commentId || '');
+      if (!postId || !/^d1pc_[a-f0-9]{32}$/.test(commentId)) throw error(400, 'Commento non valido.');
+      await ensurePhotoCommentSchema(database);
+      const row = await database.prepare(
+        "UPDATE live_photo_comments SET deleted=1,text='[Rimosso]' WHERE trip_id=?1 AND post_id=?2 AND id=?3 RETURNING id"
+      ).bind(tripId, postId, commentId).first();
+      if (!row) throw error(404, 'Commento non trovato.');
+      return reply(200, { updated: true, id: commentId });
+    }
     if (isGuestMessageModerationPath && request.method === 'POST') {
       const raw = await request.text();
       if (!raw || raw.length > 1024) throw error(400, 'Richiesta non valida.');
