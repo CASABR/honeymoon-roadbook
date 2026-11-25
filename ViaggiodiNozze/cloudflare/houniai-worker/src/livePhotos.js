@@ -18,19 +18,40 @@ function configuredServiceAccountMatchesExpected(env) {
   return email === 'hounigo-push-reader@app-viaggio-di-nozze.iam.gserviceaccount.com';
 }
 
+function classifyFirestoreDenial(body) {
+  const details = Array.isArray(body?.error?.details) ? body.error.details : [];
+  const info = details.find(item => item && typeof item === 'object'
+    && String(item['@type'] || '').endsWith('/google.rpc.ErrorInfo')) || {};
+  const rawReason = String(info.reason || '');
+  // Google ErrorInfo.reason is an enum; never echo arbitrary error messages or paths.
+  const reason = /^[A-Z][A-Z0-9_]{2,63}$/.test(rawReason) ? rawReason : 'NO_ERROR_INFO';
+  const rawPermission = String(info.metadata?.permission || '');
+  const permission = /^datastore\.(?:entities|databases)\.[a-zA-Z]{2,40}$/.test(rawPermission)
+    ? rawPermission : 'NOT_SPECIFIED';
+  const message = String(body?.error?.message || '');
+  let hint = 'GENERIC_DENIAL';
+  if (/serviceusage\.services\.use|quota project|consumer project/i.test(message)) hint = 'PROJECT_USAGE';
+  else if (/service (?:is )?disabled|api .*not enabled|has not been used/i.test(message)) hint = 'API_DISABLED';
+  else if (/vpc.service.controls|service perimeter|organization policy/i.test(message)) hint = 'SECURITY_PERIMETER';
+  else if (/datastore\.entities\.(?:create|update)|permission .*denied/i.test(message)) hint = 'ENTITY_PERMISSION';
+  else if (/missing or insufficient permissions|caller does not have permission/i.test(message)) hint = 'ACCESS_DENIED';
+  return { reason, permission, hint };
+}
+
 async function throwFirestoreWriteError(response, endpoint, env) {
   const body = await response.json().catch(() => ({}));
   const code = String(body?.error?.status || body?.error?.code || 'UNKNOWN')
     .replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 48);
   const identityMatches = configuredServiceAccountMatchesExpected(env);
-  // Do not log user content, credentials, account emails, document paths or personal data.
+  const denied = response.status === 403 ? classifyFirestoreDenial(body) : null;
+  // Only whitelisted diagnostic tokens: never log content, emails, identifiers, keys or paths.
   console.error('HOUNIGO_LIVE_FIRESTORE_WRITE_FAILED', {
     endpoint, httpStatus: response.status, code,
-    ...(response.status === 403 ? { identityMatches } : {})
+    ...(denied ? { identityMatches, ...denied } : {})
   });
   if (response.status === 403) {
-    if (!identityMatches) throw error(503, 'LIVE-ID: il Worker usa un’identità diversa da quella autorizzata. Segnala LIVE-ID agli organizzatori.');
-    throw error(503, 'LIVE-IAM: Firestore rifiuta la scrittura anche con l’identità prevista. Segnala LIVE-IAM agli organizzatori.');
+    if (!identityMatches) throw error(503, 'LIVE-ID: identità Cloudflare differente da quella autorizzata.');
+    throw error(503, `LIVE-IAM: ${denied.reason} / ${denied.permission} / ${denied.hint}. Comunica solo questi codici agli organizzatori.`);
   }
   throw error(503, 'Salvataggio LIVE non riuscito. Riprova tra poco.');
 }
