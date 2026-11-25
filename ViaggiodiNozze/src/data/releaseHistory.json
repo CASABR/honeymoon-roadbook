@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.21",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "877964b132863bfe4686795f0342e2dbce37eb6d",
+      "changes": [
+        "LIVE: commenti alle singole foto senza account, salvati su Cloudflare D1, con lettura condivisa e moderazione riservata agli organizzatori."
+      ]
+    },
+    {
       "version": "1.7.20",
       "publishedAt": "2026-11-25",
       "sourceCommit": "6382f45e948f61e169965f1fb7c34fffb19bad73",

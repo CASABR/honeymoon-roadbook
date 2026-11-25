@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.21 — 2026-11-25
+
+- LIVE: commenti alle singole foto senza account, salvati su Cloudflare D1, con lettura condivisa e moderazione riservata agli organizzatori.
+
 ## 1.7.20 — 2026-11-25
 
 - LIVE ospiti: messaggi senza account, salvati su Cloudflare D1, condivisi tra dispositivi, con antispam e moderazione Owner/Copilota.
