@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.17",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "c2d0a349e9cf42c15c4174ed6dcdf0df3f595526",
+      "changes": [
+        "Rifinitura LIVE mobile: intestazione compatta, orologio non duplicato, icone Lucide, stato vuoto mappa e safe-area Safari."
+      ],
+      "publishedAtIso": "2026-11-25T09:12:15.000Z"
+    },
+    {
       "version": "1.7.16",
       "publishedAt": "2026-11-25",
       "sourceCommit": "d4ef78c365bcb28d79b111b25b881b7fe1333830",

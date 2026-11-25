@@ -1,10 +1,10 @@
 {
-    "requestedAt":  "2026-11-25T08:47:28.000Z",
+    "requestedAt":  "2026-11-25T09:12:15.000Z",
     "action":  "deploy",
     "confirm":  "CONFERMA",
-    "requestId":  "release-1.7.16-202611250847",
+    "requestId":  "release-1.7.17-202611250912",
     "requestedBy":  "CASABR",
     "ref":  "main",
     "$schema":  "./hounigo-deploy-request.schema.json",
-    "note":  "Release 1.7.16: restyling boarding pass TrasportoCard, reazioni LIVE persistenti e messaggi ospiti protetti via Worker (esclusi WIP locali)."
+    "note":  "Release 1.7.17: rifinitura LIVE mobile, icone Lucide, stato vuoto mappa e safe-area Safari (esclusi WIP locali)."
 }
