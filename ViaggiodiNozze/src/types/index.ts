@@ -287,6 +287,8 @@ export interface Trasporto {
   acconto?: string; // Alias di depositPaid
   amountPaid?: string; // Alias di depositPaid
   cauzione?: string; // Cauzione / preautorizzazione informativa (esclusa dai totali spese)
+  assicurazione?: string; // Polizza / copertura assicurativa noleggio
+  veicolo?: string; // Veicolo imbarcato (traghetto) o dettagli mezzo
   paymentStatus?: 'saldato' | 'da_saldare'; // Stato pagamento
   layover?: {
     airport: string;
