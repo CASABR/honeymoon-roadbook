@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.25",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "b46b0c396aa16e03e58e873ef1f4c726b6c81cf9",
+      "changes": [
+        "LIVE e Oggi: verifica e affinamento del doppio orologio Italia/locale (badge fonte GPS/Programma e indicatore cambio data +/-1g su mezzanotte e linea internazionale del cambio di data verso Auckland), auto-focus su giorno e card attiva senza salti durante la navigazione manuale o prima della partenza."
+      ],
+      "publishedAtIso": "2026-11-25T17:48:36.000Z"
+    },
+    {
       "version": "1.7.24",
       "publishedAt": "2026-11-25",
       "sourceCommit": "0e5c6788d1c57b20df317d18869075c40b3b6e18",

@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.25 — 2026-11-25
+
+- LIVE e Oggi: verifica e affinamento del doppio orologio Italia/locale (badge fonte GPS/Programma e indicatore cambio data +/-1g su mezzanotte e linea internazionale del cambio di data verso Auckland), auto-focus su giorno e card attiva senza salti durante la navigazione manuale o prima della partenza.
+
 ## 1.7.24 — 2026-11-25
 
 - LIVE offline: coda locale persistente per messaggi, commenti foto e risposte di Owner e Copiloti con stato «In attesa di invio», annullamento e invio automatico alla riconnessione.

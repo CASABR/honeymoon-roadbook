@@ -1,10 +1,10 @@
 ﻿{
-    "requestedAt":  "2026-11-25T17:39:00.000Z",
+    "requestedAt":  "2026-11-25T17:48:36.000Z",
     "action":  "deploy",
     "confirm":  "CONFERMA",
-    "requestId":  "release-1.7.24-live-offline-queue-20261125",
+    "requestId":  "release-1.7.25-timezone-autofocus-20261125",
     "requestedBy":  "CASABR",
     "ref":  "main",
     "$schema":  "./hounigo-deploy-request.schema.json",
-    "note":  "HOUNIGO 1.7.24: coda offline persistente LIVE per Owner e Copiloti."
+    "note":  "HOUNIGO 1.7.25: doppio orologio Italia/locale (fonte GPS/Programma, cambio data IDL) e auto-focus card attiva."
 }
