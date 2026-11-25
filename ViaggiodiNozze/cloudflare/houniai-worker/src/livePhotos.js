@@ -56,6 +56,35 @@ async function throwFirestoreWriteError(response, endpoint, env) {
   throw error(503, 'Salvataggio LIVE non riuscito. Riprova tra poco.');
 }
 
+// Bootstrap only the new public guestbook table through the existing D1 Worker binding.
+// This avoids requiring a broader GitHub Cloudflare API token with D1 admin privileges.
+// No table is dropped or altered; one shared promise serializes initialisation per isolate.
+let guestSchemaInitPromise = null;
+async function ensureGuestSchema(database) {
+  if (!guestSchemaInitPromise) {
+    guestSchemaInitPromise = (async () => {
+      await database.prepare(`CREATE TABLE IF NOT EXISTS live_guest_messages (
+        id TEXT PRIMARY KEY,
+        trip_id TEXT NOT NULL,
+        visitor_id TEXT NOT NULL,
+        author_name TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        hidden INTEGER NOT NULL DEFAULT 0,
+        deleted INTEGER NOT NULL DEFAULT 0,
+        ip_hash TEXT NOT NULL
+      )`).run();
+      await database.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_live_guest_messages_trip_created ON live_guest_messages(trip_id, created_at DESC)'
+      ).run();
+    })().catch(error => {
+      guestSchemaInitPromise = null;
+      throw error;
+    });
+  }
+  await guestSchemaInitPromise;
+}
+
 // Only baseline JPEG from the client canvas. Strip ALL APP and comment segments
 // again on the server; reject malformed/trailing data, progressive images and huge dimensions.
 export function sanitizeJpeg(input) {
@@ -218,6 +247,7 @@ export async function handleLivePhotoRequest(request, env, security) {
         const uid = await security.verifyFirebaseIdentity(idToken, env);
         if (!uid || !await security.assertEditor(uid, tripId, idToken, env)) throw error(403, 'Solo gli organizzatori possono vedere messaggi nascosti.');
       }
+      await ensureGuestSchema(database);
       const sql = privateView
         ? 'SELECT id,author_name AS authorName,message,created_at AS createdAt,hidden,deleted FROM live_guest_messages WHERE trip_id=?1 ORDER BY created_at DESC LIMIT 50'
         : 'SELECT id,author_name AS authorName,message,created_at AS createdAt,hidden,deleted FROM live_guest_messages WHERE trip_id=?1 AND hidden=0 AND deleted=0 ORDER BY created_at DESC LIMIT 50';
@@ -377,6 +407,7 @@ export async function handleLivePhotoRequest(request, env, security) {
       // Public guests never need Firestore write permissions. D1 is the authoritative
       // store for NEW guestbook messages; Firestore historical messages remain readable.
       const messageId = `d1_${crypto.randomUUID().replace(/-/g, '')}`;
+      await ensureGuestSchema(database);
       await database.prepare(
         'INSERT INTO live_guest_messages(id,trip_id,visitor_id,author_name,message,created_at,hidden,deleted,ip_hash) VALUES (?1,?2,?3,?4,?5,?6,0,0,?7)'
       ).bind(messageId, tripId, rawVisitor, cleanAuthor, cleanMsg, now, ip).run();
@@ -408,6 +439,7 @@ export async function handleLivePhotoRequest(request, env, security) {
       }
       const hidden = decision !== 'unhide' ? 1 : 0;
       const deleted = decision === 'delete' ? 1 : 0;
+      await ensureGuestSchema(database);
       const row = await database.prepare(
         'UPDATE live_guest_messages SET hidden=?3,deleted=CASE WHEN deleted=1 THEN 1 ELSE ?4 END WHERE trip_id=?1 AND id=?2 RETURNING id'
       ).bind(tripId, messageId, hidden, deleted).first();

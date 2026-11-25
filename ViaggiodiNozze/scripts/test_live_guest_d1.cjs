@@ -1,6 +1,5 @@
 // End-to-end Worker handler against an isolated in-memory D1 (no production writes).
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
 const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const { pathToFileURL } = require('node:url');
@@ -12,7 +11,7 @@ async function main() {
   db.exec(`
     CREATE TABLE live_photo_requests(bucket TEXT PRIMARY KEY, count INTEGER NOT NULL, expires_at INTEGER NOT NULL);
   `);
-  db.exec(fs.readFileSync(path.join(root, 'cloudflare/houniai-worker/migrations/0005_live_guest_messages.sql'), 'utf8'));
+  // Intentionally start without the guestbook schema: the Worker must initialize it via D1 binding.
   const database = {
     withSession() { return this; },
     prepare(sql) {
