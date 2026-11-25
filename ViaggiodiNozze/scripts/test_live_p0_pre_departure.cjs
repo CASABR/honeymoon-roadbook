@@ -261,6 +261,48 @@ async function run() {
     assert.equal(savedComment.fields.text.stringValue, 'Bellissima foto!');
     assert.equal(savedComment.fields.publicSchemaVersion.integerValue, '2');
     console.log('✓ [PASS] Worker POST 200/201 + persistenza Firestore + lettura seconda sessione verificati');
+
+    // Read-only stale GPS, then verify that an explicit STOP revokes its public projection.
+    fsStore.set('live_feeds/synth_trip/gps_control/current', {
+      fields: {
+        status: { stringValue: 'active' },
+        holderDeviceId: { stringValue: 'synthetic-device-123456789' },
+        expiresAt: { timestampValue: new Date(Date.now() + 3_600_000).toISOString() }
+      }
+    });
+    fsStore.set('live_feeds/synth_trip/locations/current', {
+      fields: {
+        lat: { doubleValue: 40.71 },
+        lng: { doubleValue: 14.72 },
+        accuracy: { integerValue: '12' },
+        city: { stringValue: 'Città test' },
+        country: { stringValue: 'Italia' },
+        status: { stringValue: 'active' },
+        publisherDeviceId: { stringValue: 'synthetic-device-123456789' },
+        updatedAt: { timestampValue: new Date(Date.now() - 3_600_000).toISOString() }
+      }
+    });
+    const locationPath = 'https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/last-location';
+    const locationResponse = await handleRequest(new Request(locationPath, {
+      method: 'GET', headers: { Origin: origin, 'CF-Connecting-IP': '8.8.8.8' }
+    }), env);
+    assert.equal(locationResponse.status, 200);
+    const lastFix = await locationResponse.json();
+    assert.equal(lastFix.available, true);
+    assert.equal(lastFix.location.lat, 40.71);
+    assert.equal(lastFix.location.lng, 14.72);
+    assert.equal(lastFix.location.publisherDeviceId, undefined);
+    assert.equal(locationResponse.headers.get('Cache-Control'), 'no-store, max-age=0');
+
+    fsStore.get('live_feeds/synth_trip/gps_control/current').fields.status = { stringValue: 'stopped' };
+    const afterStopResponse = await handleRequest(new Request(locationPath, {
+      method: 'GET', headers: { Origin: origin, 'CF-Connecting-IP': '8.8.8.8' }
+    }), env);
+    const afterStop = await afterStopResponse.json();
+    assert.equal(afterStop.available, false);
+    assert.equal(afterStop.stopped, true);
+    assert.equal(afterStop.location, undefined);
+    console.log('✓ [PASS] Ultima posizione GPS stale + revoca STOP senza esposizione metadati privati');
   } finally {
     globalThis.fetch = originalFetch;
   }

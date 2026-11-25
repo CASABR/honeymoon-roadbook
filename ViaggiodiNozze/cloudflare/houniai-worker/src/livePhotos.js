@@ -8,6 +8,16 @@ export const PHOTO_UID_MINUTE_LIMIT = 3;
 const ID = /^[a-f0-9]{48}$/;
 const error = (status, message) => Object.assign(new Error(message), { status });
 
+async function throwFirestoreWriteError(response, endpoint) {
+  const body = await response.json().catch(() => ({}));
+  const code = String(body?.error?.status || body?.error?.code || 'UNKNOWN')
+    .replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 48);
+  // Do not log user content, credentials, Firestore document paths or personal data.
+  console.error('HOUNIGO_LIVE_FIRESTORE_WRITE_FAILED', { endpoint, httpStatus: response.status, code });
+  if (response.status === 403) throw error(503, 'Servizio LIVE non autorizzato alla scrittura. Contatta gli organizzatori.');
+  throw error(503, 'Salvataggio LIVE non riuscito. Riprova tra poco.');
+}
+
 // Only baseline JPEG from the client canvas. Strip ALL APP and comment segments
 // again on the server; reject malformed/trailing data, progressive images and huge dimensions.
 export function sanitizeJpeg(input) {
@@ -87,7 +97,8 @@ export async function handleLivePhotoRequest(request, env, security) {
     }
     const url = new URL(request.url), segments = url.pathname.split('/').filter(Boolean);
     const tripId = validateTripId(segments[2]), id = segments[3], action = segments[4];
-    const isPublicEndpoint = (id === 'comments' || id === 'reactions' || id === 'guest-messages') && !action;
+    const isPublicEndpoint = (id === 'comments' || id === 'reactions' || id === 'guest-messages' || id === 'last-location') && !action;
+    const isLastLocationGet = request.method === 'GET' && id === 'last-location' && !action;
     const isCommentPost = request.method === 'POST' && id === 'comments' && !action;
     const isReactionPost = request.method === 'POST' && id === 'reactions' && !action;
     const isGuestMessagePost = request.method === 'POST' && id === 'guest-messages' && !action;
@@ -111,6 +122,48 @@ export async function handleLivePhotoRequest(request, env, security) {
     }
     await gate(database, `ip:${Math.floor(now / 60000)}:${ip}`, 120, now + 120000);
     const key = id ? `photo:${tripId}:${id}` : null;
+    if (isLastLocationGet) {
+      if (typeof security.getServiceAccountToken !== 'function') throw error(503, 'Posizione non disponibile.');
+      const token = await security.getServiceAccountToken(env);
+      const feed = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}`, token, env);
+      const publicFeed = readFirestoreFields(feed?.fields || {});
+      if (!feed?.fields || publicFeed.deleted === true || publicFeed.status === 'disabled') {
+        throw error(404, 'Feed LIVE non disponibile.');
+      }
+      const [lease, location] = await Promise.all([
+        security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/gps_control/current`, token, env),
+        security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/locations/current`, token, env),
+      ]);
+      const leaseData = readFirestoreFields(lease?.fields || {});
+      const locData = readFirestoreFields(location?.fields || {});
+      // A deliberate pause/stop revokes the public projection. Never return private lease fields.
+      if (leaseData.status === 'stopped' || leaseData.status === 'paused'
+          || locData.status === 'stopped' || locData.status === 'paused') {
+        return reply(200, { available: false, stopped: true });
+      }
+      const leaseExpiry = Date.parse(lease?.fields?.expiresAt?.timestampValue || '');
+      const capturedAt = location?.fields?.updatedAt?.timestampValue || '';
+      const latitude = Number(locData.lat), longitude = Number(locData.lng);
+      const validCoords = Number.isFinite(latitude) && Math.abs(latitude) <= 90
+        && Number.isFinite(longitude) && Math.abs(longitude) <= 180;
+      if (leaseData.status !== 'active' || !Number.isFinite(leaseExpiry) || leaseExpiry <= now
+          || locData.status !== 'active' || !location?.fields || !validCoords
+          || !Number.isFinite(Date.parse(capturedAt))
+          || !leaseData.holderDeviceId || leaseData.holderDeviceId !== locData.publisherDeviceId) {
+        return reply(200, { available: false, stopped: false });
+      }
+      return reply(200, {
+        available: true, stopped: false,
+        location: {
+          lat: latitude, lng: longitude,
+          accuracy: Number.isFinite(Number(locData.accuracy)) ? Number(locData.accuracy) : 0,
+          city: typeof locData.city === 'string' ? locData.city.slice(0, 120) : '',
+          country: typeof locData.country === 'string' ? locData.country.slice(0, 120) : '',
+          updatedAt: capturedAt,
+          status: 'active',
+        },
+      });
+    }
     if (read) {
       const row = await database.prepare('SELECT status FROM live_photo_objects WHERE id=?1 AND trip_id=?2').bind(id, tripId).first();
       if (row?.status !== 'published') throw error(404, 'Foto non disponibile.');
@@ -154,7 +207,7 @@ export async function handleLivePhotoRequest(request, env, security) {
           }
         })
       });
-      if (!fsRes.ok) throw error(503, 'Salvataggio commento non riuscito.');
+      if (!fsRes.ok) await throwFirestoreWriteError(fsRes, 'photo-comment');
       const created = await fsRes.json();
       return reply(201, { id: created.name?.split('/').at(-1) || '', createdAt: now });
     }
@@ -211,7 +264,7 @@ export async function handleLivePhotoRequest(request, env, security) {
           }
         })
       });
-      if (!rRes.ok) throw error(503, 'Salvataggio reazione non riuscito.');
+      if (!rRes.ok) await throwFirestoreWriteError(rRes, 'reaction');
 
       const countFields = Object.fromEntries(ALLOWED_REACTIONS.map(emoji => [emoji, { integerValue: String(nextCounts[emoji]) }]));
       const updatePatchUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(updateId)}?updateMask.fieldPaths=reactionCounts`;
@@ -224,7 +277,7 @@ export async function handleLivePhotoRequest(request, env, security) {
           }
         })
       });
-      if (!uRes.ok) throw error(503, 'Aggiornamento conteggio reazioni non riuscito.');
+      if (!uRes.ok) await throwFirestoreWriteError(uRes, 'reaction-count');
       return reply(200, { reactionCounts: nextCounts, selected: type });
     }
     if (isGuestMessagePost) {
@@ -264,7 +317,7 @@ export async function handleLivePhotoRequest(request, env, security) {
           }
         })
       });
-      if (!fsRes.ok) throw error(503, 'Salvataggio messaggio non riuscito.');
+      if (!fsRes.ok) await throwFirestoreWriteError(fsRes, 'guest-message');
       const created = await fsRes.json();
       return reply(201, { id: created.name?.split('/').at(-1) || '', createdAt: now });
     }

@@ -252,7 +252,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [remoteGpsLocation, setRemoteGpsLocation] = useState<LiveGpsLocation | null>(null);
   // Conservazione ultima posizione conosciuta autorizzata (persistita localmente)
   const [lastKnownLocation, setLastKnownLocation] = useState<LiveGpsLocation | null>(() => {
-    if (typeof window !== 'undefined' && activeTripId) {
+    // External guests must revalidate the cached fix against the public STOP state.
+    if (typeof window !== 'undefined' && activeTripId && !isStandaloneExternal) {
       try {
         const cached = localStorage.getItem(`hounigo_live_last_known_loc_${activeTripId}`);
         if (cached) {
@@ -330,7 +331,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         if (location && location.status === 'active') {
           setLastKnownLocation(location);
           try {
-            localStorage.setItem(`hounigo_live_last_known_loc_${activeTripId}`, JSON.stringify(location));
+            if (!isStandaloneExternal) {
+              localStorage.setItem(`hounigo_live_last_known_loc_${activeTripId}`, JSON.stringify(location));
+            }
           } catch {}
         } else if (location?.status === 'stopped') {
           setLastKnownLocation(null);
@@ -343,7 +346,45 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     return () => {
       unsubscribeLocation();
     };
-  }, [activeTripId, cloudRole]);
+  }, [activeTripId, cloudRole, isStandaloneExternal]);
+
+  // A guest opening LIVE on a new device must still see the last authorized position.
+  // Revalidate on visibility/online and periodically to revoke the cached marker after STOP.
+  useEffect(() => {
+    if (!isStandaloneExternal || !activeTripId) return;
+    let mounted = true;
+    let requestNumber = 0;
+    const refresh = async () => {
+      const requestId = ++requestNumber;
+      try {
+        const state = await liveGpsService.fetchPublicLastLocation(activeTripId);
+        if (!mounted || requestId !== requestNumber) return;
+        if (state.stopped || !state.location) {
+          setLastKnownLocation(null);
+          if (state.stopped) {
+            setRemoteGpsLocation(null);
+            try { localStorage.removeItem(`hounigo_live_last_known_loc_${activeTripId}`); } catch {}
+          }
+        } else {
+          setLastKnownLocation(state.location);
+        }
+      } catch {
+        // Temporary network failure must not be mistaken for a GPS STOP.
+      }
+    };
+    void refresh();
+    const timer = setInterval(() => { void refresh(); }, 120_000);
+    const onVisibility = () => { if (document.visibilityState === 'visible') void refresh(); };
+    const onOnline = () => { void refresh(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('online', onOnline);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [activeTripId, isStandaloneExternal]);
 
   const activeTripCfg = getTripConfig();
   const isTripOwner = Boolean(currentUid && activeTripCfg?.ownerUid && currentUid === activeTripCfg.ownerUid);
@@ -1418,10 +1459,20 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     currentAccommodation?.location,
   ]);
 
+  // Reuse the last authorized fix when the live GPS signal becomes stale.
+  // A deliberate STOP always suppresses coordinates, including cached ones.
+  const isGpsStopped = remoteGpsLease?.status === 'stopped'
+    || remoteGpsLocation?.status === 'stopped'
+    || lastKnownLocation?.status === 'stopped';
+  const effectiveRealLocation = !isGpsStopped
+    ? (remoteGpsLocation || lastKnownLocation || null)
+    : null;
   const realCoords = useMemo(() => {
-    if (remoteGpsLocation) return { lat: remoteGpsLocation.lat, lng: remoteGpsLocation.lng };
-    return null;
-  }, [remoteGpsLocation]);
+    if (!effectiveRealLocation) return null;
+    const { lat, lng } = effectiveRealLocation;
+    return Number.isFinite(lat) && Math.abs(lat) <= 90
+      && Number.isFinite(lng) && Math.abs(lng) <= 180 ? { lat, lng } : null;
+  }, [effectiveRealLocation]);
 
   const plannedCoords = useMemo(() => {
     return liveIntelligence?.plannedLocation?.coords || null;

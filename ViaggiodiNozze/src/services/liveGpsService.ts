@@ -188,6 +188,43 @@ export const liveGpsService = {
     return this.subscribeLocation(tripId, false, (location) => callback(location));
   },
 
+  /** Read-only public projection: last authorized fix even after it becomes stale. */
+  async fetchPublicLastLocation(tripId: string): Promise<{ location: LiveGpsLocation | null; stopped: boolean }> {
+    if (!tripId || !/^[A-Za-z0-9_-]{1,128}$/.test(tripId)) {
+      throw new Error('Viaggio non valido.');
+    }
+    const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
+    if (!LIVE_PHOTO_ORIGIN) throw new Error('Servizio posizione non configurato.');
+    const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/last-location`, {
+      method: 'GET',
+      cache: 'no-store'
+    });
+    if (!res.ok) throw new Error('Ultima posizione non disponibile.');
+    const payload = await res.json();
+    if (payload?.stopped === true) return { location: null, stopped: true };
+    if (payload?.available !== true || !payload.location) return { location: null, stopped: false };
+    const candidate = payload.location;
+    const captured = new Date(candidate.updatedAt);
+    if (!Number.isFinite(candidate.lat) || Math.abs(candidate.lat) > 90
+      || !Number.isFinite(candidate.lng) || Math.abs(candidate.lng) > 180
+      || !Number.isFinite(captured.getTime())) {
+      throw new Error('Ultima posizione non valida.');
+    }
+    return {
+      stopped: false,
+      location: {
+        lat: candidate.lat,
+        lng: candidate.lng,
+        accuracy: typeof candidate.accuracy === 'number' ? candidate.accuracy : 0,
+        city: typeof candidate.city === 'string' ? candidate.city : '',
+        country: typeof candidate.country === 'string' ? candidate.country : '',
+        updatedAt: captured,
+        publisherDeviceId: '',
+        status: 'active'
+      }
+    };
+  },
+
   subscribeDevices(tripId: string, callback: (devices: LiveGpsDevice[]) => void): Unsubscribe {
     return onSnapshot(collection(db, 'trips', tripId, 'devices'), snapshot => {
       callback(snapshot.docs.map(item => {
