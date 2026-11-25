@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.16 — 2026-11-25
+
+- Restyling boarding pass TrasportoCard, reazioni LIVE persistenti e messaggi ospiti protetti.
+
 ## 1.7.15 — 2026-11-24
 
 - Card Trasporti: mini-timeline compatta Partenza e Arrivo con orari locali allineati e +1g.
@@ -42,8 +46,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Diagnostica Push iPhone: storico ultime 10 mutazioni, evidenza dedicata all'ultima Attività e conferma D1 esplicita.
 - Pulsante Copia diagnostica senza dati personali né credenziali.
-
-## 1.7.6 — 2026-11-23
-
-- Push Sync: programmazione idempotente garantita anche dopo syncAllLocalToCloud e flushPendingPushes senza loop.
-- Fuso orario risolto anche dalla tappa del giorno senza sovrascrivere fusi esteri; diagnostica a 4 fasi in Notifiche.

@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.16",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "d4ef78c365bcb28d79b111b25b881b7fe1333830",
+      "changes": [
+        "Restyling boarding pass TrasportoCard, reazioni LIVE persistenti e messaggi ospiti protetti."
+      ],
+      "publishedAtIso": "2026-11-25T08:47:28.000Z"
+    },
+    {
       "version": "1.7.15",
       "publishedAt": "2026-11-24",
       "sourceCommit": "bd17d7d2acec23e4a29407f70bcb69e488bc2cd2",
@@ -86,16 +95,6 @@
         "Pulsante Copia diagnostica senza dati personali né credenziali."
       ],
       "publishedAtIso": "2026-11-23T10:34:15.000Z"
-    },
-    {
-      "version": "1.7.6",
-      "publishedAt": "2026-11-23",
-      "sourceCommit": "647feed812a16f6c9151a5a6d4ee5d70e8846e83",
-      "changes": [
-        "Push Sync: programmazione idempotente garantita anche dopo syncAllLocalToCloud e flushPendingPushes senza loop.",
-        "Fuso orario risolto anche dalla tappa del giorno senza sovrascrivere fusi esteri; diagnostica a 4 fasi in Notifiche."
-      ],
-      "publishedAtIso": "2026-11-23T10:15:10.000Z"
     }
   ]
 }

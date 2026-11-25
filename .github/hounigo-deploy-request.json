@@ -1,10 +1,10 @@
 {
-    "requestedAt":  "2026-11-24T20:26:52.000Z",
+    "requestedAt":  "2026-11-25T08:47:28.000Z",
     "action":  "deploy",
     "confirm":  "CONFERMA",
-    "requestId":  "release-1.7.15-202611242026",
+    "requestId":  "release-1.7.16-202611250847",
     "requestedBy":  "CASABR",
     "ref":  "main",
     "$schema":  "./hounigo-deploy-request.schema.json",
-    "note":  "Micro-release 1.7.15: mini-timeline compatta Partenza e Arrivo in TrasportoCard (esclusi WIP locali)."
+    "note":  "Release 1.7.16: restyling boarding pass TrasportoCard, reazioni LIVE persistenti e messaggi ospiti protetti via Worker (esclusi WIP locali)."
 }
