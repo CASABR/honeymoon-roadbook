@@ -1967,6 +1967,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     isDesignatedGuide
   );
 
+  const handleSubscribePhotoComments = useCallback((photoId: string) => {
+    if (!activeTripId) return;
+    return liveService.subscribeToPhotoComments(activeTripId, photoId, (comments) => {
+      setPhotoComments(prev => ({ ...prev, [photoId]: comments }));
+    });
+  }, [activeTripId]);
+
   if (!activeTripId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-fade-in text-slate-900 dark:text-slate-100">
@@ -2083,12 +2090,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         await liveService.moderateGuestMessage(activeTripId, messageId, action);
       }}
       photoComments={photoComments}
-      onSubscribePhotoComments={(photoId) => {
-        if (!activeTripId) return;
-        return liveService.subscribeToPhotoComments(activeTripId, photoId, (comments) => {
-          setPhotoComments(prev => ({ ...prev, [photoId]: comments }));
-        });
-      }}
+      onSubscribePhotoComments={handleSubscribePhotoComments}
       onAddPhotoComment={async (photoId, authorName, text) => {
         if (!activeTripId) return;
         await liveService.addPhotoComment(activeTripId, photoId, authorName, text);

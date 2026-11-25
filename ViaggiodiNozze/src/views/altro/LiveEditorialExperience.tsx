@@ -439,15 +439,17 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const activeLightboxPhoto = activeLightboxIndex !== null ? displayPhotos[activeLightboxIndex] || null : null;
   const activeLightboxPhotoId = activeLightboxPhoto?.id || null;
   const activeLightboxIsPublic = Boolean(activeLightboxPhoto && !activeLightboxPhoto.isCustom && !activeLightboxPhoto.pendingSync);
+  const onSubscribePhotoCommentsRef = useRef(props.onSubscribePhotoComments);
+  onSubscribePhotoCommentsRef.current = props.onSubscribePhotoComments;
 
   useEffect(() => {
     setPhotoCommentError(null);
-    if (!activeLightboxPhotoId || !activeLightboxIsPublic || !props.onSubscribePhotoComments) return;
-    const unsub = props.onSubscribePhotoComments(activeLightboxPhotoId);
+    if (!activeLightboxPhotoId || !activeLightboxIsPublic || !onSubscribePhotoCommentsRef.current) return;
+    const unsub = onSubscribePhotoCommentsRef.current(activeLightboxPhotoId);
     return () => {
       if (typeof unsub === 'function') unsub();
     };
-  }, [activeLightboxPhotoId, activeLightboxIsPublic, props.onSubscribePhotoComments]);
+  }, [activeLightboxPhotoId, activeLightboxIsPublic]);
 
   const handlePhotoCommentSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
