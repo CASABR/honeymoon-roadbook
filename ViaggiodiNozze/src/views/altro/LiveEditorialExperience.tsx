@@ -764,16 +764,31 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   <span className="truncate text-[10px] font-bold text-slate-500 dark:text-slate-400">
                     {dualClock.travelLabel}
                   </span>
-                  {dualClock.travel && (
-                    <span
-                      data-testid="live-clock-travel-period"
-                      className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400"
-                      title={dualClock.travel.dayNightLabel}
-                    >
-                      <span aria-hidden="true">{dualClock.travel.dayNightIcon}</span>
-                      <span>{dualClock.travel.dayNightLabel}</span>
-                    </span>
-                  )}
+                  <div className="flex shrink-0 items-center gap-1">
+                    {(dualClock.travelSource === 'gps' || dualClock.travelSource === 'planned' || dualClock.travelSource === 'header') && (
+                      <span
+                        data-testid="live-clock-travel-source"
+                        title={dualClock.travelSource === 'gps' ? 'Fuso da posizione GPS reale' : 'Fuso da tappa programmata'}
+                        className={`rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ${
+                          dualClock.travelSource === 'gps'
+                            ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300'
+                            : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                        }`}
+                      >
+                        {dualClock.travelSource === 'gps' ? 'GPS' : 'Programma'}
+                      </span>
+                    )}
+                    {dualClock.travel && (
+                      <span
+                        data-testid="live-clock-travel-period"
+                        className="inline-flex shrink-0 items-center gap-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400"
+                        title={dualClock.travel.dayNightLabel}
+                      >
+                        <span aria-hidden="true">{dualClock.travel.dayNightIcon}</span>
+                        <span>{dualClock.travel.dayNightLabel}</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {dualClock.travel ? (
                   <>
@@ -790,7 +805,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                       <span className="capitalize">{dualClock.travel.dateStr}</span>
                       {dualClock.offsetLabel && dualClock.offsetLabel !== '0h' ? (
                         <span className={dualClock.isDifferentDate ? ' font-bold text-[#C83E31] dark:text-[#FF8C82]' : ''}>
-                          {` · ${dualClock.offsetLabel}`}
+                          {` · ${dualClock.offsetLabel}${dualClock.dayDiff !== 0 ? ` (${dualClock.dayDiff > 0 ? `+${dualClock.dayDiff}g` : `${dualClock.dayDiff}g`})` : ''}`}
                         </span>
                       ) : null}
                     </p>

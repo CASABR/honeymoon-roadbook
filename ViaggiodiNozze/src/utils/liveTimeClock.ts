@@ -59,6 +59,9 @@ const MIN_VALID_EPOCH_MS = Date.UTC(2000, 0, 1);
 function resolveLiveCoordinateTimeZone(lat: number, lng: number): string | null {
   const strict = getStrictTimeZoneFromCoordinates(lat, lng);
   if (strict) return strict;
+  if (Number.isFinite(lat) && Number.isFinite(lng) && lat > -48 && lat < -33 && lng >= 179.5 && lng <= 180) {
+    return 'Pacific/Auckland';
+  }
   if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= 30 && lat <= 46 && lng > 135.1 && lng <= 146) {
     return 'Asia/Tokyo';
   }
