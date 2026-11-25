@@ -26,7 +26,7 @@ Questa coda integra (non sostituisce) HOUNIGO_BASELINE_STABILE.md e HOUNIGO_TEST
 - [ ] Verificare che azioni proprie non producano notifiche su altri dispositivi con lo stesso UID; controllare deduplica e raggruppamento.
 
 ## Durante il viaggio / dopo il rientro
-- [ ] Prossimo intervento: audit e rifinitura auto-focus giorno/card attiva e doppio orologio Italia/locale, cambio fusi e date, senza salti durante navigazione manuale. Test sintetici prima del viaggio e conferma sul campo. Mini-card trasporti, GPS aggiornato e layout LIVE su hardware restano da verificare.
+- [ ] Auto-focus giorno/card attiva e doppio orologio Italia/locale: audit e affinamenti pubblicati in 1.7.25 secondo report Antigravity (a2836c3; run 45668751490, test sintetici PASS). Resta conferma sul campo durante il viaggio, inclusi cambio fuso/data, assenza di salti durante navigazione manuale, mini-card trasporti, GPS aggiornato e layout LIVE su hardware.
 - [ ] Dopo: autosalvataggio Shopping (NO-GO pre-partenza), suite obsolete/warning lint, riesame WIP locali; revoca/rotazione credenziali e permessi push secondo baseline, verificando dipendenze LIVE prima della revoca.
 - [ ] Verifiche operative distinte dai test: riconciliare eventuali stime/valute del budget, Pechino e check-in/transfer Auckland se ancora aperti. La baseline storica non certifica lo stato attuale di queste prenotazioni: verificare prima di modificarle.
 
