@@ -1,0 +1,8 @@
+{
+  "requestId": "worker-dry-run-20261125-01",
+  "action": "dry-run",
+  "version_id": "",
+  "confirm": "",
+  "requestedBy": "ChatGPT",
+  "purpose": "Verifica del collegamento GitHub Actions senza deploy"
+}
