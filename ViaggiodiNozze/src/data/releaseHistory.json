@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.23",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "33b4279603010ff13d225e8e1772fb29c34ea764",
+      "changes": [
+        "LIVE: pulsante Rispondi stile WhatsApp sotto messaggi e commenti foto (anche senza account), moderazione Owner/Copilota e notifiche Push raggruppate con apertura diretta del contenuto."
+      ],
+      "publishedAtIso": "2026-11-25T15:56:35.000Z"
+    },
+    {
       "version": "1.7.22",
       "publishedAt": "2026-11-25",
       "sourceCommit": "a59fb895d6d2113f01d962a2b81fc44ae7a60225",

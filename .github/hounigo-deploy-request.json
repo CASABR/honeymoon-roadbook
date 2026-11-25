@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-25T14:36:40.000Z",
+  "requestedAt": "2026-11-25T15:56:35.000Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.22-fix-photo-comments-loop-20261125",
+  "requestId": "release-1.7.23-live-replies-push-20261125",
   "requestedBy": "CASABR",
   "ref": "main",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.22: fix P0 loop infinito commenti foto LIVE (429 su foto e commenti)."
+  "note": "HOUNIGO 1.7.23: risposte WhatsApp-style LIVE, moderazione e push deep-link."
 }
