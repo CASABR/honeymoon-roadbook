@@ -6,22 +6,37 @@ on:
       action:
         description: 'Operazione da eseguire'
         required: true
-        default: 'deploy'
+        default: 'dry-run'
         type: choice
         options:
+          - dry-run
           - deploy
           - rollback
       version_id:
-        description: 'ID Versione Cloudflare (obbligatorio SOLO se scegli rollback)'
+        description: 'Versione Worker destinazione (solo rollback)'
         required: false
         type: string
+      confirm:
+        description: 'Scrivi CONFERMA per deploy o rollback reale'
+        required: false
+        default: ''
+        type: string
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/hounigo-worker-deploy-request.json'
 
 permissions:
   contents: read
 
+concurrency:
+  group: hounigo-worker-production
+  cancel-in-progress: false
+
 jobs:
   deploy-worker:
-    name: Cloudflare Worker Deploy / Rollback
+    name: Cloudflare Worker - verifica, deploy o rollback
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -34,13 +49,76 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Valida richiesta di deploy (mai implicito)
+        id: request
+        working-directory: .
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_ACTION: ${{ inputs.action }}
+          DISPATCH_VERSION_ID: ${{ inputs.version_id }}
+          DISPATCH_CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "push" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+              echo "::error::Il deploy tramite file è consentito soltanto da main."
+              exit 1
+            fi
+            REQUEST_FILE=".github/hounigo-worker-deploy-request.json"
+            jq -e '(.requestId | type == "string" and length > 0) and (.action | type == "string")' "$REQUEST_FILE" >/dev/null
+            ACTION="$(jq -r '.action' "$REQUEST_FILE")"
+            VERSION_ID="$(jq -r '.version_id // ""' "$REQUEST_FILE")"
+            CONFIRM="$(jq -r '.confirm // ""' "$REQUEST_FILE")"
+            echo "Richiesta: $(jq -r '.requestId' "$REQUEST_FILE")"
+          elif [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            ACTION="$DISPATCH_ACTION"
+            VERSION_ID="$DISPATCH_VERSION_ID"
+            CONFIRM="$DISPATCH_CONFIRM"
+          else
+            echo "::error::Evento non consentito."
+            exit 1
+          fi
+
+          case "$ACTION" in
+            dry-run)
+              if [ -n "$VERSION_ID" ]; then
+                echo "::error::La prova non richiede version_id."
+                exit 1
+              fi
+              ;;
+            deploy)
+              if [ "$CONFIRM" != "CONFERMA" ] || [ -n "$VERSION_ID" ]; then
+                echo "::error::Deploy bloccato: è richiesto confirm=CONFERMA e version_id vuoto."
+                exit 1
+              fi
+              ;;
+            rollback)
+              if [ "$CONFIRM" != "CONFERMA" ]; then
+                echo "::error::Rollback bloccato: è richiesto confirm=CONFERMA."
+                exit 1
+              fi
+              if ! [[ "$VERSION_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+                echo "::error::version_id Worker non valido."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Azione non valida."
+              exit 1
+              ;;
+          esac
+          echo "action=$ACTION" >> "$GITHUB_OUTPUT"
+          echo "version_id=$VERSION_ID" >> "$GITHUB_OUTPUT"
+          echo "Richiesta autorizzata: $ACTION"
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      - name: Install dependencies (se presente package.json)
+      - name: Install dependencies
         run: |
+          set -euo pipefail
           if [ -f package-lock.json ]; then
             npm ci
           elif [ -f package.json ]; then
@@ -48,18 +126,19 @@ jobs:
           fi
 
       - name: Verifica configurazione Wrangler (Dry Run)
-        if: ${{ github.event.inputs.action == 'deploy' }}
+        if: ${{ steps.request.outputs.action == 'dry-run' || steps.request.outputs.action == 'deploy' }}
         run: npx wrangler@latest deploy --dry-run
 
-      - name: Deploy Worker in Produzione
-        if: ${{ github.event.inputs.action == 'deploy' }}
+      - name: Salva identificativo della versione attuale (rollback)
+        if: ${{ steps.request.outputs.action == 'deploy' }}
+        run: npx wrangler@latest deployments list
+
+      - name: Deploy Worker in produzione
+        if: ${{ steps.request.outputs.action == 'deploy' }}
         run: npx wrangler@latest deploy
 
       - name: Rollback a versione precedente
-        if: ${{ github.event.inputs.action == 'rollback' }}
-        run: |
-          if [ -z "${{ github.event.inputs.version_id }}" ]; then
-            echo "Errore: per il rollback devi inserire il version_id."
-            exit 1
-          fi
-          npx wrangler@latest rollback "${{ github.event.inputs.version_id }}" --yes
+        if: ${{ steps.request.outputs.action == 'rollback' }}
+        env:
+          TARGET_VERSION_ID: ${{ steps.request.outputs.version_id }}
+        run: npx wrangler@latest rollback "$TARGET_VERSION_ID" --yes
