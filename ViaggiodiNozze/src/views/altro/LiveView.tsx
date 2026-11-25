@@ -82,7 +82,14 @@ interface CustomLivePhoto {
   timestamp: string;
 }
 
-import { liveService, type LiveUpdate, type LiveGuestMessage } from '../../services/liveService';
+import { liveService, verifyPrivilegedLivePublisher, type LiveUpdate, type LiveGuestMessage } from '../../services/liveService';
+import {
+  enqueueLiveOfflineItem,
+  flushLiveOfflineQueue,
+  loadLiveOfflineQueue,
+  removeLiveOfflineItem,
+  type LiveOfflineQueueItem,
+} from '../../utils/liveOfflineQueue';
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 import LiveEditorialExperience, { type LiveGalleryPhotoItem, type LivePhotoComment } from './LiveEditorialExperience';
@@ -347,6 +354,54 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       unsubscribeLocation();
     };
   }, [activeTripId, cloudRole, isStandaloneExternal]);
+
+  const canWriteOffline = Boolean(
+    !isStandaloneExternal &&
+    activeTripId &&
+    currentUid &&
+    !isTripAuthRevoked(activeTripId) &&
+    (cloudRole === 'owner' || cloudRole === 'copilota' || hasPrivateGalleryAccess)
+  );
+  const [offlineQueueItems, setOfflineQueueItems] = useState<LiveOfflineQueueItem[]>(() =>
+    loadLiveOfflineQueue(activeTripId || undefined)
+  );
+
+  useEffect(() => {
+    setOfflineQueueItems(loadLiveOfflineQueue(activeTripId || undefined));
+    const syncQueueState = () => {
+      setOfflineQueueItems(loadLiveOfflineQueue(activeTripId || undefined));
+    };
+    window.addEventListener('hounigo_live_offline_queue_changed', syncQueueState);
+    return () => window.removeEventListener('hounigo_live_offline_queue_changed', syncQueueState);
+  }, [activeTripId]);
+
+  useEffect(() => {
+    if (!isOnline || !canWriteOffline || !activeTripId || !currentUid) return;
+    void flushLiveOfflineQueue({
+      tripId: activeTripId,
+      currentUid,
+      isOnline,
+      verifyPermission: async (tId, uid) => {
+        if (isTripAuthRevoked(tId)) return false;
+        const { isMember } = await verifyPrivilegedLivePublisher(tId, uid);
+        return isMember;
+      },
+      sendItem: async (item) => {
+        if (item.kind === 'guest_message') {
+          await liveService.sendGuestMessage(item.tripId, item.authorName, item.text, item.replyTo, item.id);
+        } else if (item.kind === 'photo_comment') {
+          await liveService.addPhotoComment(item.tripId, item.photoId || '', item.authorName, item.text, item.replyTo, item.id);
+        } else if (item.kind === 'diary_message') {
+          await liveService.publishToLive(
+            item.tripId,
+            { title: item.authorName, text: item.text, locationName: item.locationName },
+            {},
+            item.id
+          );
+        }
+      },
+    });
+  }, [isOnline, canWriteOffline, activeTripId, currentUid]);
 
   // A guest opening LIVE on a new device must still see the last authorized position.
   // Revalidate on visibility/online and periodically to revoke the cached marker after STOP.
@@ -692,13 +747,30 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       return;
     }
 
-    if (!navigator.onLine) {
-      setLiveMsgError('Dispositivo offline: impossibile pubblicare sul feed Live.');
+    if (!activeTripId) {
+      setLiveMsgError('Viaggio non configurato.');
       return;
     }
 
-    if (!activeTripId) {
-      setLiveMsgError('Viaggio non configurato.');
+    if (!navigator.onLine) {
+      if (canWriteOffline && currentUid) {
+        const user = auth.currentUser;
+        const derivedTitle = (user?.displayName && user.displayName.trim()) || liveSenderTitle || (deviceRole === 'guida' ? 'Sposi' : 'Co-pilota');
+        enqueueLiveOfflineItem({
+          kind: 'diary_message',
+          tripId: activeTripId,
+          uid: currentUid,
+          authorName: derivedTitle.slice(0, 60),
+          text: cleanMsg.slice(0, 500),
+          locationName: currentLocation?.city || currentLocation?.title || undefined,
+        });
+        setLiveTextMessage('');
+        setLastLiveMsgSentAt(Date.now());
+        setLiveMsgSuccess('🕒 In attesa di invio: verrà pubblicato al ritorno online.');
+        setTimeout(() => setLiveMsgSuccess(null), 3500);
+        return;
+      }
+      setLiveMsgError('Dispositivo offline: impossibile pubblicare sul feed Live.');
       return;
     }
 
@@ -2076,6 +2148,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       onShare={handleShareLiveLink}
       copiedLink={copiedLink}
       online={isOnline}
+      canWriteOffline={canWriteOffline}
+      offlineQueueItems={offlineQueueItems}
+      onCancelOfflineItem={removeLiveOfflineItem}
       galleryPhotos={allLiveGalleryPhotos}
       onUploadPhoto={hasPrivateGalleryAccess ? handleUploadPhoto : undefined}
       onDeletePhoto={hasPrivateGalleryAccess ? handleDeletePhoto : undefined}
@@ -2083,6 +2158,20 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       guestMessages={guestMessages}
       onSendGuestMessage={async (authorName, message, replyTo) => {
         if (!activeTripId) return;
+        if (!navigator.onLine) {
+          if (canWriteOffline && currentUid) {
+            enqueueLiveOfflineItem({
+              kind: 'guest_message',
+              tripId: activeTripId,
+              uid: currentUid,
+              authorName: authorName.trim(),
+              text: message.trim(),
+              replyTo,
+            });
+            return;
+          }
+          throw new Error('Connessione assente: gli ospiti possono scrivere solo online.');
+        }
         await liveService.sendGuestMessage(activeTripId, authorName, message, replyTo);
       }}
       onModerateGuestMessage={async (messageId, action) => {
@@ -2093,6 +2182,21 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       onSubscribePhotoComments={handleSubscribePhotoComments}
       onAddPhotoComment={async (photoId, authorName, text, replyTo) => {
         if (!activeTripId) return;
+        if (!navigator.onLine) {
+          if (canWriteOffline && currentUid) {
+            enqueueLiveOfflineItem({
+              kind: 'photo_comment',
+              tripId: activeTripId,
+              uid: currentUid,
+              authorName: authorName.trim(),
+              text: text.trim(),
+              photoId,
+              replyTo,
+            });
+            return;
+          }
+          throw new Error('Connessione assente: gli ospiti possono commentare solo online.');
+        }
         await liveService.addPhotoComment(activeTripId, photoId, authorName, text, replyTo);
       }}
       onDeletePhotoComment={async (photoId, commentId) => {

@@ -181,7 +181,7 @@ const sanitizeHeader = (input: LiveFeedHeaderInput = {}) => {
   return out;
 };
 
-async function verifyPrivilegedLivePublisher(
+export async function verifyPrivilegedLivePublisher(
   tripId: string,
   uid: string
 ): Promise<{ isMember: boolean; tripTitle?: string }> {
@@ -208,7 +208,8 @@ export const liveService = {
   async publishToLive(
     tripId: string,
     updateData: LiveUpdateInput,
-    header: LiveFeedHeaderInput = {}
+    header: LiveFeedHeaderInput = {},
+    clientMutationId?: string
   ): Promise<string> {
     const user = auth.currentUser;
     if (!user) throw new Error('Utente non autenticato: impossibile pubblicare nel Live.');
@@ -226,7 +227,9 @@ export const liveService = {
 
     const now = Date.now();
     const feedRef = doc(db, 'live_feeds', tripId);
-    const updateRef = doc(collection(db, 'live_feeds', tripId, 'updates'));
+    const updateRef = clientMutationId
+      ? doc(db, 'live_feeds', tripId, 'updates', clientMutationId)
+      : doc(collection(db, 'live_feeds', tripId, 'updates'));
 
     const feedSnap = await getDoc(feedRef);
     const headerPatch: Record<string, unknown> = { ...sanitizeHeader(header), lastUpdateAt: now };
@@ -520,7 +523,8 @@ export const liveService = {
     tripId: string,
     authorName: string,
     message: string,
-    replyTo?: LiveReplyTarget | null
+    replyTo?: LiveReplyTarget | null,
+    clientMutationId?: string
   ): Promise<string> {
     if (!tripId) throw new Error('Viaggio non configurato.');
     const safe = sanitizeGuestMessageInput(authorName, message);
@@ -551,7 +555,9 @@ export const liveService = {
     if (user && !user.isAnonymous && !replyTo?.id) {
       const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
       if (isMember) {
-        const msgRef = doc(collection(db, 'live_feeds', tripId, 'guest_messages'));
+        const msgRef = clientMutationId
+          ? doc(db, 'live_feeds', tripId, 'guest_messages', clientMutationId)
+          : doc(collection(db, 'live_feeds', tripId, 'guest_messages'));
         await setDoc(msgRef, {
           visitorId,
           authorName: safe.authorName,
@@ -915,7 +921,8 @@ export const liveService = {
     photoId: string,
     authorName: string,
     text: string,
-    replyTo?: LiveReplyTarget | null
+    replyTo?: LiveReplyTarget | null,
+    clientMutationId?: string
   ): Promise<void> {
     if (!tripId || !photoId) throw new Error('Foto non valida.');
     const cleanAuthor = cleanString(authorName, 40);
@@ -940,7 +947,9 @@ export const liveService = {
     if (user && !user.isAnonymous && !replyTo?.id) {
       const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
       if (isMember) {
-        const commentRef = doc(collection(db, 'live_feeds', tripId, 'updates', photoId, 'comments'));
+        const commentRef = clientMutationId
+          ? doc(db, 'live_feeds', tripId, 'updates', photoId, 'comments', clientMutationId)
+          : doc(collection(db, 'live_feeds', tripId, 'updates', photoId, 'comments'));
         await setDoc(commentRef, {
           authorName: cleanAuthor,
           text: cleanText,

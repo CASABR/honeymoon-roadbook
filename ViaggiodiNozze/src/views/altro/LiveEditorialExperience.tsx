@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MapPin, Camera, BookOpen, MessageCircle, Compass, Clock, Radio, MapPinOff, Reply, X } from 'lucide-react';
 import type { LiveUpdate, LiveGuestMessage, LiveReplyTarget } from '../../services/liveService';
+import type { LiveOfflineQueueItem } from '../../utils/liveOfflineQueue';
 import { GPS_STALE_THRESHOLD_MS, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 import type { PublicNextTransportInfo } from '../../utils/liveNextTransport';
@@ -103,6 +104,9 @@ export interface LiveEditorialExperienceProps {
   onShare: () => void;
   copiedLink: boolean;
   online: boolean;
+  canWriteOffline?: boolean;
+  offlineQueueItems?: LiveOfflineQueueItem[];
+  onCancelOfflineItem?: (id: string) => void;
   galleryPhotos?: LiveGalleryPhotoItem[];
   onUploadPhoto?: (file: File, caption?: string) => Promise<void>;
   onDeletePhoto?: (photoId: string) => void;
@@ -386,7 +390,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       }
       setGuestMessageInput('');
       setReplyingToGuestMsg(null);
-      setGuestMsgSuccess('Messaggio inviato agli sposi! ❤️');
+      setGuestMsgSuccess(
+        !isOnline && props.canWriteOffline
+          ? '🕒 In attesa di invio: verrà inviato al ritorno online.'
+          : 'Messaggio inviato agli sposi! ❤️'
+      );
     } catch (err: any) {
       setGuestMsgError(err?.message || 'Impossibile inviare il messaggio. Riprova.');
     } finally {
@@ -1210,12 +1218,38 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 <textarea rows={3} maxLength={500} autoFocus value={props.liveTextMessage} onChange={event => props.onLiveTextChange(event.target.value)} placeholder="Racconta un momento…" className="mt-2 w-full resize-none rounded-2xl border border-slate-300 bg-[#F8F7F3] p-2.5 text-sm dark:border-slate-700 dark:bg-[#172033]" />
                 {props.messageError && <p className="mt-2 text-xs font-semibold text-rose-600">{props.messageError}</p>}
                 {props.messageSuccess && <p className="mt-2 text-xs font-semibold text-emerald-600">{props.messageSuccess}</p>}
-                <div className="mt-2.5 flex justify-end gap-2"><button type="button" onClick={() => setIsComposerOpen(false)} className="min-h-10 px-3 text-xs font-bold text-slate-500">Annulla</button><button type="submit" disabled={props.isSendingMessage || !props.liveTextMessage.trim() || !isOnline} className="min-h-10 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">{props.isSendingMessage ? 'Pubblicazione…' : 'Pubblica'}</button></div>
+                <div className="mt-2.5 flex justify-end gap-2"><button type="button" onClick={() => setIsComposerOpen(false)} className="min-h-10 px-3 text-xs font-bold text-slate-500">Annulla</button><button type="submit" disabled={props.isSendingMessage || !props.liveTextMessage.trim() || (!isOnline && !props.canWriteOffline)} className="min-h-10 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">{props.isSendingMessage ? 'Pubblicazione…' : 'Pubblica'}</button></div>
               </form>
             )}
 
             <div className="mt-5 space-y-3">
-              {diaryUpdates.length === 0 ? (
+              {(props.offlineQueueItems || []).filter(q => q.kind === 'diary_message').map(qItem => (
+                <div
+                  key={qItem.id}
+                  data-testid="live-offline-pending-diary"
+                  className="rounded-2xl border border-amber-300/80 bg-amber-50/70 p-3 dark:border-amber-800/70 dark:bg-amber-950/30"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/70 dark:text-amber-200">
+                        🕒 In attesa di invio
+                      </span>
+                      <p className="mt-1 text-sm font-bold text-[#172033] dark:text-white">{qItem.authorName}</p>
+                      <p className="mt-0.5 whitespace-pre-wrap break-words text-xs text-slate-700 dark:text-slate-200">{qItem.text}</p>
+                    </div>
+                    {props.onCancelOfflineItem && (
+                      <button
+                        type="button"
+                        onClick={() => props.onCancelOfflineItem?.(qItem.id)}
+                        className="min-h-9 shrink-0 rounded-lg border border-amber-300 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 cursor-pointer"
+                      >
+                        Annulla
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {diaryUpdates.length === 0 && (props.offlineQueueItems || []).filter(q => q.kind === 'diary_message').length === 0 ? (
                 <div className="py-5 text-center"><p className="text-sm font-bold">Il diario è ancora vuoto.</p><p className="mt-0.5 text-xs text-slate-500">Gli aggiornamenti pubblici compariranno qui.</p></div>
               ) : (
                 <>
@@ -1305,7 +1339,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   <span className="text-[10px] text-slate-400">Visibile nel diario</span>
                   <button
                     type="submit"
-                    disabled={isSendingGuestMsg || !isOnline || !guestAuthorInput.trim() || !guestMessageInput.trim()}
+                    disabled={isSendingGuestMsg || (!isOnline && !props.canWriteOffline) || !guestAuthorInput.trim() || !guestMessageInput.trim()}
                     className="min-h-10 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white transition hover:bg-[#e85c50] disabled:opacity-40"
                   >
                     {isSendingGuestMsg ? 'Invio…' : 'Invia'}
@@ -1323,6 +1357,44 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 </p>
               </div>
             )}
+
+            {/* Coda locale offline (solo Owner e Copiloti) */}
+            {(props.offlineQueueItems || []).filter(q => q.kind === 'guest_message').map(qItem => (
+              <div
+                key={qItem.id}
+                data-testid="live-offline-pending-guest-message"
+                className="rounded-2xl border border-amber-300/80 bg-amber-50/70 p-3 dark:border-amber-800/70 dark:bg-amber-950/30"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="text-xs font-extrabold text-[#172033] dark:text-white">{qItem.authorName}</span>
+                      <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-900/70 dark:text-amber-200">
+                        🕒 In attesa di invio
+                      </span>
+                    </div>
+                    {qItem.replyTo?.authorName && (
+                      <div className="mt-1.5 rounded-lg border-l-2 border-[#FF6B5F] bg-white/70 px-2.5 py-1 text-[11px] dark:bg-slate-900/60">
+                        <p className="font-bold text-[#FF6B5F]">{qItem.replyTo.authorName}</p>
+                        <p className="truncate text-slate-600 dark:text-slate-300">{qItem.replyTo.preview}</p>
+                      </div>
+                    )}
+                    <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-700 dark:text-slate-200">
+                      {qItem.text}
+                    </p>
+                  </div>
+                  {props.onCancelOfflineItem && (
+                    <button
+                      type="button"
+                      onClick={() => props.onCancelOfflineItem?.(qItem.id)}
+                      className="min-h-9 shrink-0 rounded-lg border border-amber-300 px-2.5 py-1 text-xs font-bold text-amber-900 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-200 cursor-pointer"
+                    >
+                      Annulla
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
 
             {/* Lista messaggi ospiti */}
             {(props.guestMessages && props.guestMessages.length > 0) ? (
@@ -1757,7 +1829,37 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             {activeLightboxIsPublic && props.onAddPhotoComment && (
               <div data-testid="live-photo-comments-panel" className="mt-2.5 rounded-2xl bg-white/10 p-2.5 backdrop-blur-md">
                 <div className="max-h-28 space-y-1.5 overflow-y-auto pr-1 text-left">
-                  {(props.photoComments?.[displayPhotos[activeLightboxIndex].id] || []).length === 0 ? (
+                  {(props.offlineQueueItems || [])
+                    .filter(q => q.kind === 'photo_comment' && q.photoId === displayPhotos[activeLightboxIndex].id)
+                    .map(qItem => (
+                      <div
+                        key={qItem.id}
+                        data-testid="live-offline-pending-photo-comment"
+                        className="flex items-start justify-between gap-2 rounded-xl border border-amber-400/50 bg-amber-500/20 px-2.5 py-1.5 text-xs"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="mr-1.5 inline-block rounded bg-amber-400/30 px-1.5 py-0.5 text-[10px] font-bold text-amber-200">
+                            🕒 In attesa di invio
+                          </span>
+                          {qItem.replyTo?.authorName && (
+                            <span className="mr-1 text-[10px] text-white/75">↳ {qItem.replyTo.authorName}:</span>
+                          )}
+                          <span className="font-bold text-white">{qItem.authorName}: </span>
+                          <span className="break-words text-white/90">{qItem.text}</span>
+                        </div>
+                        {props.onCancelOfflineItem && (
+                          <button
+                            type="button"
+                            onClick={() => props.onCancelOfflineItem?.(qItem.id)}
+                            className="shrink-0 text-[11px] font-bold text-amber-200 hover:text-white cursor-pointer"
+                          >
+                            Annulla
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  {(props.photoComments?.[displayPhotos[activeLightboxIndex].id] || []).length === 0 &&
+                  (props.offlineQueueItems || []).filter(q => q.kind === 'photo_comment' && q.photoId === displayPhotos[activeLightboxIndex].id).length === 0 ? (
                     <p className="text-[11px] text-white/60">Nessun commento ancora su questa foto.</p>
                   ) : (
                     (props.photoComments?.[displayPhotos[activeLightboxIndex].id] || []).map(comment => (
@@ -1848,7 +1950,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   />
                   <button
                     type="submit"
-                    disabled={isSendingPhotoComment || !isOnline}
+                    disabled={isSendingPhotoComment || (!isOnline && !props.canWriteOffline)}
                     className="min-h-9 shrink-0 rounded-xl bg-[#FF6B5F] px-3 text-xs font-bold text-white disabled:opacity-40 cursor-pointer"
                   >
                     {isSendingPhotoComment ? '…' : 'Invia'}
