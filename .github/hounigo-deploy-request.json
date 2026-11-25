@@ -1,10 +1,10 @@
 {
-    "requestedAt":  "2026-11-25T09:12:15.000Z",
+    "requestedAt":  "2026-11-25T09:48:20.000Z",
     "action":  "deploy",
     "confirm":  "CONFERMA",
-    "requestId":  "release-1.7.17-202611250912",
+    "requestId":  "release-1.7.18-202611250948",
     "requestedBy":  "CASABR",
     "ref":  "main",
     "$schema":  "./hounigo-deploy-request.schema.json",
-    "note":  "Release 1.7.17: rifinitura LIVE mobile, icone Lucide, stato vuoto mappa e safe-area Safari (esclusi WIP locali)."
+    "note":  "Release 1.7.18: fix P0 stato pre-partenza LIVE e preflight CORS Worker su reazioni, messaggi e commenti (esclusi WIP locali)."
 }

@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.18",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "dea6fd654642466b23830ad98e2bc6ff0a63b58d",
+      "changes": [
+        "Fix P0 LIVE: stato temporale pre-partenza indipendente da GPS anche per ospiti esterni e preflight CORS Worker su reazioni, messaggi e commenti."
+      ],
+      "publishedAtIso": "2026-11-25T09:48:20.000Z"
+    },
+    {
       "version": "1.7.17",
       "publishedAt": "2026-11-25",
       "sourceCommit": "c2d0a349e9cf42c15c4174ed6dcdf0df3f595526",
