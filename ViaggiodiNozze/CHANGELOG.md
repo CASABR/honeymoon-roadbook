@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.19 — 2026-11-25
+
+- LIVE: conserva e mostra l'ultima posizione GPS autorizzata sulla mappa, anche su altri dispositivi e dopo perdita del segnale.
+- Diagnostica sicura dei problemi di salvataggio messaggi, commenti e reazioni sul backend.
+
 ## 1.7.18 — 2026-11-25
 
 - Fix P0 LIVE: stato temporale pre-partenza indipendente da GPS anche per ospiti esterni e preflight CORS Worker su reazioni, messaggi e commenti.

@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.19",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "cb1a60460783c5cbf0cee978d2c643f52aa066db",
+      "changes": [
+        "LIVE: conserva e mostra l'ultima posizione GPS autorizzata sulla mappa, anche su altri dispositivi e dopo perdita del segnale.",
+        "Diagnostica sicura dei problemi di salvataggio messaggi, commenti e reazioni sul backend."
+      ],
+      "publishedAtIso": "2026-11-25T11:10:00.000Z"
+    },
+    {
       "version": "1.7.18",
       "publishedAt": "2026-11-25",
       "sourceCommit": "dea6fd654642466b23830ad98e2bc6ff0a63b58d",
