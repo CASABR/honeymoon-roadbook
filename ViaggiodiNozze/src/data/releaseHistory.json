@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.27",
+      "publishedAt": "2026-11-25",
+      "sourceCommit": "39552d9a7b432233aa2a1578639ea689536e3ca5",
+      "changes": [
+        "Fix safe area iPhone Dynamic Island e tastiera software su modali e sheet mobile (Modal, useVisualViewportBox, index.css), con verifica automatica su viewport mobile/iPad e retro card Trasporti su iPhone 15 Pro simulato."
+      ],
+      "publishedAtIso": "2026-11-25T18:19:56.000Z"
+    },
+    {
       "version": "1.7.26",
       "publishedAt": "2026-11-25",
       "sourceCommit": "0e44855fd90d3925057f29f05320e8740d22d6cf",
