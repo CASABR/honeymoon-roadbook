@@ -344,9 +344,6 @@ export async function handleLivePhotoRequest(request, env, security) {
       return reply(200, { reactionCounts: nextCounts, selected: type });
     }
     if (isGuestMessagePost) {
-      await gate(database, `guest_msg_day:${day}`, 300, now + 172800000);
-      await gate(database, `guest_msg_ip:${Math.floor(now / 60000)}:${ip}`, 3, now + 120000);
-      await gate(database, `guest_msg_trip_ip:${tripId}:${day}:${ip}`, 15, now + 172800000);
       const rawText = await request.text();
       if (!rawText || rawText.length > 2048) throw error(400, 'Richiesta messaggio non valida.');
       let body;
@@ -356,6 +353,19 @@ export async function handleLivePhotoRequest(request, env, security) {
       const rawVisitor = typeof body?.visitorId === 'string' && /^[A-Za-z0-9_-]{4,128}$/.test(body.visitorId) ? body.visitorId : `vis_${ip.slice(0, 24)}`;
       if (!cleanAuthor || !cleanMsg || /[<>]|javascript:|data:text\/html/i.test(`${cleanAuthor} ${cleanMsg}`)) {
         throw error(400, 'Nome o messaggio non validi.');
+      }
+      // Shared networks: many legitimate guests may have the same public IP.
+      // Enforce both IP-wide guardrails and a per-visitor cooldown; no sign-in required.
+      const visitorHash = await hashIdentity(`${tripId}|${rawVisitor}`);
+      try {
+        await gate(database, `guest_msg_day:${day}`, 600, now + 172800000);
+        await gate(database, `guest_msg_ip:${Math.floor(now / 60000)}:${ip}`, 20, now + 120000);
+        await gate(database, `guest_msg_trip_ip:${tripId}:${day}:${ip}`, 200, now + 172800000);
+        await gate(database, `guest_msg_visitor_30s:${Math.floor(now / 30000)}:${visitorHash}`, 1, now + 60000);
+        await gate(database, `guest_msg_visitor_day:${day}:${visitorHash}`, 15, now + 172800000);
+      } catch (limitError) {
+        if (limitError?.status === 429) throw error(429, 'Troppi messaggi ravvicinati. Riprova tra poco.');
+        throw limitError;
       }
       if (typeof security.getServiceAccountToken !== 'function') throw error(503, 'Servizio messaggi non configurato.');
       const saToken = await security.getServiceAccountToken(env);
