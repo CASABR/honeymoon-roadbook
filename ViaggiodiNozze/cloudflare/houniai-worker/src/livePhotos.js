@@ -8,13 +8,30 @@ export const PHOTO_UID_MINUTE_LIMIT = 3;
 const ID = /^[a-f0-9]{48}$/;
 const error = (status, message) => Object.assign(new Error(message), { status });
 
-async function throwFirestoreWriteError(response, endpoint) {
+function configuredServiceAccountMatchesExpected(env) {
+  // Compare identities server-side; never return/log the secret, email or key.
+  let email = String(env?.FIREBASE_SERVICE_ACCOUNT_EMAIL || '').trim().replace(/^["']|["']$/g, '');
+  const raw = String(env?.FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY || '').trim();
+  if (!email && raw.startsWith('{')) {
+    try { email = String(JSON.parse(raw)?.client_email || '').trim(); } catch {}
+  }
+  return email === 'hounigo-push-reader@app-viaggio-di-nozze.iam.gserviceaccount.com';
+}
+
+async function throwFirestoreWriteError(response, endpoint, env) {
   const body = await response.json().catch(() => ({}));
   const code = String(body?.error?.status || body?.error?.code || 'UNKNOWN')
     .replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 48);
-  // Do not log user content, credentials, Firestore document paths or personal data.
-  console.error('HOUNIGO_LIVE_FIRESTORE_WRITE_FAILED', { endpoint, httpStatus: response.status, code });
-  if (response.status === 403) throw error(503, 'Servizio LIVE non autorizzato alla scrittura. Contatta gli organizzatori.');
+  const identityMatches = configuredServiceAccountMatchesExpected(env);
+  // Do not log user content, credentials, account emails, document paths or personal data.
+  console.error('HOUNIGO_LIVE_FIRESTORE_WRITE_FAILED', {
+    endpoint, httpStatus: response.status, code,
+    ...(response.status === 403 ? { identityMatches } : {})
+  });
+  if (response.status === 403) {
+    if (!identityMatches) throw error(503, 'LIVE-ID: il Worker usa un’identità diversa da quella autorizzata. Segnala LIVE-ID agli organizzatori.');
+    throw error(503, 'LIVE-IAM: Firestore rifiuta la scrittura anche con l’identità prevista. Segnala LIVE-IAM agli organizzatori.');
+  }
   throw error(503, 'Salvataggio LIVE non riuscito. Riprova tra poco.');
 }
 
@@ -207,7 +224,7 @@ export async function handleLivePhotoRequest(request, env, security) {
           }
         })
       });
-      if (!fsRes.ok) await throwFirestoreWriteError(fsRes, 'photo-comment');
+      if (!fsRes.ok) await throwFirestoreWriteError(fsRes, 'photo-comment', env);
       const created = await fsRes.json();
       return reply(201, { id: created.name?.split('/').at(-1) || '', createdAt: now });
     }
@@ -264,7 +281,7 @@ export async function handleLivePhotoRequest(request, env, security) {
           }
         })
       });
-      if (!rRes.ok) await throwFirestoreWriteError(rRes, 'reaction');
+      if (!rRes.ok) await throwFirestoreWriteError(rRes, 'reaction', env);
 
       const countFields = Object.fromEntries(ALLOWED_REACTIONS.map(emoji => [emoji, { integerValue: String(nextCounts[emoji]) }]));
       const updatePatchUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(updateId)}?updateMask.fieldPaths=reactionCounts`;
@@ -277,7 +294,7 @@ export async function handleLivePhotoRequest(request, env, security) {
           }
         })
       });
-      if (!uRes.ok) await throwFirestoreWriteError(uRes, 'reaction-count');
+      if (!uRes.ok) await throwFirestoreWriteError(uRes, 'reaction-count', env);
       return reply(200, { reactionCounts: nextCounts, selected: type });
     }
     if (isGuestMessagePost) {
@@ -317,7 +334,7 @@ export async function handleLivePhotoRequest(request, env, security) {
           }
         })
       });
-      if (!fsRes.ok) await throwFirestoreWriteError(fsRes, 'guest-message');
+      if (!fsRes.ok) await throwFirestoreWriteError(fsRes, 'guest-message', env);
       const created = await fsRes.json();
       return reply(201, { id: created.name?.split('/').at(-1) || '', createdAt: now });
     }

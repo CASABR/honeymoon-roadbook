@@ -150,6 +150,7 @@ async function run() {
   const { privateKey } = require('node:crypto').generateKeyPairSync('rsa', { modulusLength: 2048 });
   const pem = privateKey.export({ type: 'pkcs8', format: 'pem' });
 
+  let simulateDenied = false;
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init = {}) => {
     const u = String(url);
@@ -176,6 +177,9 @@ async function run() {
         return new Response(JSON.stringify({ name: docPath, ...existing }), { status: 200 });
       }
       if (method === 'POST') {
+        if (simulateDenied && docPath.endsWith('/guest_messages')) {
+          return new Response(JSON.stringify({ error: { status: 'PERMISSION_DENIED', message: 'Synthetic denial only' } }), { status: 403 });
+        }
         const body = JSON.parse(init.body);
         const newId = `doc_${fsStore.size + 1}`;
         const fullPath = `${docPath}/${newId}`;
@@ -261,6 +265,24 @@ async function run() {
     assert.equal(savedComment.fields.text.stringValue, 'Bellissima foto!');
     assert.equal(savedComment.fields.publicSchemaVersion.integerValue, '2');
     console.log('✓ [PASS] Worker POST 200/201 + persistenza Firestore + lettura seconda sessione verificati');
+
+    // Production 403 diagnostic must distinguish the active service identity from IAM
+    // without exposing account address, credentials or user data.
+    simulateDenied = true;
+    const deniedReq = () => new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/synth_trip/guest-messages', {
+      method: 'POST',
+      headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': '9.8.7.6' },
+      body: JSON.stringify({ visitorId: 'visitor_diagnostic', authorName: 'Synthetic', message: 'Synthetic check' }),
+    });
+    const identityMismatch = await handleRequest(deniedReq(), env);
+    assert.equal(identityMismatch.status, 503);
+    assert.match((await identityMismatch.json()).error, /^LIVE-ID:/);
+    env.FIREBASE_SERVICE_ACCOUNT_EMAIL = 'hounigo-push-reader@app-viaggio-di-nozze.iam.gserviceaccount.com';
+    const iamDenied = await handleRequest(deniedReq(), env);
+    assert.equal(iamDenied.status, 503);
+    assert.match((await iamDenied.json()).error, /^LIVE-IAM:/);
+    simulateDenied = false;
+    console.log('✓ [PASS] Diagnostica IAM vs account mismatch su 403 (nessun dato privato esposto)');
 
     // Read-only stale GPS, then verify that an explicit STOP revokes its public projection.
     fsStore.set('live_feeds/synth_trip/gps_control/current', {
