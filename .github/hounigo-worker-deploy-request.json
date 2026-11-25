@@ -1,8 +1,8 @@
 {
-  "requestId": "worker-dry-run-20261125-01",
-  "action": "dry-run",
+  "requestId": "live-1719-worker-deploy-20261125-01",
+  "action": "deploy",
   "version_id": "",
-  "confirm": "",
+  "confirm": "CONFERMA",
   "requestedBy": "ChatGPT",
-  "purpose": "Verifica del collegamento GitHub Actions senza deploy"
+  "purpose": "Fix LIVE write diagnostic and last authorized GPS location after IAM grant"
 }
