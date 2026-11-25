@@ -133,10 +133,6 @@ jobs:
         if: ${{ steps.request.outputs.action == 'deploy' }}
         run: npx wrangler@latest deployments list
 
-      - name: Crea archivio D1 messaggi LIVE (migrazione additiva, ripetibile)
-        if: ${{ steps.request.outputs.action == 'deploy' }}
-        run: npx wrangler@latest d1 execute hounigo-ai-rate-limits --remote --file=migrations/0005_live_guest_messages.sql --yes
-
       - name: Deploy Worker in produzione
         if: ${{ steps.request.outputs.action == 'deploy' }}
         run: npx wrangler@latest deploy
