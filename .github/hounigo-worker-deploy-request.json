@@ -1,8 +1,8 @@
 {
-  "requestId": "live-1719-worker-deploy-20261125-01",
+  "requestId": "live-auth403-diag-20261125-01",
   "action": "deploy",
   "version_id": "",
   "confirm": "CONFERMA",
   "requestedBy": "ChatGPT",
-  "purpose": "Fix LIVE write diagnostic and last authorized GPS location after IAM grant"
+  "purpose": "Diagnostic 403 only: differentiate configured Cloudflare service identity vs IAM permission denial, no data or client changes"
 }
