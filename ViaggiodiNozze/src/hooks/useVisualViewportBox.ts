@@ -24,7 +24,7 @@ export function useVisualViewportBox(active: boolean): VisualViewportBox | null 
       if (shrinkPx > 40) {
         setBox({
           offsetTop: Math.max(0, Math.round(vv.offsetTop)),
-          height: Math.max(220, Math.round(vv.height)),
+          height: Math.max(1, Math.floor(vv.height)),
         });
       } else {
         setBox(null);
