@@ -78,7 +78,7 @@ async function gate(database, bucket, limit, expiry) {
 export async function handleLivePhotoRequest(request, env, security) {
   const origin = request.headers.get('Origin') || '';
   const headers = { 'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN, 'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Vary': 'Origin', 'Cache-Control': 'no-store, max-age=0',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Access-Control-Max-Age': '600', 'Vary': 'Origin', 'Cache-Control': 'no-store, max-age=0',
     'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
   const reply = (status, body) => Response.json(body, { status, headers });
   try {
@@ -87,11 +87,11 @@ export async function handleLivePhotoRequest(request, env, security) {
     }
     const url = new URL(request.url), segments = url.pathname.split('/').filter(Boolean);
     const tripId = validateTripId(segments[2]), id = segments[3], action = segments[4];
+    const isPublicEndpoint = (id === 'comments' || id === 'reactions' || id === 'guest-messages') && !action;
     const isCommentPost = request.method === 'POST' && id === 'comments' && !action;
     const isReactionPost = request.method === 'POST' && id === 'reactions' && !action;
     const isGuestMessagePost = request.method === 'POST' && id === 'guest-messages' && !action;
-    const isPublicPost = isCommentPost || isReactionPost || isGuestMessagePost;
-    if (!tripId || (id && !isPublicPost && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish')) throw error(404, 'Foto non disponibile.');
+    if (!tripId || (id && !isPublicEndpoint && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish')) throw error(404, 'Foto non disponibile.');
     if (request.method === 'OPTIONS') {
       if (origin !== env.ALLOWED_ORIGIN) throw error(403, 'Origine non autorizzata.');
       return new Response(null, { status: 204, headers });
@@ -183,10 +183,8 @@ export async function handleLivePhotoRequest(request, env, security) {
         throw error(404, 'Aggiornamento pubblico non trovato.');
       }
       let prevType = null;
-      try {
-        const existingReaction = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(updateId)}/reactions/${encodeURIComponent(visitorId)}`, saToken, env);
-        if (existingReaction?.fields) prevType = readFirestoreFields(existingReaction.fields).type || null;
-      } catch {}
+      const existingReaction = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(updateId)}/reactions/${encodeURIComponent(visitorId)}`, saToken, env);
+      if (existingReaction?.fields) prevType = readFirestoreFields(existingReaction.fields).type || null;
       const currentCounts = updateData.reactionCounts && typeof updateData.reactionCounts === 'object' ? updateData.reactionCounts : {};
       const nextCounts = {};
       for (const emoji of ALLOWED_REACTIONS) {

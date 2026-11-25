@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole, Attivita } from '../../types';
 import { deriveLiveIntelligence, type LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
+import { MASTER_TRIP_END_DATE, MASTER_TRIP_START_DATE, isMasterTripCode } from '../../utils/masterTrip';
 import {
   deriveUpcomingImportantTransports,
   deriveUpcomingPublicTransportsFromFeedHeader,
@@ -1333,6 +1334,23 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   // Motore di Live Intelligence (itinerario in tempo reale, evento in corso, prossima tappa)
   const liveIntelligence = useMemo<LiveIntelligenceState | null>(() => {
+    const config = getTripConfig();
+    const firstPublicTransportDate =
+      liveFeedTransports.upcomingTransports
+        ?.map((t) => (typeof t === 'string' ? t.split('|')[3] : t?.date))
+        .filter((d): d is string => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d)))
+        .sort()[0] ||
+      liveFeedTransports.nextTransport?.date;
+    const effectiveTripStartDate =
+      tripRange?.minTripDate ||
+      config?.startDate ||
+      (isMasterTripCode(activeTripId) ? MASTER_TRIP_START_DATE : undefined) ||
+      firstPublicTransportDate;
+    const effectiveTripEndDate =
+      tripRange?.maxTripDate ||
+      config?.endDate ||
+      (isMasterTripCode(activeTripId) ? MASTER_TRIP_END_DATE : undefined);
+
     return deriveLiveIntelligence({
       giorni: days,
       attivita: activities,
@@ -1340,14 +1358,14 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       alloggi: accommodations,
       trasporti: transports,
       currentDateTime: now,
-      tripStartDate: tripRange?.minTripDate,
-      tripEndDate: tripRange?.maxTripDate,
+      tripStartDate: effectiveTripStartDate,
+      tripEndDate: effectiveTripEndDate,
       realGpsCoords: remoteGpsLocation ? { lat: remoteGpsLocation.lat, lng: remoteGpsLocation.lng } : (liveGpsState?.coords || null),
       gpsAccuracyMeters: remoteGpsLocation?.accuracy || liveGpsState?.accuracy,
       isExternalGuest: isStandaloneExternal,
       timeZone: plannedTimeZone
     });
-  }, [days, activities, tappe, accommodations, transports, now, tripRange, remoteGpsLocation, liveGpsState, isStandaloneExternal, plannedTimeZone]);
+  }, [days, activities, tappe, accommodations, transports, now, tripRange, activeTripId, liveFeedTransports, remoteGpsLocation, liveGpsState, isStandaloneExternal, plannedTimeZone]);
 
   const upcomingImportantTransports = useMemo(
     () =>

@@ -50,7 +50,7 @@ export interface LocationComparison {
 }
 
 export interface LiveIntelligenceState {
-  tripStatus: 'pre_trip' | 'in_trip' | 'post_trip';
+  tripStatus: 'pre_trip' | 'in_trip' | 'post_trip' | 'unknown';
   currentEvent: LiveTimelineEvent | null;
   nextEvent: NextTimelineEvent | null;
   plannedLocation: PlannedLocationInfo | null;
@@ -173,11 +173,36 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
 
   const todayStr = toDateStr(currentDateTime, timeZone);
 
+  // 1. Determina lo stato temporale del viaggio (pre_trip / in_trip / post_trip / unknown)
+  // senza mai assumere 'in_trip' come fallback in assenza di date attendibili.
+  const isIsoDate = (val?: string) => Boolean(val && /^\d{4}-\d{2}-\d{2}$/.test(val));
+  let effectiveStartDate = isIsoDate(tripStartDate) ? tripStartDate : undefined;
+  let effectiveEndDate = isIsoDate(tripEndDate) ? tripEndDate : undefined;
+  if (!isExternalGuest && !effectiveStartDate && giorni.length > 0) {
+    const sorted = [...giorni].filter(g => isIsoDate(g.date)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    if (sorted[0]?.date) effectiveStartDate = sorted[0].date;
+  }
+  if (!isExternalGuest && !effectiveEndDate && giorni.length > 0) {
+    const sorted = [...giorni].filter(g => isIsoDate(g.date)).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    if (sorted[sorted.length - 1]?.date) effectiveEndDate = sorted[sorted.length - 1].date;
+  }
+
+  let tripStatus: 'pre_trip' | 'in_trip' | 'post_trip' | 'unknown' = 'unknown';
+  if (effectiveStartDate) {
+    if (todayStr < effectiveStartDate) {
+      tripStatus = 'pre_trip';
+    } else if (effectiveEndDate && todayStr > effectiveEndDate) {
+      tripStatus = 'post_trip';
+    } else {
+      tripStatus = 'in_trip';
+    }
+  }
+
   // PRIVACY OSPITI: se la richiesta proviene da un ospite esterno,
-  // l'itinerario privato (alloggi, orari, tappe future) non deve essere divulgato.
+  // lo stato temporale rispetta le date ma l'itinerario privato non viene divulgato.
   if (isExternalGuest) {
     return {
-      tripStatus: 'in_trip',
+      tripStatus,
       currentEvent: null,
       nextEvent: null,
       plannedLocation: null,
@@ -186,23 +211,15 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
     };
   }
 
-  // 1. Determina lo stato del viaggio (pre_trip / in_trip / post_trip)
-  let effectiveStartDate = tripStartDate;
-  let effectiveEndDate = tripEndDate;
-  if (!effectiveStartDate && giorni.length > 0) {
-    const sorted = [...giorni].filter(g => g.date).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    if (sorted[0]?.date) effectiveStartDate = sorted[0].date;
-  }
-  if (!effectiveEndDate && giorni.length > 0) {
-    const sorted = [...giorni].filter(g => g.date).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
-    if (sorted[sorted.length - 1]?.date) effectiveEndDate = sorted[sorted.length - 1].date;
-  }
-
-  let tripStatus: 'pre_trip' | 'in_trip' | 'post_trip' = 'in_trip';
-  if (effectiveStartDate && todayStr < effectiveStartDate) {
-    tripStatus = 'pre_trip';
-  } else if (effectiveEndDate && todayStr > effectiveEndDate) {
-    tripStatus = 'post_trip';
+  if (tripStatus === 'unknown') {
+    return {
+      tripStatus: 'unknown',
+      currentEvent: null,
+      nextEvent: null,
+      plannedLocation: null,
+      comparison: null,
+      activeDateStr: todayStr
+    };
   }
 
   // Se il viaggio non è ancora iniziato o è terminato, non inventiamo una posizione prevista attuale

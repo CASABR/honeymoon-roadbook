@@ -21,7 +21,7 @@ const projectId = 'demo-hounigo-comments';
   const editorialSrc = fs.readFileSync(path.join(root, 'src/views/altro/LiveEditorialExperience.tsx'), 'utf8');
   assert.ok(editorialSrc.includes("? 'Il nostro viaggio'"), 'Header fallback must be Il nostro viaggio');
   assert.ok(!editorialSrc.includes("? 'Diario di viaggio'"), 'Diario di viaggio must not be used in header');
-  assert.ok(editorialSrc.includes('flex min-h-12 flex-col items-center justify-center gap-0.5'), 'Tabs must stack icon above label');
+  assert.ok(editorialSrc.includes('flex min-h-10 flex-col items-center justify-center gap-0.5'), 'Tabs must stack icon above label');
   assert.ok(editorialSrc.includes('whitespace-nowrap text-[11px] sm:text-xs font-bold leading-tight'), 'Tab labels must never truncate');
   assert.ok(editorialSrc.includes('const diaryUpdates = useMemo(') && editorialSrc.includes('!u.photoUrl || !u.photoUrl.trim()'), 'Diario must exclude photo posts');
   console.log('PASS 1: Tab layout, generic header, and Foto/Diario separation verified');

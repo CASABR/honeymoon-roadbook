@@ -51,7 +51,7 @@ export interface ResolveLiveTravelTimeZoneParams {
     coords?: { lat: number; lng: number };
   } | null;
   fallbackLocationTexts?: Array<string | null | undefined>;
-  tripStatus?: 'pre_trip' | 'in_trip' | 'post_trip';
+  tripStatus?: 'pre_trip' | 'in_trip' | 'post_trip' | 'unknown';
 }
 
 const MIN_VALID_EPOCH_MS = Date.UTC(2000, 0, 1);
