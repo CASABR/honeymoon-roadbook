@@ -71,3 +71,20 @@ jobs:
       - name: Test - Architettura Gratuita
         working-directory: ViaggiodiNozze
         run: node scripts/test_free_architecture.cjs
+
+      - name: Install browser test runner
+        working-directory: ViaggiodiNozze
+        run: |
+          npm install --no-save --package-lock=false playwright
+          npx playwright install --with-deps chromium
+
+      - name: Test - Dynamic Island / keyboard visual viewport
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_modal_visual_viewport.cjs
+
+      - name: Test - Retro trasporti su iPhone 15 Pro simulato
+        working-directory: ViaggiodiNozze
+        env:
+          TRANSPORT_TEST_WIDTH: '393'
+          TRANSPORT_TEST_HEIGHT: '852'
+        run: node scripts/test_transport_form_subcategories.cjs

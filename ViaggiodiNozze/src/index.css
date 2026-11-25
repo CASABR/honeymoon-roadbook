@@ -756,6 +756,17 @@ input[type="password"] {
   }
 }
 
+/* Keyboard-reduced visual viewport: these overrides must follow the normal
+   !important modal rules, including the short-landscape media query. */
+.modal-backdrop-layer[data-visual-viewport="active"] {
+  top: var(--modal-viewport-top) !important;
+  bottom: auto !important;
+  height: var(--modal-viewport-height) !important;
+}
+.modal-backdrop-layer[data-visual-viewport="active"] > .modal-sheet-container {
+  max-height: 100% !important;
+}
+
 /* ============================================================================
    DARK MODE — ADATTAMENTO SEMANTICO COMPONENTI E CONTENITORI
    Garantisce contrasto WCAG AA senza override generici distruttivi su classi utility

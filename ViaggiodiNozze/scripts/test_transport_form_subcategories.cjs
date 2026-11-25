@@ -105,7 +105,7 @@ async function run() {
   let browser;
   try {
     browser = await chromium.launch({
-      executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+      ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : process.platform === 'win32' ? { executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' } : {}),
       headless: true,
       timeout: 15000,
       args: ['--no-sandbox'],
@@ -161,7 +161,7 @@ async function run() {
       ],
     };
 
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const ctx = await browser.newContext({ viewport: { width: Number(process.env.TRANSPORT_TEST_WIDTH || 1280), height: Number(process.env.TRANSPORT_TEST_HEIGHT || 800) }, serviceWorkers: 'block' });
     await ctx.addInitScript(({ tripId }) => {
       sessionStorage.setItem('hounigo_motion_splash_seen_v1', '1');
       sessionStorage.setItem('houni_dev_simulated_role', 'owner');
@@ -177,7 +177,7 @@ async function run() {
     }, { tripId: TRIP_ID });
 
     const page = await ctx.newPage();
-    await page.route('**/*firestore.googleapis.com*/**', (route) => route.abort());
+    await page.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
     page.setDefaultTimeout(8000);
     await page.goto('http://127.0.0.1:5202/honeymoon-roadbook/manifest.webmanifest', { waitUntil: 'domcontentloaded' });
     await seedIndexedDB(page, DB_NAME, FIXTURES);
@@ -190,6 +190,7 @@ async function run() {
     const form = page.getByTestId('trasporto-form');
     await form.waitFor({ state: 'visible' });
 
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Nessun overflow orizzontale nel retro card');
     // Aereo (default)
     assert.equal(await page.getByTestId('field-departureIata').isVisible(), true, 'Aereo: departureIata visibile');
     assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, 'Aereo: terminalGate visibile');

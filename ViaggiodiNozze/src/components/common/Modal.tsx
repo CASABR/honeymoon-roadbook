@@ -107,16 +107,14 @@ export default function Modal({ isOpen, onClose, title, children, footer, accent
   };
 
   const overlayViewportStyle: React.CSSProperties | undefined = viewportBox
-    ? { top: `${viewportBox.offsetTop}px`, height: `${viewportBox.height}px`, bottom: 'auto' }
-    : undefined;
-  const sheetViewportStyle: React.CSSProperties | undefined = viewportBox
-    ? { maxHeight: `${Math.max(220, viewportBox.height - 16)}px` }
+    ? ({ '--modal-viewport-top': `${viewportBox.offsetTop}px`, '--modal-viewport-height': `${viewportBox.height}px` } as React.CSSProperties)
     : undefined;
 
   const modalNode = (
     <div 
         className={`modal-backdrop-layer fixed inset-0 z-[99999] flex justify-center bg-slate-900/65 backdrop-blur-sm${centered ? ' modal-backdrop-layer--centered' : ''}`}
         style={overlayViewportStyle}
+        data-visual-viewport={viewportBox ? 'active' : undefined}
     >
       {/* Click outside to close */}
       <div 
@@ -132,7 +130,6 @@ export default function Modal({ isOpen, onClose, title, children, footer, accent
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        style={sheetViewportStyle}
         className={`modal-sheet-container relative z-[100000] max-w-lg flex flex-col overflow-hidden ${centered ? 'w-full border rounded-2xl' : 'w-full border-t sm:border rounded-t-3xl sm:rounded-2xl'} ${accentBorder} text-[#172033] dark:text-slate-100 dark:bg-[#1E293B] dark:border-slate-700 max-h-[88dvh] sm:my-auto`}
         onClick={(e) => e.stopPropagation()}
       >
