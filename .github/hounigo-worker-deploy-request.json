@@ -1,8 +1,8 @@
 {
-  "requestId": "release-1.7.20-worker-20261125",
+  "requestId": "release-1.7.20-worker-lazy-schema-20261125",
   "action": "deploy",
   "version_id": "",
   "confirm": "CONFERMA",
   "requestedBy": "ChatGPT",
-  "purpose": "HOUNIGO 1.7.20 guestbook D1: apply idempotent 0005 schema then deploy Worker; keep Firestore historical data and Push/GPS unchanged"
+  "purpose": "HOUNIGO 1.7.20 LIVE guestbook public D1 self-initialized via Worker binding; no additional API token permissions, no Firestore writes"
 }
