@@ -228,6 +228,35 @@ const whiteInputClass =
   'w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] transition-colors placeholder:text-slate-400';
 const labelClass = 'block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1';
 
+// Only used by the Aereo layout. Keep long values readable on Safari as well as Chromium.
+function FlightAdaptiveText({ value, className = '', ...props }: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'> & { value: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = '0px';
+      const border = el.offsetHeight - el.clientHeight;
+      el.style.height = `${el.scrollHeight + border + 1}px`;
+    };
+    fit();
+    let width = el.clientWidth;
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => {
+      if (width !== el.clientWidth) {
+        width = el.clientWidth;
+        fit();
+      }
+    }) : undefined;
+    observer?.observe(el);
+    window.addEventListener('resize', fit);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', fit);
+    };
+  }, [value]);
+  return <textarea {...props} ref={ref} value={value} rows={1} className={`${className} flight-adaptive-text`} />;
+}
+
 export default function TrasportoForm({ initialData, defaultDate, defaultTime, onSave, onCancel, onDelete }: TrasportoFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
@@ -1025,7 +1054,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
 
             {/* 2. Partenza e arrivo, con date, orari e IATA */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-              <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+              <div className="p-1.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1 flight-airport-block">
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
                     Partenza
@@ -1057,7 +1086,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                 />
               </div>
 
-              <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+              <div className="p-1.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1 flight-airport-block">
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
                     Arrivo
@@ -1091,8 +1120,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             {/* 3. Terminal / Gate */}
             <div data-testid="field-terminalGate">
               <label className={labelClass}>Terminal / Gate</label>
-              <textarea
-                rows={2}
+              <FlightAdaptiveText
                 aria-label="Terminal / Gate"
                 placeholder="es. T3, Gate E12"
                 value={terminalGate}
@@ -1276,7 +1304,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     </div>
                     <div>
                       <label className={labelClass}>Note dello scalo</label>
-                      <textarea rows={2} data-testid="flight-layover-notes" aria-label="Note dello scalo" value={layoverNotes} onChange={(e) => setLayoverNotes(e.target.value)} className="w-full p-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm resize-y" />
+                      <FlightAdaptiveText data-testid="flight-layover-notes" aria-label="Note dello scalo" value={layoverNotes} onChange={(e) => setLayoverNotes(e.target.value)} className="w-full p-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm resize-y" />
                     </div>
                   </div>
                 )}
@@ -1305,8 +1333,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <div data-testid="field-checkinOpen">
                       <label className={labelClass}>Apertura check-in</label>
-                      <input
-                        type="text"
+                      <FlightAdaptiveText
+                        aria-label="Apertura check-in"
                         placeholder="es. 24h prima / 16:00"
                         value={checkinOpen}
                         onChange={(e) => setCheckinOpen(e.target.value)}
@@ -1315,8 +1343,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     </div>
                     <div data-testid="field-checkinCutoff">
                       <label className={labelClass}>Chiusura check-in</label>
-                      <input
-                        type="text"
+                      <FlightAdaptiveText
+                        aria-label="Chiusura check-in"
                         placeholder="es. 18:00"
                         value={checkinCutoff}
                         onChange={(e) => setCheckinCutoff(e.target.value)}
@@ -1325,8 +1353,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     </div>
                     <div data-testid="field-posti">
                       <label className={labelClass}>Posti assegnati</label>
-                      <input
-                        type="text"
+                      <FlightAdaptiveText
+                        aria-label="Posti assegnati"
                         placeholder="es. 14A, 14B"
                         value={posti}
                         onChange={(e) => setPosti(e.target.value)}
@@ -1448,8 +1476,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             {/* 10. Note Copilota (visibile ed editabile, altezza contenuta) */}
             <div data-testid="flight-notes">
               <label className={labelClass}>Note Copilota</label>
-              <textarea
-                rows={2}
+              <FlightAdaptiveText
+                aria-label="Note Copilota"
                 placeholder="Istruzioni operative, gate, check-in..."
                 value={noteCopilota}
                 onChange={(e) => setNoteCopilota(e.target.value)}
