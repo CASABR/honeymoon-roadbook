@@ -134,7 +134,7 @@ async function run() {
           arrivalLocation: 'Auckland',
           terminalGate: 'Partenza terminal 3 gate E12 | Arrivo terminal 1, informazioni di prova',
           checkinOpen: '24h prima',
-          checkinCutoff: '17:30',
+          checkinCutoff: '17:30 — informazioni operative di prova con testo lungo e dettagli aggiuntivi per verificare la visualizzazione completa. '.repeat(3),
           posti: '14A, 14B',
           bagagli: '2x23kg stiva',
           cost: '1200',
@@ -215,6 +215,23 @@ async function run() {
     assert.ok(actionBoxes.every(b => Math.abs(b.y - actionBoxes[0].y) < 2), 'Tre azioni sulla stessa riga');
     assert.ok((await page.getByTestId('flight-action-pnr').innerText()).length < 20, 'PNR sintetico senza testo privato');
     assert.equal(await page.getByTestId('field-terminalGate').locator('textarea').inputValue(), FIXTURES.trasporti[0].terminalGate);
+    const sheet = page.getByRole('dialog').filter({ has: page.getByTestId('flight-back-layout') });
+    const sheetBox = await sheet.boundingBox();
+    assert.ok(sheetBox.y < 100 && sheetBox.height > 740, 'Foglio Aereo alto su iPhone');
+    await page.getByTestId('toggle-flight-details').click();
+    const cutoff = page.getByTestId('field-checkinCutoff').locator('textarea');
+    await cutoff.waitFor({ state: 'visible' });
+    const fits = (locator) => locator.evaluate(el => el.scrollHeight <= el.clientHeight + 2);
+    assert.equal(await fits(cutoff), true, 'Check-in lungo interamente visibile');
+    const original = await cutoff.inputValue();
+    const longHeight = (await cutoff.boundingBox()).height;
+    await cutoff.fill('17:30');
+    assert.ok((await cutoff.boundingBox()).height < longHeight, 'Textarea si compatta');
+    await cutoff.fill(original);
+    assert.equal(await fits(cutoff), true, 'Textarea si adatta alla modifica');
+    await page.getByTestId('toggle-flight-details').click();
+    assert.equal(await fits(page.getByTestId('field-terminalGate').locator('textarea')), true, 'Terminal interamente visibile');
+    assert.equal(await fits(page.getByTestId('flight-notes').locator('textarea')), true, 'Note interamente visibili');
     // Verifica gerarchia esatta 1..10 su Aereo
     const orderOk = await page.evaluate(() => {
       const ids = [
@@ -275,7 +292,7 @@ async function run() {
     assert.equal(savedDirect.departureTimeZone, 'Europe/Rome');
     assert.equal(savedDirect.dropoffTimeZone, 'Pacific/Auckland');
     assert.equal(savedDirect.checkinOpen, '24h prima');
-    assert.equal(savedDirect.checkinCutoff, '17:30');
+    assert.equal(savedDirect.checkinCutoff, FIXTURES.trasporti[0].checkinCutoff);
     assert.equal(savedDirect.posti, '14A, 14B');
     assert.equal(savedDirect.layover?.iata, 'PEK');
     assert.equal(savedDirect.layover?.duration, '2h 15m');

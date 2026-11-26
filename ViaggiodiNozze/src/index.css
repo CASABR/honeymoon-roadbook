@@ -1830,3 +1830,25 @@ input[type="date"]::-webkit-date-and-time-value {
   .hounigo-flight-compact input[type="date"] { padding-inline: 0.5rem; }
   .hounigo-flight-compact [data-testid="flight-finance-always-open"] select { font-size: 12px; }
 }
+
+/* 1.7.32 — solo retro Aereo, safe area e visual viewport invariati. */
+.hounigo-flight-compact .flight-adaptive-text {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  min-height: 2.5rem;
+  padding-block: 0.45rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: hidden;
+  resize: none;
+}
+.hounigo-flight-compact [data-testid="field-terminalGate"] .flight-adaptive-text { min-height: 2.5rem; }
+@media (max-width: 639px) and (min-height: 641px) {
+  .modal-backdrop-layer:not([data-visual-viewport="active"]) > .modal-sheet-container:has(> .modal-sheet-body [data-testid="flight-back-layout"]) {
+    height: 100% !important;
+    max-height: calc(100% - 0.5rem) !important;
+  }
+  .hounigo-flight-compact .flight-airport-block > input { height: 2.5rem; }
+}
