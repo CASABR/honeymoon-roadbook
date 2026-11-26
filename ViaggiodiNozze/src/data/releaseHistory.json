@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.28",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "73500fd35f0d11e7dd39a34739b34c0d6414465e",
+      "changes": [
+        "Ottimizzazione iPad mini 6 landscape (1133×744): timeline a 2 colonne affiancate, mappa LIVE affiancata a prossimo spostamento e stato GPS, modali più ampie e compatte in altezza, sidebar snella e preservazione di scroll, giorno selezionato e modifiche in corso durante la rotazione."
+      ],
+      "publishedAtIso": "2026-11-26T10:16:58.000Z"
+    },
+    {
       "version": "1.7.27",
       "publishedAt": "2026-11-25",
       "sourceCommit": "39552d9a7b432233aa2a1578639ea689536e3ca5",

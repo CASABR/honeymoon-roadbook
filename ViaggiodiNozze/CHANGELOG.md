@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.28 — 2026-11-26
+
+- Ottimizzazione iPad mini 6 landscape (1133×744): timeline a 2 colonne affiancate, mappa LIVE affiancata a prossimo spostamento e stato GPS, modali più ampie e compatte in altezza, sidebar snella e preservazione di scroll, giorno selezionato e modifiche in corso durante la rotazione.
+
 ## 1.7.27 — 2026-11-25
 
 - Fix safe area iPhone Dynamic Island e tastiera software su modali e sheet mobile (`Modal`, `useVisualViewportBox`, `index.css`), con verifica automatica su viewport mobile/iPad e retro card Trasporti su iPhone 15 Pro simulato.
