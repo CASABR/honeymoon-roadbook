@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.29 — 2026-11-26
+
+- Retro card Aereo ottimizzato: quadro economico sempre aperto, Terminal/Gate visibile, Dettagli volo collassati, gestione scali con calcolo automatico durata e fuso orario, IATA/fusi automatici, funzioni condivise PNR/Bagagli/Biglietti senza perdita modifiche e Note Copilota.
+
 ## 1.7.28 — 2026-11-26
 
 - Ottimizzazione iPad mini 6 landscape (1133×744): timeline a 2 colonne affiancate, mappa LIVE affiancata a prossimo spostamento e stato GPS, modali più ampie e compatte in altezza, sidebar snella e preservazione di scroll, giorno selezionato e modifiche in corso durante la rotazione.

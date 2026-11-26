@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.29",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "8b922502a221289ae535d3495e08800c39b4982b",
+      "changes": [
+        "Retro card Aereo ottimizzato: quadro economico sempre aperto, Terminal/Gate visibile, Dettagli volo collassati, gestione scali con calcolo automatico durata e fuso orario, IATA/fusi automatici, funzioni condivise PNR/Bagagli/Biglietti senza perdita modifiche e Note Copilota."
+      ],
+      "publishedAtIso": "2026-11-26T10:47:53.000Z"
+    },
+    {
       "version": "1.7.28",
       "publishedAt": "2026-11-26",
       "sourceCommit": "73500fd35f0d11e7dd39a34739b34c0d6414465e",
