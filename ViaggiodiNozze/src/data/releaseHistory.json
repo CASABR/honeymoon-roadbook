@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.32",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "9c30c6e05e0c5e6e35a3f5813d0e6320e7ad0e52",
+      "changes": [
+        "Retro Aereo: modale più alto su iPhone, campi testuali adattivi e spaziature più compatte, con safe area e tastiera preservate."
+      ]
+    },
+    {
       "version": "1.7.31",
       "publishedAt": "2026-11-26",
       "sourceCommit": "d2fee9f6d376bdcccba5b4128b074c88d6165c3a",
@@ -80,15 +88,6 @@
         "LIVE: pulsante Rispondi stile WhatsApp sotto messaggi e commenti foto (anche senza account), moderazione Owner/Copilota e notifiche Push raggruppate con apertura diretta del contenuto."
       ],
       "publishedAtIso": "2026-11-25T15:56:35.000Z"
-    },
-    {
-      "version": "1.7.22",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "a59fb895d6d2113f01d962a2b81fc44ae7a60225",
-      "changes": [
-        "Fix P0 LIVE: eliminato il loop infinito di sottoscrizione ai commenti foto nella lightbox che saturava il rate-limit IP (429) bloccando commenti e caricamento foto."
-      ],
-      "publishedAtIso": "2026-11-25T14:36:40.000Z"
     }
   ]
 }
