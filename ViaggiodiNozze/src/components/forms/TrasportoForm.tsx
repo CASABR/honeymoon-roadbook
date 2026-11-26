@@ -238,14 +238,16 @@ function resolveFlightZone(iata: string | undefined, location: string | undefine
 
 // Keep the existing persisted posti field compatible with older devices and imports.
 function splitTrainSeats(value: string): { coach: string; seats: string } {
-  const match = value.match(/^\s*(?:Carrozza|Car\.?|Coach)\s*:?\s*([^·;\n]+?)(?:\s*[·;\n]\s*(?:Posti?\s*:?\s*)?(.*))?$/is);
-  return match ? { coach: match[1].trim(), seats: (match[2] || '').trim() } : { coach: '', seats: value };
+  const canonical = value.match(/^Carrozza: ([\s\S]*?) · Posti: ?([\s\S]*)$/);
+  if (canonical) return { coach: canonical[1], seats: canonical[2] };
+  const legacy = value.match(/^\s*(?:Carrozza|Car\.?|Coach)\s*:?\s*([A-Z]?\d+[A-Z]?)\s*(?:[·;]\s*(?:Posti?\s*:?\s*)?([\s\S]*))?$/i);
+  return legacy ? { coach: legacy[1], seats: legacy[2] || '' } : { coach: '', seats: value };
 }
 function joinTrainSeats(coach: string, seats: string): string {
-  return coach.trim() ? `Carrozza: ${coach.trim()}${seats.trim() ? ` · Posti: ${seats.trim()}` : ''}` : seats;
+  return coach ? `Carrozza: ${coach} · Posti: ${seats}` : seats;
 }
 
-// Only used by the Aereo layout. Keep long values readable on Safari as well as Chromium.
+// Used by compact Aereo and Treno layouts. Keep long values readable on Safari as well as Chromium.
 function FlightAdaptiveText({ value, className = '', ...props }: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'> & { value: string }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   React.useLayoutEffect(() => {
@@ -1572,7 +1574,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             {/* 1. Operatore / N. treno, con selettore sottocategoria accanto */}
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(6.2rem,0.42fr)] gap-2 items-end">
               <div className="min-w-0" data-testid="field-carrier">
-                <label className={labelClass}>Compagnia e numero volo</label>
+                <label className={labelClass}>Operatore / N. treno</label>
                 <input
                   type="text"
                   placeholder="es. Frecciarossa 9612"
