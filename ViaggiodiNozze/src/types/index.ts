@@ -275,6 +275,7 @@ export interface Trasporto {
   dropoffLocation?: string; // Luogo di riconsegna
   dropoffCoordinate?: Coordinate; // Coordinate geografiche punto riconsegna
   carrier?: string;
+  platform?: string; // Canale di acquisto o prenotazione, conservato nei dati privati del trasporto
   bookingCode?: string;
   ticketUrl?: string;
   cost?: string;

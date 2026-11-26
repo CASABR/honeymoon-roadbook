@@ -283,6 +283,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
 
   // Identità
   const [carrier, setCarrier] = useState('');
+  const [platform, setPlatform] = useState('');
   const [bookingCode, setBookingCode] = useState('');
 
   // Partenza / Ritiro
@@ -372,6 +373,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     if (initialData) {
       setType(initialData.type);
       setCarrier(initialData.carrier || '');
+      setPlatform(initialData.platform || '');
       setBookingCode(initialData.bookingCode || '');
 
       setDepartureLocation(initialData.departureLocation || '');
@@ -454,6 +456,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     } else {
       setType('volo');
       setCarrier('');
+      setPlatform('');
       setBookingCode('');
       setDepartureLocation('');
       setDepartureIata('');
@@ -560,6 +563,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       id: initialData?.id,
       type,
       carrier: carrier.trim() || undefined,
+      platform: platform.trim() || undefined,
       bookingCode: bookingCode.trim() || undefined,
 
       date: parsedDepDate,
@@ -860,6 +864,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         ...initialData,
         type,
         carrier: carrier.trim() || undefined,
+        platform: platform.trim() || undefined,
         bookingCode: bookingCode.trim() || undefined,
         departureLocation: departureLocation.trim() || initialData.departureLocation,
         arrivalLocation: arrivalLocation.trim() || initialData.arrivalLocation,
@@ -1464,6 +1469,12 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             </div>
 
             </section>
+
+            {/* Canale di acquisto, facoltativo e privato: non inferirlo dalla compagnia. */}
+            <div className="flight-section flight-section-technical flight-platform-field" data-testid="field-platform">
+              <label htmlFor="flight-platform" className={labelClass}>Piattaforma di acquisto</label>
+              <input id="flight-platform" type="text" autoComplete="off" placeholder="es. Trip.com, sito della compagnia" value={platform} onChange={e => setPlatform(e.target.value)} className={inputClass} />
+            </div>
 
             {/* 9. Funzioni operative condivise con il fronte (PNR, Bagagli, Biglietti & Documenti) */}
             <div className="grid grid-cols-3 gap-1.5 pt-0.5" data-testid="flight-shared-actions">
