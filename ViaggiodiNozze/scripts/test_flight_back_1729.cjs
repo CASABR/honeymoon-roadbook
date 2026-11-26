@@ -238,7 +238,7 @@ async function run() {
       const root = document.documentElement;
       const original = root.classList.contains('dark');
       const luminance = rgb => {
-        const channels = rgb.match(/[\\d.]+/g).slice(0,3).map(Number).map(c => c/255).map(c => c <= .04045 ? c/12.92 : ((c+.055)/1.055)**2.4);
+        const channels = rgb.match(/[0-9.]+/g).slice(0,3).map(Number).map(c => c/255).map(c => c <= .04045 ? c/12.92 : ((c+.055)/1.055)**2.4);
         return .2126*channels[0]+.7152*channels[1]+.0722*channels[2];
       };
       try {
