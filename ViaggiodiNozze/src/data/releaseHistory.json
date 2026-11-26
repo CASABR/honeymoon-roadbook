@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.38",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "223c86f299f7b7cf56d5cdab57848483d25a4487",
+      "changes": [
+        "Retro Aereo: campo facoltativo Piattaforma di acquisto, conservato tra i dati privati.",
+        "Fronte Aereo più compatto su mobile, avvisi senza ripetizioni, terminal e posti proporzionati e pulsanti accessibili."
+      ]
+    },
+    {
       "version": "1.7.37",
       "publishedAt": "2026-11-26",
       "sourceCommit": "2c8f521ada02682968f35a42bf9a3ef1f2b536f8",
@@ -75,15 +84,6 @@
         "Retro card Aereo ottimizzato: quadro economico sempre aperto, Terminal/Gate visibile, Dettagli volo collassati, gestione scali con calcolo automatico durata e fuso orario, IATA/fusi automatici, funzioni condivise PNR/Bagagli/Biglietti senza perdita modifiche e Note Copilota."
       ],
       "publishedAtIso": "2026-11-26T10:47:53.000Z"
-    },
-    {
-      "version": "1.7.28",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "73500fd35f0d11e7dd39a34739b34c0d6414465e",
-      "changes": [
-        "Ottimizzazione iPad mini 6 landscape (1133×744): timeline a 2 colonne affiancate, mappa LIVE affiancata a prossimo spostamento e stato GPS, modali più ampie e compatte in altezza, sidebar snella e preservazione di scroll, giorno selezionato e modifiche in corso durante la rotazione."
-      ],
-      "publishedAtIso": "2026-11-26T10:16:58.000Z"
     }
   ]
 }

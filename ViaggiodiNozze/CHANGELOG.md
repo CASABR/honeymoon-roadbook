@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.38 — 2026-11-26
+
+- Retro Aereo: campo facoltativo Piattaforma di acquisto, conservato tra i dati privati.
+- Fronte Aereo più compatto su mobile, avvisi senza ripetizioni, terminal e posti proporzionati e pulsanti accessibili.
+
 ## 1.7.37 — 2026-11-26
 
 - Retro Trasporti uniforme per tutte le sottocategorie, con campi specifici e dati precedenti preservati.
