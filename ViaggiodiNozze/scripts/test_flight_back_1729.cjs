@@ -134,7 +134,7 @@ async function run() {
           arrivalLocation: 'Auckland',
           terminalGate: 'Partenza terminal 3 gate E12 | Arrivo terminal 1, informazioni di prova',
           checkinOpen: '24h prima',
-          checkinCutoff: '17:30 — informazioni operative di prova con testo lungo e dettagli aggiuntivi per verificare la visualizzazione completa. '.repeat(3),
+          checkinCutoff: '17:30 — informazioni operative di prova con testo lungo e dettagli aggiuntivi per verificare la visualizzazione completa. '.repeat(3).trim(),
           posti: '14A, 14B',
           bagagli: '2x23kg stiva',
           cost: '1200',
