@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.39 — 2026-11-26
+
+- Clona sul fronte di tutte le categorie: solo icona in modalità desktop, nascosta su smartphone e in modalità mobile forzata; duplicazione dal dettaglio preservata.
+
 ## 1.7.38 — 2026-11-26
 
 - Retro Aereo: campo facoltativo Piattaforma di acquisto, conservato tra i dati privati.

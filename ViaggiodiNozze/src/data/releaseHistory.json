@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.39",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "6a927c61dced4765cfa57eb920c6127b362e6c9d",
+      "changes": [
+        "Clona sul fronte di tutte le categorie: solo icona in modalità desktop, nascosta su smartphone e in modalità mobile forzata; duplicazione dal dettaglio preservata."
+      ]
+    },
+    {
       "version": "1.7.38",
       "publishedAt": "2026-11-26",
       "sourceCommit": "223c86f299f7b7cf56d5cdab57848483d25a4487",
@@ -75,15 +83,6 @@
         "Retro card Aereo: riorganizzazione gerarchica (Compagnia con selettore mezzo accanto, Partenza/Arrivo, Terminal/Gate, Quadro economico sempre aperto, Scalo, Dettagli volo collassati, IATA/fusi avanzati collassati, PNR/Bagagli/Biglietti, Note Copilota) con durata scalo calcolata in sola lettura."
       ],
       "publishedAtIso": "2026-11-26T10:57:03.000Z"
-    },
-    {
-      "version": "1.7.29",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "8b922502a221289ae535d3495e08800c39b4982b",
-      "changes": [
-        "Retro card Aereo ottimizzato: quadro economico sempre aperto, Terminal/Gate visibile, Dettagli volo collassati, gestione scali con calcolo automatico durata e fuso orario, IATA/fusi automatici, funzioni condivise PNR/Bagagli/Biglietti senza perdita modifiche e Note Copilota."
-      ],
-      "publishedAtIso": "2026-11-26T10:47:53.000Z"
     }
   ]
 }
