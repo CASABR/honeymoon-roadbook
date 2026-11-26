@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.37",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "2c8f521ada02682968f35a42bf9a3ef1f2b536f8",
+      "changes": [
+        "Retro Trasporti uniforme per tutte le sottocategorie, con campi specifici e dati precedenti preservati.",
+        "Aereo: retro e fronte ridisegnati per mobile, campi editabili, avvisi leggibili, terminal e posti adattivi e azioni accessibili."
+      ]
+    },
+    {
       "version": "1.7.36",
       "publishedAt": "2026-11-26",
       "sourceCommit": "8df2b473eb30a7683a6e951caff6505205cc19ea",
@@ -75,15 +84,6 @@
         "Ottimizzazione iPad mini 6 landscape (1133×744): timeline a 2 colonne affiancate, mappa LIVE affiancata a prossimo spostamento e stato GPS, modali più ampie e compatte in altezza, sidebar snella e preservazione di scroll, giorno selezionato e modifiche in corso durante la rotazione."
       ],
       "publishedAtIso": "2026-11-26T10:16:58.000Z"
-    },
-    {
-      "version": "1.7.27",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "39552d9a7b432233aa2a1578639ea689536e3ca5",
-      "changes": [
-        "Fix safe area iPhone Dynamic Island e tastiera software su modali e sheet mobile (Modal, useVisualViewportBox, index.css), con verifica automatica su viewport mobile/iPad e retro card Trasporti su iPhone 15 Pro simulato."
-      ],
-      "publishedAtIso": "2026-11-25T18:19:56.000Z"
     }
   ]
 }
