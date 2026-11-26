@@ -1928,3 +1928,12 @@ html.dark .hounigo-flight-compact { --flight-layover-bg: #322740; --flight-layov
   .app-forced-mobile .hounigo-ipad-landscape-timeline { display: block; }
   .app-forced-mobile .hounigo-ipad-landscape-timeline > * + * { margin-top: 0.625rem !important; }
 }
+
+/* 1.7.36 — densità Treno, stessa grammatica visiva, scope autonomo. */
+.modal-sheet-container:has(> .modal-sheet-body [data-testid="train-back-layout"]) > .modal-sheet-header { padding: 0.45rem 1rem !important; }
+.modal-sheet-container:has(> .modal-sheet-body [data-testid="train-back-layout"]) > .modal-sheet-body { padding: 0.65rem 0.85rem max(1rem, var(--app-safe-bottom)) !important; }
+.hounigo-train-compact [data-testid="train-finance-always-open"] input:not([type=checkbox]), .hounigo-train-compact [data-testid="train-finance-always-open"] select { padding-inline: 0.4rem; min-width: 0; }
+.hounigo-train-compact [data-testid="train-finance-always-open"] select { max-width: 4.2rem; }
+.hounigo-train-compact #train-notes-content:not([hidden]) { padding-bottom: 0.35rem; }
+.hounigo-train-compact .train-seat-grid textarea { padding-inline: 0.45rem; }
+@media (max-width:639px) and (min-height:641px) { .modal-backdrop-layer:not([data-visual-viewport="active"]) > .modal-sheet-container:has(> .modal-sheet-body [data-testid="train-back-layout"]) { height:100% !important; max-height:calc(100% - 0.5rem) !important; } }

@@ -12,7 +12,7 @@ import TrasportoBagagliModal from '../modals/TrasportoBagagliModal';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import { buildEurSavePatch } from '../../services/currencyService';
 import { parseCostToNumber } from '../../utils/priceHelper';
-import { resolveReliableIataTimeZone, isValidIanaTimeZone } from '../../utils/reliableTimeZone';
+import { resolveReliableIataTimeZone, isValidIanaTimeZone, resolveUnambiguousPlaceTimeZone } from '../../utils/reliableTimeZone';
 import {
   resolveAirportIataAndTimeZone,
   resolveTimeZoneFromIata,
@@ -236,6 +236,15 @@ function resolveFlightZone(iata: string | undefined, location: string | undefine
   return byCode && byPlace && byCode !== byPlace ? undefined : byCode || byPlace;
 }
 
+// Keep the existing persisted posti field compatible with older devices and imports.
+function splitTrainSeats(value: string): { coach: string; seats: string } {
+  const match = value.match(/^\s*(?:Carrozza|Car\.?|Coach)\s*:?\s*([^·;\n]+?)(?:\s*[·;\n]\s*(?:Posti?\s*:?\s*)?(.*))?$/is);
+  return match ? { coach: match[1].trim(), seats: (match[2] || '').trim() } : { coach: '', seats: value };
+}
+function joinTrainSeats(coach: string, seats: string): string {
+  return coach.trim() ? `Carrozza: ${coach.trim()}${seats.trim() ? ` · Posti: ${seats.trim()}` : ''}` : seats;
+}
+
 // Only used by the Aereo layout. Keep long values readable on Safari as well as Chromium.
 function FlightAdaptiveText({ value, className = '', ...props }: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'> & { value: string }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -340,6 +349,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   const cfg = SUBCATEGORY_MAP[type] || SUBCATEGORY_MAP.volo;
   const isRental = type === 'auto' || type === 'camper';
   const isFlight = type === 'volo';
+  const isTrain = type === 'treno';
+  const trainSeats = splitTrainSeats(posti);
 
   const formatForInput = (d?: string, t?: string) => {
     if (!d) return '';
@@ -559,7 +570,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
 
       date: parsedDepDate,
       departureTime: parsedDepTime || undefined,
-      departureTimeZone: departureTimeZone.trim() || (isFlight ? resolveFlightZone(departureIata, departureLocation) : undefined),
+      departureTimeZone: departureTimeZone.trim() || (isFlight ? resolveFlightZone(departureIata, departureLocation) : isTrain ? resolveUnambiguousPlaceTimeZone(departureLocation) || undefined : undefined),
       departureLocation: departureLocation.trim(),
       departureIata: departureIata.trim() || (isFlight ? resolveAirportIataAndTimeZone(departureLocation).iata : undefined),
       arrivalIata: arrivalIata.trim() || (isFlight ? resolveAirportIataAndTimeZone(arrivalLocation).iata : undefined),
@@ -603,7 +614,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         arrivalLocation: arrivalLocation.trim() || departureLocation.trim(),
         arrivalDate: parsedArrDate || parsedDepDate || undefined,
         arrivalTime: parsedArrTime || undefined,
-        dropoffTimeZone: dropoffTimeZone.trim() || (isFlight ? resolveFlightZone(arrivalIata, arrivalLocation) : undefined),
+        dropoffTimeZone: dropoffTimeZone.trim() || (isFlight ? resolveFlightZone(arrivalIata, arrivalLocation) : isTrain ? resolveUnambiguousPlaceTimeZone(arrivalLocation) || undefined : undefined),
       });
     }
   };
@@ -846,12 +857,12 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   }) => {
     const airportVal = next.airport ?? layoverAirport;
     let iataVal = next.iata ?? layoverIata;
-    const res = resolveAirportIataAndTimeZone(airportVal);
+    const res = isTrain ? { iata: undefined, timeZone: resolveUnambiguousPlaceTimeZone(airportVal) || undefined } : resolveAirportIataAndTimeZone(airportVal);
     if (!iataVal.trim() && res.iata) {
       iataVal = res.iata;
       setLayoverIata(res.iata);
     }
-    const tz = res.timeZone || resolveTimeZoneFromIata(iataVal);
+    const tz = res.timeZone || (isTrain ? undefined : resolveTimeZoneFromIata(iataVal));
     const calc = computeLayoverDuration({
       arrivalDate: next.arrDate ?? layoverArrivalDate,
       arrivalTime: next.arrTime ?? layoverArrivalTime,
@@ -1027,7 +1038,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         )}
 
         {/* 1. Sottocategoria (pillole per le altre 7 sottocategorie; su Aereo è compatta accanto a Compagnia) */}
-        {!isFlight && (
+        {!isFlight && !isTrain && (
           <div>
             <label className={labelClass}>Sottocategoria</label>
             <div className="flex flex-wrap gap-1.5">
@@ -1556,6 +1567,327 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               </div>
             </div>
           </div>
+        ) : isTrain ? (
+          <div className="space-y-2 hounigo-flight-compact hounigo-train-compact" data-testid="train-back-layout">
+            {/* 1. Operatore / N. treno, con selettore sottocategoria accanto */}
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(6.2rem,0.42fr)] gap-2 items-end">
+              <div className="min-w-0" data-testid="field-carrier">
+                <label className={labelClass}>Compagnia e numero volo</label>
+                <input
+                  type="text"
+                  placeholder="es. Frecciarossa 9612"
+                  value={carrier}
+                  onChange={(e) => setCarrier(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div className="min-w-0">
+                <label className={labelClass}>Mezzo</label>
+                <select
+                  data-testid="train-subcategory-select"
+                  aria-label="Sottocategoria trasporto"
+                  value={type}
+                  onChange={(e) => setType(e.target.value as TipoTrasporto)}
+                  className={inputClass}
+                >
+                  {SUBCATEGORY_OPTIONS.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.pillLabel}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <section className="flight-section flight-section-itinerary space-y-1.5" data-testid="train-itinerary-section">
+              <h3 className="flight-section-title"><Route aria-hidden="true" className="flight-section-icon" /> Itinerario</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5"><div className="p-1.5 rounded-xl space-y-1 flight-airport-block">
+                  <label className={labelClass}>Partenza</label>
+                  <input type="text" aria-label="Stazione di partenza" placeholder="Stazione di partenza" value={departureLocation} onFocus={() => { departureAirportBeforeEdit.current = departureLocation; }} onChange={e => setDepartureLocation(e.target.value)} onBlur={() => {
+                    const previous = resolveUnambiguousPlaceTimeZone(departureAirportBeforeEdit.current);
+                    const next = resolveUnambiguousPlaceTimeZone(departureLocation);
+                    if (!departureTimeZone.trim() || (departureTimeZone === previous && departureAirportBeforeEdit.current !== departureLocation)) setDepartureTimeZone(next || '');
+                  }} className={whiteInputClass} required />
+                  <DateTimePickerInput value={departureDate} onChange={setDepartureDate} required dateLabel="Data partenza" timeLabel="Orario" />
+                </div>
+<div className="p-1.5 rounded-xl space-y-1 flight-airport-block">
+                  <label className={labelClass}>Arrivo</label>
+                  <input type="text" aria-label="Stazione di arrivo" placeholder="Stazione di arrivo" value={arrivalLocation} onFocus={() => { arrivalAirportBeforeEdit.current = arrivalLocation; }} onChange={e => setArrivalLocation(e.target.value)} onBlur={() => {
+                    const previous = resolveUnambiguousPlaceTimeZone(arrivalAirportBeforeEdit.current);
+                    const next = resolveUnambiguousPlaceTimeZone(arrivalLocation);
+                    if (!dropoffTimeZone.trim() || (dropoffTimeZone === previous && arrivalAirportBeforeEdit.current !== arrivalLocation)) setDropoffTimeZone(next || '');
+                  }} className={whiteInputClass}  />
+                  <DateTimePickerInput value={arrivalDate} onChange={setArrivalDate}  dateLabel="Data arrivo" timeLabel="Orario" />
+                </div></div>
+              <div className="grid grid-cols-[minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,1.45fr)] gap-1.5 train-seat-grid">
+                <div data-testid="field-terminalGate" className="min-w-0"><label className={labelClass}>Binario</label><FlightAdaptiveText aria-label="Binario" value={terminalGate} onChange={e => setTerminalGate(e.target.value)} placeholder="4" className={inputClass} /></div>
+                <div data-testid="field-carrozza" className="min-w-0"><label className={labelClass}>Carrozza</label><FlightAdaptiveText aria-label="Carrozza" value={trainSeats.coach} onChange={e => setPosti(joinTrainSeats(e.target.value, trainSeats.seats))} placeholder="5" className={inputClass} /></div>
+                <div data-testid="field-posti" className="min-w-0"><label className={labelClass}>Posti</label><FlightAdaptiveText aria-label="Posti" value={trainSeats.seats} onChange={e => setPosti(joinTrainSeats(trainSeats.coach, e.target.value))} placeholder="12A, 12B" className={inputClass} /></div>
+              </div>
+            </section>
+            <div className="flight-section flight-section-finance" data-testid="train-finance-always-open">{renderEconomicBody()}</div>
+            {/* Scalo: blocco dedicato distinto dall'itinerario diretto */}
+            {!hasLayover ? (
+              <button
+                type="button"
+                data-testid="add-train-change"
+                onClick={() => {
+                  setHasLayover(true);
+                  setIsLayoverExpanded(true);
+                }}
+                className="flight-section flight-section-layover flight-technical-row flight-add-layover w-full text-left cursor-pointer"
+              >
+                <span className="flight-technical-label"><Route className="flight-section-icon" aria-hidden="true" /> Aggiungi cambio treno</span>
+                <Plus className="w-4 h-4 shrink-0" aria-hidden="true" />
+              </button>
+            ) : (
+              <div className="flight-section flight-section-layover overflow-hidden" data-testid="train-change">
+                <div className="flight-technical-row gap-2">
+                  <button
+                    type="button"
+                    data-testid="toggle-train-change"
+                    onClick={() => setIsLayoverExpanded((prev) => !prev)}
+                    className="flex-1 flex items-center justify-between text-left min-w-0 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="flight-technical-label shrink-0">
+                        <Route aria-hidden="true" className="flight-section-icon" /> Cambio treno
+                      </span>
+                      <span className="text-xs font-semibold text-slate-600 truncate">
+                        · {layoverAirport || 'Da configurare'}
+                        {layoverDuration ? ` · ${layoverDuration}` : ''}
+                        {layoverCarrier ? ` · ${layoverCarrier}` : ''}
+                      </span>
+                    </div>
+                    {isLayoverExpanded ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="remove-train-change"
+                    onClick={() => {
+                      setHasLayover(false);
+                      setLayoverAirport('');
+                      setLayoverIata('');
+                      setLayoverArrivalDate('');
+                      setLayoverArrivalTime('');
+                      setLayoverDepartureDate('');
+                      setLayoverDepartureTime('');
+                      setLayoverCarrier('');
+                      setLayoverTerminalGate('');
+                      setLayoverDuration('');
+                      setLayoverNotes('');
+                      setIsLayoverExpanded(false);
+                    }}
+                    className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                    title="Rimuovi cambio treno"
+                    aria-label="Rimuovi cambio treno"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {isLayoverExpanded && (
+                  <div className="flight-technical-body p-2.5 space-y-2">
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="min-w-0">
+                        <label className={labelClass}>Stazione di cambio</label>
+                        <input
+                          type="text"
+                          placeholder="es. Bologna Centrale"
+                          value={layoverAirport}
+                          onChange={(e) => setLayoverAirport(e.target.value)}
+                          onBlur={() => syncLayoverAutoFields({ airport: layoverAirport })}
+                          className={inputClass}
+                        />
+                      </div>
+                      
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div>
+                        <label className={labelClass}>Data arrivo al cambio</label>
+                        <input
+                          type="date"
+                          value={layoverArrivalDate}
+                          onChange={(e) => {
+                            setLayoverArrivalDate(e.target.value);
+                            syncLayoverAutoFields({ arrDate: e.target.value });
+                          }}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Ora arrivo</label>
+                        <input
+                          type="time"
+                          value={layoverArrivalTime}
+                          onChange={(e) => {
+                            setLayoverArrivalTime(e.target.value);
+                            syncLayoverAutoFields({ arrTime: e.target.value });
+                          }}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Data ripartenza</label>
+                        <input
+                          type="date"
+                          value={layoverDepartureDate}
+                          onChange={(e) => {
+                            setLayoverDepartureDate(e.target.value);
+                            syncLayoverAutoFields({ depDate: e.target.value });
+                          }}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Ora ripartenza</label>
+                        <input
+                          type="time"
+                          value={layoverDepartureTime}
+                          onChange={(e) => {
+                            setLayoverDepartureTime(e.target.value);
+                            syncLayoverAutoFields({ depTime: e.target.value });
+                          }}
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className={labelClass}>Treno successivo</label>
+                        <input
+                          type="text"
+                          placeholder="es. FR 9520"
+                          value={layoverCarrier}
+                          onChange={(e) => setLayoverCarrier(e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Binario ripartenza</label>
+                        <input
+                          type="text"
+                          placeholder="es. 7"
+                          value={layoverTerminalGate}
+                          onChange={(e) => setLayoverTerminalGate(e.target.value)}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelClass}>Attesa (auto)</label>
+                        <input
+                          type="text"
+                          readOnly
+                          tabIndex={-1}
+                          placeholder="Calcolata auto"
+                          value={layoverDuration}
+                          className="w-full h-10 px-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm font-mono cursor-default"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Note del cambio</label>
+                      <FlightAdaptiveText data-testid="train-change-notes" aria-label="Note del cambio" value={layoverNotes} onChange={(e) => setLayoverNotes(e.target.value)} className="w-full p-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm resize-y" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <section className="flight-section flight-section-technical">
+              <button type="button" className="flight-technical-row w-full text-left cursor-pointer" data-testid="toggle-train-details" aria-expanded={isSecondaryOpen} onClick={() => setIsSecondaryOpen(v => !v)}>
+                <span className="flight-technical-label"><List aria-hidden="true" className="flight-section-icon" /> Informazioni aggiuntive</span>
+                {isSecondaryOpen ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
+              </button>
+              {isSecondaryOpen && <div className="flight-technical-body p-2.5 space-y-2">
+                <div data-testid="field-checkinCutoff"><label className={labelClass}>Presentarsi entro (facoltativo)</label><FlightAdaptiveText value={checkinCutoff} onChange={e => setCheckinCutoff(e.target.value)} className={inputClass} /></div>
+                {checkinOpen.trim() && <div><label className={labelClass}>Informazioni orario preesistenti</label><FlightAdaptiveText value={checkinOpen} onChange={e => setCheckinOpen(e.target.value)} className={inputClass} /></div>}
+                {atypicalFlightFields.map(field => renderOperationalField(field))}
+                {(departureIata.trim() || arrivalIata.trim()) && <div className="grid grid-cols-2 gap-2">
+                  <div><label className={labelClass}>Codice partenza preesistente</label><input value={departureIata} onChange={e => setDepartureIata(e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Codice arrivo preesistente</label><input value={arrivalIata} onChange={e => setArrivalIata(e.target.value)} className={inputClass} /></div>
+                </div>}
+                {layoverIata.trim() && <div><label className={labelClass}>Codice cambio preesistente</label><input value={layoverIata} onChange={e => setLayoverIata(e.target.value)} className={inputClass} /></div>}
+                {(!resolveUnambiguousPlaceTimeZone(departureLocation) || !resolveUnambiguousPlaceTimeZone(arrivalLocation) ||
+                  (departureTimeZone && departureTimeZone !== resolveUnambiguousPlaceTimeZone(departureLocation)) ||
+                  (dropoffTimeZone && dropoffTimeZone !== resolveUnambiguousPlaceTimeZone(arrivalLocation))) && <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <TimeZoneInput value={departureTimeZone} onChange={setDepartureTimeZone} label="Fuso partenza (se non riconosciuto)" />
+                  <TimeZoneInput value={dropoffTimeZone} onChange={setDropoffTimeZone} label="Fuso arrivo (se non riconosciuto)" />
+                </div>}
+              </div>}
+            </section>
+            {/* 9. Funzioni operative condivise con il fronte (PNR, Bagagli, Biglietti & Documenti) */}
+            <div className="grid grid-cols-3 gap-1.5 pt-0.5" data-testid="train-shared-actions">
+              <button
+                type="button"
+                data-testid="train-action-pnr"
+                onClick={() => setIsPnrModalOpen(true)}
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 min-h-11 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
+                  bookingCode.trim()
+                    ? 'flight-action-present'
+                    : 'flight-action-empty'
+                }`}
+              >
+                <span aria-hidden="true">🎫</span>
+                <span>Codice{bookingCode.trim() ? ' · ✓' : ''}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="train-action-bagagli"
+                onClick={() => setIsBagagliModalOpen(true)}
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 min-h-11 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
+                  bagagli.trim()
+                    ? 'flight-action-present'
+                    : 'flight-action-empty'
+                }`}
+              >
+                <span aria-hidden="true">🧳</span>
+                <span>Bagagli{bagagli.trim() ? ' · ✓' : ''}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="train-action-tickets"
+                onClick={() => setIsTicketsModalOpen(true)}
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 min-h-11 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
+                  attachments.length > 0 || ticketUrl.trim()
+                    ? 'flight-action-present'
+                    : 'flight-action-empty'
+                }`}
+              >
+                <span aria-hidden="true">🎟️</span>
+                <span>Biglietti{attachments.length > 0 || ticketUrl.trim() ? ' · ✓' : ''}</span>
+              </button>
+            </div>
+
+            {/* 10. Note Copilota (collassate di default, contenuto preservato) */}
+            <div className="flight-section flight-section-notes" data-testid="train-notes">
+              <button
+                type="button"
+                data-testid="toggle-train-notes"
+                aria-expanded={isFlightNotesOpen}
+                aria-controls="train-notes-content"
+                className="flight-notes-toggle w-full text-left cursor-pointer"
+                onClick={() => setIsFlightNotesOpen((prev) => !prev)}
+              >
+                <span className="flight-section-title"><MessageSquare aria-hidden="true" className="flight-section-icon" /> Note Copilota</span>
+                <span className="flight-notes-status">{noteCopilota.trim() ? 'Presenti' : 'Nessuna nota'}</span>
+                {isFlightNotesOpen ? <ChevronUp aria-hidden="true" className="w-4 h-4 shrink-0" /> : <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0" />}
+              </button>
+              <div id="train-notes-content" hidden={!isFlightNotesOpen}>
+                {isFlightNotesOpen && (
+                  <FlightAdaptiveText
+                    aria-label="Note Copilota"
+                    placeholder="Istruzioni operative, accesso alla stazione..."
+                    value={noteCopilota}
+                    onChange={(e) => setNoteCopilota(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
+                  />
+                )}
+              </div>
+            </div>
+          </div>
         ) : (
           <>
         {/* 2. Identità del mezzo (Compagnia + Codice se primario o compilato) */}
@@ -1877,7 +2209,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         <Modal
           isOpen={isPnrModalOpen}
           onClose={() => setIsPnrModalOpen(false)}
-          title="Codice Prenotazione (PNR)"
+          title={isTrain ? "Codice biglietto / Prenotazione" : "Codice Prenotazione (PNR)"}
           centered
         >
           <div className="space-y-3">
@@ -1983,7 +2315,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                 />
               </div>
               <p className="text-xs text-slate-500">
-                Salva prima il volo per caricare file PDF o QR code offline.
+                Salva prima il trasporto per caricare file PDF o QR code offline.
               </p>
               <div className="flex justify-end">
                 <button

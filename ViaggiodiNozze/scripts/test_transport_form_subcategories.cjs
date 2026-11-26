@@ -210,14 +210,27 @@ async function run() {
     await page.getByTestId('flight-subcategory-select').selectOption('treno');
     assert.equal(await page.getByTestId('field-departureIata').count(), 0, 'Treno: IATA nascosto se vuoto');
     assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, 'Treno: Binario visibile');
-    assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Treno: Carrozza/Posto visibile');
+    assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Treno: posti visibili');
+    assert.equal(await page.getByTestId('field-carrozza').isVisible(), true, 'Treno: carrozza separata');
+    assert.equal(await page.getByTestId('train-finance-always-open').isVisible(), true);
+    assert.equal(await page.getByTestId('toggle-train-notes').getAttribute('aria-expanded'), 'false');
+    const coach = page.getByRole('textbox', {name:'Carrozza', exact:true});
+    const seats = page.getByRole('textbox', {name:'Posti', exact:true});
+    await coach.fill('5');
+    await seats.fill('12A, 12B');
+    assert.equal(await coach.inputValue(), '5');
+    assert.equal(await seats.inputValue(), '12A, 12B');
+    await coach.fill('');
+    await seats.fill('');
+    assert.equal(await coach.inputValue(), '');
+    assert.equal(await seats.inputValue(), '');
     assert.equal(await page.getByTestId('field-bagagli').count(), 0, 'Treno: bagagli nascosto se vuoto');
     assert.equal(await page.getByTestId('field-layover').count(), 0, 'Treno: layover nascosto se vuoto');
     const trainHeight = (await form.boundingBox()).height;
     assert.ok(trainHeight > 0, `Treno (${trainHeight}px) renderizzato correttamente`);
 
     // Traghetto
-    await page.getByTestId('transport-subcategory-traghetto').click();
+    await page.getByTestId('train-subcategory-select').selectOption('traghetto');
     assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, 'Traghetto: Molo/Imbarco visibile');
     assert.equal(await page.getByTestId('field-checkinCutoff').isVisible(), true, 'Traghetto: Imbarco entro visibile');
     assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Traghetto: Cabina/Posto visibile');
