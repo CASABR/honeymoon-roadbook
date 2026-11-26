@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.35",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "973e687c09b59e4fb4a6dd47c11a105cb52d9604",
+      "changes": [
+        "Retro Aereo: dati aeroportuali automatici con verifica solo in caso di anomalie, grafica dedicata allo scalo e card a larghezza intera nella modalità mobile su iPad."
+      ]
+    },
+    {
       "version": "1.7.34",
       "publishedAt": "2026-11-26",
       "sourceCommit": "fe10fe694eb2a84f48fc5aa4112a7f92575cc27c",
@@ -77,15 +85,6 @@
         "Retro card Trasporti ottimizzato per sottocategoria (Aereo, Treno, Traghetto, Auto, Camper, Bus/Transfer, Taxi, Metro): altezza ridotta con sezioni espandibili per dettagli secondari, quadro economico e note, mantenendo sempre visibili e modificabili tutti i dati già compilati anche cambiando mezzo."
       ],
       "publishedAtIso": "2026-11-25T18:04:35.000Z"
-    },
-    {
-      "version": "1.7.25",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "b46b0c396aa16e03e58e873ef1f4c726b6c81cf9",
-      "changes": [
-        "LIVE e Oggi: verifica e affinamento del doppio orologio Italia/locale (badge fonte GPS/Programma e indicatore cambio data +/-1g su mezzanotte e linea internazionale del cambio di data verso Auckland), auto-focus su giorno e card attiva senza salti durante la navigazione manuale o prima della partenza."
-      ],
-      "publishedAtIso": "2026-11-25T17:48:36.000Z"
     }
   ]
 }
