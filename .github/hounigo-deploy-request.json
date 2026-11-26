@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-26T12:50:11Z",
+  "requestedAt": "2026-11-26T13:06:44Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.34-flight-compact-zones-20261126",
+  "requestId": "release-1.7.35-auto-airports-ipad-20261126",
   "requestedBy": "CASABR",
-  "ref": "e53cf4857e2ade08e3554087631fe70640dbe284",
+  "ref": "9a4aef645f9a9390c51aa952df2b2156a548d3bd",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.34: note collassate, dettagli compatti e fusi automatici, CI push e PR superate."
+  "note": "HOUNIGO 1.7.35: dati aeroportuali automatici, scalo distinto e iPad mobile a una colonna, CI push e PR superate."
 }
