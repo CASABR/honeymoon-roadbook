@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-26T14:39:31Z",
+  "requestedAt": "2026-11-26T14:47:18Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.38-flight-platform-density-20261126",
+  "requestId": "release-1.7.39-desktop-clone-20261126",
   "requestedBy": "CASABR",
-  "ref": "ca17ad475217b25786e5c96f1b580ee8cde123e8",
+  "ref": "4a69f9414ebc3b84d6235a4a4c17fae61d9a85b4",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.38: piattaforma acquisto e fronte compatto; CI push e PR superate."
+  "note": "HOUNIGO 1.7.39: icona Clona solo desktop sul fronte di tutte le categorie; CI push e PR superate."
 }
