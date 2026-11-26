@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.33",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "b42ee445a244e21a305eb86a118d9452fe3bf323",
+      "changes": [
+        "Retro Aereo: sezioni itinerario, economia, dettagli tecnici e note distinte per colore, con contrasto verificato nei temi chiaro e scuro."
+      ]
+    },
+    {
       "version": "1.7.32",
       "publishedAt": "2026-11-26",
       "sourceCommit": "9c30c6e05e0c5e6e35a3f5813d0e6320e7ad0e52",
@@ -79,15 +87,6 @@
         "LIVE offline: coda locale persistente per messaggi, commenti foto e risposte di Owner e Copiloti con stato «In attesa di invio», annullamento e invio automatico alla riconnessione."
       ],
       "publishedAtIso": "2026-11-25T17:39:00.000Z"
-    },
-    {
-      "version": "1.7.23",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "33b4279603010ff13d225e8e1772fb29c34ea764",
-      "changes": [
-        "LIVE: pulsante Rispondi stile WhatsApp sotto messaggi e commenti foto (anche senza account), moderazione Owner/Copilota e notifiche Push raggruppate con apertura diretta del contenuto."
-      ],
-      "publishedAtIso": "2026-11-25T15:56:35.000Z"
     }
   ]
 }

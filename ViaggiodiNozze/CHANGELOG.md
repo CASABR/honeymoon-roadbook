@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.33 — 2026-11-26
+
+- Retro Aereo: sezioni itinerario, economia, dettagli tecnici e note distinte per colore, con contrasto verificato nei temi chiaro e scuro.
+
 ## 1.7.32 — 2026-11-26
 
 - Retro Aereo: modale più alto su iPhone, campi testuali adattivi e spaziature più compatte, con safe area e tastiera preservate.
