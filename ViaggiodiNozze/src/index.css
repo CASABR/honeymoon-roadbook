@@ -1852,3 +1852,51 @@ input[type="date"]::-webkit-date-and-time-value {
   }
   .hounigo-flight-compact .flight-airport-block > input { height: 2.5rem; }
 }
+
+/* 1.7.33 — gerarchia semantica del solo retro Aereo. */
+.hounigo-flight-compact {
+  --flight-blue-bg: #eef4fa; --flight-blue-border: #b8cfe5; --flight-blue-fg: #245783;
+  --flight-green-bg: #edf6f0; --flight-green-border: #b9d7c3; --flight-green-fg: #216044;
+  --flight-amber-bg: #fff5e7; --flight-amber-border: #ead0a6; --flight-amber-fg: #80531d;
+  --flight-neutral-bg: #f8fafc; --flight-neutral-border: #d8e0e9; --flight-neutral-fg: #334155;
+  --flight-muted: #526274; --flight-inner: #ffffff;
+}
+html.dark .hounigo-flight-compact {
+  --flight-blue-bg: #1b3047; --flight-blue-border: #426587; --flight-blue-fg: #bfdbfe;
+  --flight-green-bg: #18352d; --flight-green-border: #396a54; --flight-green-fg: #bbf7d0;
+  --flight-amber-bg: #382d20; --flight-amber-border: #795c37; --flight-amber-fg: #fde2af;
+  --flight-neutral-bg: #263343; --flight-neutral-border: #475569; --flight-neutral-fg: #e2e8f0;
+  --flight-muted: #b9c8d9; --flight-inner: #1e293b;
+}
+.hounigo-flight-compact .flight-section {
+  border: 1px solid var(--section-border); border-radius: 0.85rem;
+  background: var(--section-bg); padding: 0.5rem 0.6rem;
+  min-width: 0; color: var(--section-fg);
+}
+.hounigo-flight-compact .flight-section-itinerary { --section-bg: var(--flight-blue-bg); --section-border: var(--flight-blue-border); --section-fg: var(--flight-blue-fg); }
+.hounigo-flight-compact .flight-section-finance { --section-bg: var(--flight-green-bg); --section-border: var(--flight-green-border); --section-fg: var(--flight-green-fg); }
+.hounigo-flight-compact .flight-section-notes { --section-bg: var(--flight-amber-bg); --section-border: var(--flight-amber-border); --section-fg: var(--flight-amber-fg); }
+.hounigo-flight-compact .flight-section-technical { --section-bg: var(--flight-neutral-bg); --section-border: var(--flight-neutral-border); --section-fg: var(--flight-neutral-fg); padding: 0; overflow: hidden; }
+.hounigo-flight-compact .flight-section-title { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.6875rem; font-weight: 800; letter-spacing: 0.055em; text-transform: uppercase; color: var(--section-fg) !important; line-height: 1.35; margin: 0; }
+.hounigo-flight-compact .flight-section-icon { width: 0.95rem; height: 0.95rem; flex-shrink: 0; }
+.hounigo-flight-compact .flight-airport-block { background: transparent; border: 0; padding: 0; }
+.hounigo-flight-compact .flight-airport-block + .flight-airport-block { border-top: 1px solid var(--flight-blue-border); padding-top: 0.35rem; border-radius: 0; }
+@media (min-width: 640px) {
+  .hounigo-flight-compact .flight-airport-block + .flight-airport-block { border-top: 0; padding-top: 0; border-left: 1px solid var(--flight-blue-border); padding-left: 0.4rem; }
+}
+.hounigo-flight-compact .flight-airport-block label { display: inline-flex; align-items: center; gap: 0.25rem; }
+.hounigo-flight-compact .flight-section label:not(.flight-section-title), .hounigo-flight-compact .flight-section-finance .text-slate-700, .hounigo-flight-compact .flight-section-finance .text-slate-500 { color: var(--section-fg) !important; }
+.hounigo-flight-compact .flight-section-finance .text-emerald-500 { color: var(--flight-green-fg); }
+.hounigo-flight-compact .flight-section-finance .text-rose-500 { color: #b4233b; }
+html.dark .hounigo-flight-compact .flight-section-finance .text-rose-500 { color: #fda4af; }
+.hounigo-flight-compact .flight-section input:not([type=checkbox]), .hounigo-flight-compact .flight-section textarea, .hounigo-flight-compact .flight-section select { background-color: var(--flight-inner); border-color: var(--section-border); }
+.hounigo-flight-compact .flight-section-finance > div > div:first-child > label { background-color: var(--flight-inner); }
+.hounigo-flight-compact .flight-section-finance > div > div:first-child > label span { color: var(--flight-green-fg) !important; }
+.hounigo-flight-compact .flight-technical-item { border-top: 1px solid var(--section-border); }
+.hounigo-flight-compact .flight-technical-row { display: flex; justify-content: space-between; align-items: center; min-height: 2.75rem; padding: 0.5rem 0.65rem; color: var(--section-fg); }
+.hounigo-flight-compact .flight-technical-label { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.75rem; font-weight: 750; color: var(--section-fg); }
+.hounigo-flight-compact .flight-technical-row .text-slate-500, .hounigo-flight-compact .flight-technical-row .text-slate-600 { color: var(--flight-muted); }
+.hounigo-flight-compact .flight-technical-body { background: var(--flight-inner); border-top: 1px solid var(--section-border); }
+.hounigo-flight-compact .flight-action-present, .hounigo-flight-compact .flight-action-empty { background: var(--flight-neutral-bg); border-color: var(--flight-neutral-border); color: var(--flight-neutral-fg); }
+.hounigo-flight-compact .flight-action-present { border-color: var(--flight-blue-border); }
+.hounigo-flight-compact .flight-action-present span:last-child { color: var(--flight-blue-fg); }

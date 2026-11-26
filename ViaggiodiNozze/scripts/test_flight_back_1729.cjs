@@ -232,6 +232,33 @@ async function run() {
     await page.getByTestId('toggle-flight-details').click();
     assert.equal(await fits(page.getByTestId('field-terminalGate').locator('textarea')), true, 'Terminal interamente visibile');
     assert.equal(await fits(page.getByTestId('flight-notes').locator('textarea')), true, 'Note interamente visibili');
+    // Semantic grouping and section contrast in both palettes.
+    const groups = await page.evaluate(() => {
+      const ids = ['flight-itinerary-section', 'flight-finance-always-open', 'flight-technical-section', 'flight-notes'];
+      const root = document.documentElement;
+      const original = root.classList.contains('dark');
+      const luminance = rgb => {
+        const channels = rgb.match(/[\\d.]+/g).slice(0,3).map(Number).map(c => c/255).map(c => c <= .04045 ? c/12.92 : ((c+.055)/1.055)**2.4);
+        return .2126*channels[0]+.7152*channels[1]+.0722*channels[2];
+      };
+      try {
+        return [false,true].map(dark => {
+          root.classList.toggle('dark',dark);
+          const sections = ids.map(id => document.querySelector('[data-testid="'+id+'"]'));
+          const colors = sections.map(el => getComputedStyle(el).backgroundColor);
+          const contrast = sections.map((el,i) => {
+            const title = el.querySelector('.flight-section-title,.flight-technical-label');
+            const pair = [luminance(getComputedStyle(title).color),luminance(colors[i])].sort((a,b)=>b-a);
+            return (pair[0]+.05)/(pair[1]+.05);
+          });
+          return { distinct: new Set(colors).size, contrast };
+        });
+      } finally { root.classList.toggle('dark',original); }
+    });
+    for (const g of groups) {
+      assert.equal(g.distinct, 4, 'Quattro sezioni distinguibili');
+      assert.ok(g.contrast.every(r => r >= 4.5), 'Contrasto titoli AA: '+JSON.stringify(g));
+    }
     // Verifica gerarchia esatta 1..10 su Aereo
     const orderOk = await page.evaluate(() => {
       const ids = [
