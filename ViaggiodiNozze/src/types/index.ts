@@ -282,6 +282,7 @@ export interface Trasporto {
   posti?: string;
   bagagli?: string;
   terminalGate?: string;
+  checkinOpen?: string; // Apertura check-in (Aereo)
   checkinCutoff?: string;
   depositPaid?: string; // Quantitativo di acconto già dato
   acconto?: string; // Alias di depositPaid
@@ -292,12 +293,14 @@ export interface Trasporto {
   paymentStatus?: 'saldato' | 'da_saldare'; // Stato pagamento
   layover?: {
     airport: string;
+    iata?: string;
     duration?: string;
+    arrivalDate?: string; // Data arrivo allo scalo (o Tratta 2)
     arrivalTime?: string; // Arrivo allo scalo (Tratta 1)
     departureTime?: string; // Partenza dallo scalo (Tratta 2)
     departureDate?: string; // Data di ripartenza (se diversa dal giorno di arrivo)
-    arrivalDate?: string; // Data di arrivo a destinazione finale (Tratta 2)
     carrier?: string; // Compagnia/Numero volo Tratta 2
+    terminalGate?: string; // Terminal e gate dello scalo
     notes?: string;
   };
   attachments?: TransportAttachment[];

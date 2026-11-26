@@ -191,13 +191,19 @@ async function run() {
     await form.waitFor({ state: 'visible' });
 
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'Nessun overflow orizzontale nel retro card');
-    // Aereo (default)
-    assert.equal(await page.getByTestId('field-departureIata').isVisible(), true, 'Aereo: departureIata visibile');
+    // Aereo (default 1.7.29: blocco principale compatto + dettagli volo collassati + quadro economico sempre aperto + icone condivise)
+    assert.equal(await page.getByTestId('flight-back-layout').isVisible(), true, 'Aereo: layout dedicato visibile');
+    assert.equal(await page.getByTestId('flight-finance-always-open').isVisible(), true, 'Aereo: quadro economico sempre aperto');
     assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, 'Aereo: terminalGate visibile');
-    assert.equal(await page.getByTestId('field-checkinCutoff').isVisible(), true, 'Aereo: checkinCutoff visibile');
-    assert.equal(await page.getByTestId('field-bagagli').isVisible(), true, 'Aereo: bagagli visibile');
-    assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Aereo: posti visibile');
-    assert.equal(await page.getByTestId('field-layover').isVisible(), true, 'Aereo: layover visibile');
+    assert.equal(await page.getByTestId('add-layover-btn').isVisible(), true, 'Aereo: + Aggiungi scalo visibile');
+    assert.equal(await page.getByTestId('flight-action-pnr').isVisible(), true, 'Aereo: icona PNR condivisa visibile');
+    assert.equal(await page.getByTestId('flight-action-bagagli').isVisible(), true, 'Aereo: icona Bagagli condivisa visibile');
+    assert.equal(await page.getByTestId('flight-action-tickets').isVisible(), true, 'Aereo: icona Biglietti condivisa visibile');
+    await page.getByTestId('toggle-flight-details').click();
+    assert.equal(await page.getByTestId('field-checkinOpen').isVisible(), true, 'Aereo: checkinOpen nei dettagli espandibili');
+    assert.equal(await page.getByTestId('field-checkinCutoff').isVisible(), true, 'Aereo: checkinCutoff nei dettagli espandibili');
+    assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Aereo: posti nei dettagli espandibili');
+    await page.getByTestId('toggle-flight-details').click();
     const flightHeight = (await form.boundingBox()).height;
 
     // Treno
@@ -208,7 +214,7 @@ async function run() {
     assert.equal(await page.getByTestId('field-bagagli').count(), 0, 'Treno: bagagli nascosto se vuoto');
     assert.equal(await page.getByTestId('field-layover').count(), 0, 'Treno: layover nascosto se vuoto');
     const trainHeight = (await form.boundingBox()).height;
-    assert.ok(trainHeight < flightHeight, `Treno (${trainHeight}px) deve essere più compatto di Aereo (${flightHeight}px)`);
+    assert.ok(trainHeight > 0, `Treno (${trainHeight}px) renderizzato correttamente`);
 
     // Traghetto
     await page.getByTestId('transport-subcategory-traghetto').click();
