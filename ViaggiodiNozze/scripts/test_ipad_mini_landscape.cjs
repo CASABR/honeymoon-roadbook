@@ -161,6 +161,13 @@ async function run() {
     assert.ok(landscapeLayout.asideWidth > 0 && landscapeLayout.asideWidth <= 245, `Sidebar compatta: ${landscapeLayout.asideWidth}px`);
     assert.equal(landscapeLayout.sideBySide, true, '1133x744: card timeline affiancate su 2 colonne');
 
+    const cloneButtons = page.locator('.hounigo-ipad-landscape-timeline .hounigo-ds-duplicate-icon');
+    assert.ok(await cloneButtons.count() >= 2, 'Duplicazione disponibile per più categorie');
+    for (const button of await cloneButtons.all()) {
+      assert.equal(await button.isVisible(), true, 'Desktop: icona Duplica visibile');
+      assert.equal(await button.locator('.hounigo-ds-btn-text').count(), 0, 'Solo icona');
+      assert.ok((await button.getAttribute('aria-label')).includes('Duplica'));
+    }
     // Forced mobile layout must use a single full-width card per row, even in landscape.
     await page.getByRole('button', { name: 'Visualizzazione mobile' }).click();
     await page.locator('.app-forced-mobile .hounigo-ipad-landscape-timeline').waitFor({state:'visible'});
@@ -171,10 +178,12 @@ async function run() {
       return { count: cards.length, width, fullWidth: cards.every(c => c.width >= width - 3), stacked: cards.every((c,n) => !n || c.top >= cards[n-1].bottom - 2) };
     });
     assert.ok(mobile.count >= 2 && mobile.fullWidth && mobile.stacked, 'Modalità mobile landscape: card intere in una sola colonna');
+    assert.equal(await page.locator('.app-forced-mobile .hounigo-ds-duplicate-icon:visible').count(), 0, 'Mobile forzato: nessuna icona Duplica');
     await page.getByRole('button', { name: /Torna a Desktop/ }).click();
     await page.locator('.app-desktop-navigation').waitFor({state:'visible'});
     assert.equal(await page.locator('.hounigo-ipad-landscape-timeline').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 2, 'Desktop mantiene due colonne');
 
+    assert.ok(await page.locator('.hounigo-ipad-landscape-timeline .hounigo-ds-duplicate-icon:visible').count() >= 2, 'Ritorno Desktop: icone ripristinate');
     // 2. Verifica modale più ampia in 1133x744
     await page.locator('h3:visible').filter({ hasText: 'Air China CA950' }).first().click();
     await page.getByTestId('trasporto-form').waitFor({ state: 'visible' });

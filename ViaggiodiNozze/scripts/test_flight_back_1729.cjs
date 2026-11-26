@@ -205,6 +205,7 @@ async function run() {
     // Actual card width, independently of the viewport. Long operational text and touch targets.
     const front = page.locator('[data-transport-type="volo"]').filter({has:page.locator('h3').filter({hasText:'Air China CA950'})}).first();
     await front.waitFor({state:'visible'});
+    assert.equal(await front.locator('.hounigo-ds-duplicate-icon:visible').count(),0,'iPhone: nessuna icona Duplica sul fronte');
     const mobileFront = await front.evaluate(el => {
       const savedWidth = el.style.width;
       const results = [];
