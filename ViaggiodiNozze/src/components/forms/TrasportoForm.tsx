@@ -1846,7 +1846,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
           </div>
         ) : (
           <div className="space-y-2 hounigo-flight-compact hounigo-generic-transport-compact" data-testid="transport-back-layout">
-            {/* 1. Operatore / N. treno, con selettore sottocategoria accanto */}
+            {/* Identità e selettore della sottocategoria */}
             <div className="grid grid-cols-[minmax(0,1fr)_minmax(6.2rem,0.42fr)] gap-2 items-end">
               <div className="min-w-0" data-testid="field-carrier">
                 <label className={labelClass}>{cfg.carrierLabel}</label>
@@ -1940,6 +1940,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               {isSecondaryOpen && <div className="flight-technical-body p-2.5 space-y-2">
                 <div className="grid grid-cols-2 gap-2 generic-operational-grid">
                   {genericExtraFields.map(field => renderOperationalField(field))}
+                  <div className="col-span-2"><label className={labelClass}>Link biglietto / voucher</label><input type="url" data-testid="transport-ticket-url" aria-label="Link biglietto / voucher" placeholder="https://..." value={ticketUrl} onChange={e => setTicketUrl(e.target.value)} className={inputClass} /></div>
                   <div><label className={labelClass}>Informazioni orario aggiuntive</label><FlightAdaptiveText aria-label="Informazioni orario aggiuntive" value={checkinOpen} onChange={e => setCheckinOpen(e.target.value)} className={inputClass} /></div>
                   {(departureIata.trim() || arrivalIata.trim()) && <>
                     <div data-testid="field-departureIata"><label className={labelClass}>Codice partenza preesistente</label><input value={departureIata} onChange={e => setDepartureIata(e.target.value)} className={inputClass} /></div>

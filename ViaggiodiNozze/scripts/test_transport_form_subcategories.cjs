@@ -130,6 +130,7 @@ async function run() {
           checkinOpen: 'Info orario', checkinCutoff: '10:30', bagagli: 'Due valigie',
           veicolo: 'Veicolo legacy', assicurazione: 'Copertura legacy', cauzione: '100 EUR',
           noteCopilota:'Nota legacy '+type, ticketUrl:'https://example.com/test-ticket',
+          attachments:[{id:'synth-'+type,name:'test.pdf',type:'pdf',purpose:'document',dataUrl:'data:application/pdf;base64,JVBERi0xLjQK',size:9,createdAt:'2026-12-01T00:00:00Z'}],
           departureIata:'FCO', arrivalIata:'MXP', departureTimeZone:'Europe/Rome', dropoffTimeZone:'Europe/Rome',
           layover:{airport:'Bologna',iata:'BLQ',arrivalDate:'2026-12-01',arrivalTime:'11:30',departureDate:'2026-12-01',departureTime:'11:40',carrier:'Mezzo successivo',terminalGate:'Punto 2',duration:'10m',notes:'Nota sosta'},
           status:'prenotato', createdAt:1, updatedAt:1
@@ -372,6 +373,8 @@ async function run() {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false,type+': overflow');
       await page.getByTestId('toggle-secondary-details').click();
       assert.equal(await page.getByTestId('field-departureIata').locator('input').inputValue(),'FCO');
+      assert.equal(await page.getByTestId('transport-ticket-url').inputValue(),'https://example.com/test-ticket');
+      await page.getByTestId('transport-ticket-url').fill('https://example.com/updated-ticket');
       await page.getByTestId('transport-action-pnr').click();
       assert.ok((await page.getByTestId('pnr-modal-input').inputValue()).startsWith('REF-'));
       await page.locator('button:has-text("Fatto")').last().click();
@@ -384,10 +387,12 @@ async function run() {
       await page.waitForTimeout(400);
       const actual = await readTransportFromDb(page, DB_NAME, 'tr-compact-'+type);
       const expected = FIXTURES.trasporti.find(x=>x.id==='tr-compact-'+type);
-      for (const key of ['type','carrier','bookingCode','terminalGate','posti','checkinOpen','checkinCutoff','bagagli','veicolo','assicurazione','cauzione','ticketUrl','departureIata','arrivalIata','departureTimeZone','dropoffTimeZone']) assert.equal(actual[key],expected[key],type+': preserva '+key);
+      for (const key of ['type','carrier','bookingCode','terminalGate','posti','checkinOpen','checkinCutoff','bagagli','veicolo','assicurazione','cauzione','departureIata','arrivalIata','departureTimeZone','dropoffTimeZone']) assert.equal(actual[key],expected[key],type+': preserva '+key);
       for (const [key,value] of Object.entries(expected.layover)) assert.equal(actual.layover[key],value,type+': preserva sosta '+key);
       if (['auto','camper'].includes(type)) for (const key of ['dropoffLocation','dropoffDate','dropoffTime']) assert.equal(actual[key],expected[key],type+': preserva riconsegna '+key);
       assert.equal(actual.noteCopilota,'Nota aggiornata '+type);
+      assert.equal(actual.ticketUrl,'https://example.com/updated-ticket');
+      assert.deepEqual(actual.attachments, expected.attachments, type+': allegati preservati');
     }
 
     console.log('✓ [PASS] Audit e test E2E sottocategorie retro card Trasporti (volo/treno/traghetto/auto/camper/transfer/taxi/metro) + cambio mezzo senza perdita dati');
