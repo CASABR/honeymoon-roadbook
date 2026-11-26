@@ -12,6 +12,7 @@ import TrasportoBagagliModal from '../modals/TrasportoBagagliModal';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import { buildEurSavePatch } from '../../services/currencyService';
 import { parseCostToNumber } from '../../utils/priceHelper';
+import { resolveReliableIataTimeZone, isValidIanaTimeZone } from '../../utils/reliableTimeZone';
 import {
   resolveAirportIataAndTimeZone,
   resolveTimeZoneFromIata,
@@ -228,6 +229,13 @@ const whiteInputClass =
   'w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] transition-colors placeholder:text-slate-400';
 const labelClass = 'block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1';
 
+// Resolve departure and arrival independently; do not guess on conflicting evidence.
+function resolveFlightZone(iata: string | undefined, location: string | undefined): string | undefined {
+  const byCode = resolveTimeZoneFromIata(iata) || resolveReliableIataTimeZone(iata) || undefined;
+  const byPlace = resolveAirportIataAndTimeZone(location).timeZone;
+  return byCode && byPlace && byCode !== byPlace ? undefined : byCode || byPlace;
+}
+
 // Only used by the Aereo layout. Keep long values readable on Safari as well as Chromium.
 function FlightAdaptiveText({ value, className = '', ...props }: Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'value'> & { value: string }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -320,6 +328,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   // Sezioni & modali dedicati Aereo
   const [isFlightDetailsOpen, setIsFlightDetailsOpen] = useState(false);
   const [isFlightAdvancedOpen, setIsFlightAdvancedOpen] = useState(false);
+  const [isFlightNotesOpen, setIsFlightNotesOpen] = useState(false);
   const [isLayoverExpanded, setIsLayoverExpanded] = useState(false);
   const [isPnrModalOpen, setIsPnrModalOpen] = useState(false);
   const [isBagagliModalOpen, setIsBagagliModalOpen] = useState(false);
@@ -397,10 +406,12 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       if (initialData.type === 'volo') {
         const depRes = resolveAirportIataAndTimeZone(initialData.departureLocation);
         if (!initialData.departureIata && depRes.iata) setDepartureIata(depRes.iata);
-        if (!initialData.departureTimeZone && depRes.timeZone) setDepartureTimeZone(depRes.timeZone);
+        const depZone = resolveFlightZone(initialData.departureIata || depRes.iata, initialData.departureLocation);
+        if (!initialData.departureTimeZone && depZone) setDepartureTimeZone(depZone);
         const arrRes = resolveAirportIataAndTimeZone(initialData.arrivalLocation);
         if (!initialData.arrivalIata && arrRes.iata) setArrivalIata(arrRes.iata);
-        if (!initialData.dropoffTimeZone && arrRes.timeZone) setDropoffTimeZone(arrRes.timeZone);
+        const arrZone = resolveFlightZone(initialData.arrivalIata || arrRes.iata, initialData.arrivalLocation);
+        if (!initialData.dropoffTimeZone && arrZone) setDropoffTimeZone(arrZone);
       }
 
       setCost(initialData.cost || '');
@@ -429,6 +440,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setIsSecondaryOpen(false);
       setIsFlightDetailsOpen(false);
       setIsFlightAdvancedOpen(false);
+      setIsFlightNotesOpen(false);
     } else {
       setType('volo');
       setCarrier('');
@@ -475,6 +487,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setIsSecondaryOpen(false);
       setIsFlightDetailsOpen(false);
       setIsFlightAdvancedOpen(false);
+      setIsFlightNotesOpen(false);
     }
   }, [defaultDate, defaultTime, initialData]);
 
@@ -544,7 +557,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
 
       date: parsedDepDate,
       departureTime: parsedDepTime || undefined,
-      departureTimeZone: departureTimeZone.trim() || undefined,
+      departureTimeZone: departureTimeZone.trim() || (isFlight ? resolveFlightZone(departureIata, departureLocation) : undefined),
       departureLocation: departureLocation.trim(),
       departureIata: departureIata.trim() || undefined,
       arrivalIata: arrivalIata.trim() || undefined,
@@ -588,7 +601,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         arrivalLocation: arrivalLocation.trim() || departureLocation.trim(),
         arrivalDate: parsedArrDate || parsedDepDate || undefined,
         arrivalTime: parsedArrTime || undefined,
-        dropoffTimeZone: dropoffTimeZone.trim() || undefined,
+        dropoffTimeZone: dropoffTimeZone.trim() || (isFlight ? resolveFlightZone(arrivalIata, arrivalLocation) : undefined),
       });
     }
   };
@@ -799,14 +812,16 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     if (!isFlight) return;
     const res = resolveAirportIataAndTimeZone(departureLocation);
     if (res.iata && !departureIata.trim()) setDepartureIata(res.iata);
-    if (res.timeZone && !departureTimeZone.trim()) setDepartureTimeZone(res.timeZone);
+    const zone = resolveFlightZone(departureIata || res.iata, departureLocation);
+    if (zone && !departureTimeZone.trim()) setDepartureTimeZone(zone);
   };
 
   const handleArrivalAirportBlur = () => {
     if (!isFlight) return;
     const res = resolveAirportIataAndTimeZone(arrivalLocation);
     if (res.iata && !arrivalIata.trim()) setArrivalIata(res.iata);
-    if (res.timeZone && !dropoffTimeZone.trim()) setDropoffTimeZone(res.timeZone);
+    const zone = resolveFlightZone(arrivalIata || res.iata, arrivalLocation);
+    if (zone && !dropoffTimeZone.trim()) setDropoffTimeZone(zone);
   };
 
   const syncLayoverAutoFields = (next: {
@@ -863,24 +878,22 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     setTimeout(() => setPnrCopied(false), 1800);
   };
 
-  const flightDetailsParts: string[] = [];
-  if (checkinOpen.trim()) flightDetailsParts.push(`Apre: ${checkinOpen.trim()}`);
-  if (checkinCutoff.trim()) flightDetailsParts.push(`Chiude: ${checkinCutoff.trim()}`);
-  if (posti.trim()) flightDetailsParts.push(`Posti: ${posti.trim()}`);
   const atypicalFlightFields: OperationalFieldKey[] = (
     ['veicolo', 'assicurazione', 'cauzione'] as OperationalFieldKey[]
   ).filter((f) => hasValue(f));
-  if (atypicalFlightFields.length > 0) {
-    flightDetailsParts.push(`+${atypicalFlightFields.length} extra`);
-  }
-  const flightDetailsSummary = flightDetailsParts.length > 0 ? flightDetailsParts.join(' · ') : 'Check-in, posti';
-
-  const flightAdvancedSummary = [
-    departureIata.trim() || arrivalIata.trim() ? `${departureIata.trim() || '—'} → ${arrivalIata.trim() || '—'}` : '',
-    departureTimeZone.trim() || dropoffTimeZone.trim() ? `${departureTimeZone.trim() || 'auto'} / ${dropoffTimeZone.trim() || 'auto'}` : '',
-  ]
-    .filter(Boolean)
-    .join(' · ') || 'Automatico';
+  const filledFlightDetails = [checkinOpen, checkinCutoff, posti].filter(value => value.trim()).length;
+  const flightDetailsSummary = `${filledFlightDetails}/3${atypicalFlightFields.length ? ` +${atypicalFlightFields.length}` : ''}`;
+  const inferredDepartureZone = resolveFlightZone(departureIata, departureLocation);
+  const inferredArrivalZone = resolveFlightZone(arrivalIata, arrivalLocation);
+  const currentDepartureZone = departureTimeZone.trim() || inferredDepartureZone || '';
+  const currentArrivalZone = dropoffTimeZone.trim() || inferredArrivalZone || '';
+  const zoneMismatch = Boolean(
+    (inferredDepartureZone && currentDepartureZone !== inferredDepartureZone) ||
+    (inferredArrivalZone && currentArrivalZone !== inferredArrivalZone)
+  );
+  const bothZonesValid = isValidIanaTimeZone(currentDepartureZone) && isValidIanaTimeZone(currentArrivalZone);
+  const flightAdvancedSummary = !bothZonesValid || zoneMismatch ? 'Da verificare' :
+    inferredDepartureZone && inferredArrivalZone ? 'Fusi rilevati' : 'Fusi salvati';
 
   const renderEconomicBody = () => (
     <div className="space-y-2">
@@ -1322,15 +1335,16 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               <button
                 type="button"
                 data-testid="toggle-flight-details"
+                aria-expanded={isFlightDetailsOpen}
                 onClick={() => setIsFlightDetailsOpen((prev) => !prev)}
                 className="flight-technical-row w-full text-left cursor-pointer"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="flight-technical-label shrink-0">
-                    <List aria-hidden="true" className="flight-section-icon" /> Dettagli volo
+                    <List aria-hidden="true" className="flight-section-icon" /> Check-in e posti
                   </span>
-                  <span className="text-xs text-slate-500 truncate">· {flightDetailsSummary}</span>
                 </div>
+                <span className="flight-compact-status" aria-label={`${filledFlightDetails} di 3 campi compilati`}>{flightDetailsSummary}</span>
                 {isFlightDetailsOpen ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
               </button>
 
@@ -1382,20 +1396,22 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               <button
                 type="button"
                 data-testid="toggle-flight-advanced"
+                aria-expanded={isFlightAdvancedOpen}
                 onClick={() => setIsFlightAdvancedOpen((prev) => !prev)}
                 className="flight-technical-row w-full text-left cursor-pointer"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="flight-technical-label shrink-0">
-                    <Settings aria-hidden="true" className="flight-section-icon" /> IATA e fusi orari
+                    <Settings aria-hidden="true" className="flight-section-icon" /> Aeroporti e fusi
                   </span>
-                  <span className="text-xs text-slate-500 truncate">· {flightAdvancedSummary}</span>
                 </div>
+                <span className={`flight-compact-status ${flightAdvancedSummary === 'Da verificare' ? 'flight-status-review' : ''}`}>{flightAdvancedSummary}</span>
                 {isFlightAdvancedOpen ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
               </button>
 
               {isFlightAdvancedOpen && (
-                <div className="flight-technical-body p-2.5 space-y-2.5">
+                <div className="flight-technical-body p-2.5 space-y-2">
+                  <p className="flight-zone-help">I fusi sono ricavati dagli aeroporti riconosciuti. Correggili solo se necessario.</p>
                   <div className="grid grid-cols-2 gap-2">
                     <div data-testid="field-departureIata">
                       <label className={labelClass}>IATA Partenza</label>
@@ -1404,6 +1420,10 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                         placeholder="es. FCO"
                         value={departureIata}
                         onChange={(e) => setDepartureIata(e.target.value.toUpperCase())}
+                        onBlur={() => {
+                          const zone = resolveFlightZone(departureIata, departureLocation);
+                          if (!departureTimeZone.trim() && zone) setDepartureTimeZone(zone);
+                        }}
                         className={inputClass}
                       />
                     </div>
@@ -1414,6 +1434,10 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                         placeholder="es. AKL"
                         value={arrivalIata}
                         onChange={(e) => setArrivalIata(e.target.value.toUpperCase())}
+                        onBlur={() => {
+                          const zone = resolveFlightZone(arrivalIata, arrivalLocation);
+                          if (!dropoffTimeZone.trim() && zone) setDropoffTimeZone(zone);
+                        }}
                         className={inputClass}
                       />
                     </div>
@@ -1430,6 +1454,12 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                       label="Fuso orario arrivo"
                     />
                   </div>
+                  {(inferredDepartureZone || inferredArrivalZone) && (
+                    <button type="button" className="flight-use-auto" data-testid="flight-use-auto-zones" onClick={() => {
+                      if (inferredDepartureZone) setDepartureTimeZone(inferredDepartureZone);
+                      if (inferredArrivalZone) setDropoffTimeZone(inferredArrivalZone);
+                    }}>Usa fusi rilevati</button>
+                  )}
                 </div>
               )}
             </div>
@@ -1481,16 +1511,31 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               </button>
             </div>
 
-            {/* 10. Note Copilota (visibile ed editabile, altezza contenuta) */}
-            <div className="flight-section flight-section-notes space-y-1" data-testid="flight-notes">
-              <label className="flight-section-title"><MessageSquare aria-hidden="true" className="flight-section-icon" /> Note Copilota</label>
-              <FlightAdaptiveText
-                aria-label="Note Copilota"
-                placeholder="Istruzioni operative, gate, check-in..."
-                value={noteCopilota}
-                onChange={(e) => setNoteCopilota(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
-              />
+            {/* 10. Note Copilota (collassate di default, contenuto preservato) */}
+            <div className="flight-section flight-section-notes" data-testid="flight-notes">
+              <button
+                type="button"
+                data-testid="toggle-flight-notes"
+                aria-expanded={isFlightNotesOpen}
+                aria-controls="flight-notes-content"
+                className="flight-notes-toggle w-full text-left cursor-pointer"
+                onClick={() => setIsFlightNotesOpen((prev) => !prev)}
+              >
+                <span className="flight-section-title"><MessageSquare aria-hidden="true" className="flight-section-icon" /> Note Copilota</span>
+                <span className="flight-notes-status">{noteCopilota.trim() ? 'Presenti' : 'Nessuna nota'}</span>
+                {isFlightNotesOpen ? <ChevronUp aria-hidden="true" className="w-4 h-4 shrink-0" /> : <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0" />}
+              </button>
+              <div id="flight-notes-content" hidden={!isFlightNotesOpen}>
+                {isFlightNotesOpen && (
+                  <FlightAdaptiveText
+                    aria-label="Note Copilota"
+                    placeholder="Istruzioni operative, gate, check-in..."
+                    value={noteCopilota}
+                    onChange={(e) => setNoteCopilota(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
+                  />
+                )}
+              </div>
             </div>
           </div>
         ) : (

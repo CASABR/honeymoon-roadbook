@@ -136,6 +136,7 @@ async function run() {
           checkinOpen: '24h prima',
           checkinCutoff: '17:30 — informazioni operative di prova con testo lungo e dettagli aggiuntivi per verificare la visualizzazione completa. '.repeat(3).trim(),
           posti: '14A, 14B',
+          noteCopilota: 'Nota copilota sintetica preesistente.',
           bagagli: '2x23kg stiva',
           cost: '1200',
           depositPaid: '400',
@@ -153,9 +154,11 @@ async function run() {
           departureTime: '10:00',
           departureLocation: 'Milano Malpensa',
           departureIata: 'MXP',
+          departureTimeZone: 'Europe/London',
           arrivalDate: '2026-12-02',
           arrivalTime: '18:00',
-          arrivalLocation: 'Sydney',
+          arrivalLocation: 'Aeroporto internazionale di destinazione',
+          arrivalIata: 'SYD',
           layover: {
             airport: 'Beijing Capital',
             iata: 'PEK',
@@ -206,7 +209,7 @@ async function run() {
     assert.equal(await page.getByTestId('flight-arrival-iata-badge').innerText(), 'AKL', 'Auto-IATA AKL da Auckland');
     assert.equal(await page.getByTestId('flight-subcategory-select').isVisible(), true, 'Selettore sottocategoria compatto accanto a Compagnia');
     assert.equal(await page.getByTestId('flight-finance-always-open').isVisible(), true, 'Quadro economico sempre aperto');
-    assert.ok((await page.getByTestId('toggle-flight-details').innerText()).includes('Posti: 14A, 14B'), 'Riepilogo dettagli volo collassati');
+    assert.ok((await page.getByTestId('toggle-flight-details').innerText()).includes('3/3'), 'Riepilogo dettagli volo collassati');
 
     const carrierBox = await page.getByTestId('field-carrier').locator('input').boundingBox();
     const selectorBox = await page.getByTestId('flight-subcategory-select').boundingBox();
@@ -231,7 +234,20 @@ async function run() {
     assert.equal(await fits(cutoff), true, 'Textarea si adatta alla modifica');
     await page.getByTestId('toggle-flight-details').click();
     assert.equal(await fits(page.getByTestId('field-terminalGate').locator('textarea')), true, 'Terminal interamente visibile');
-    assert.equal(await fits(page.getByTestId('flight-notes').locator('textarea')), true, 'Note interamente visibili');
+    const notesToggle = page.getByTestId('toggle-flight-notes');
+    const notesInput = page.getByTestId('flight-notes').locator('textarea');
+    assert.equal(await notesToggle.getAttribute('aria-expanded'), 'false', 'Note collassate per impostazione predefinita');
+    assert.equal(await notesInput.count(), 0, 'Campo note nascosto');
+    assert.ok((await notesToggle.innerText()).includes('Presenti'), 'Indicatore note preesistenti');
+    await notesToggle.click();
+    assert.equal(await notesInput.inputValue(), [FIXTURES.trasporti[0].noteCopilota, FIXTURES.trasporti[0].notes].join('\n\n'), 'Note preesistenti e legacy preservate');
+    await notesInput.fill('Nota copilota aggiornata e conservata anche a sezione chiusa.');
+    assert.equal(await fits(notesInput), true, 'Note interamente visibili');
+    await notesToggle.click();
+    assert.equal(await notesToggle.getAttribute('aria-expanded'), 'false');
+    await notesToggle.click();
+    assert.equal(await notesInput.inputValue(), 'Nota copilota aggiornata e conservata anche a sezione chiusa.');
+    await notesToggle.click();
     // Semantic grouping and section contrast in both palettes.
     const groups = await page.evaluate(() => {
       const ids = ['flight-itinerary-section', 'flight-finance-always-open', 'flight-technical-section', 'flight-notes'];
@@ -321,6 +337,7 @@ async function run() {
     assert.equal(savedDirect.checkinOpen, '24h prima');
     assert.equal(savedDirect.checkinCutoff, FIXTURES.trasporti[0].checkinCutoff);
     assert.equal(savedDirect.posti, '14A, 14B');
+    assert.equal(savedDirect.noteCopilota, 'Nota copilota aggiornata e conservata anche a sezione chiusa.');
     assert.equal(savedDirect.layover?.iata, 'PEK');
     assert.equal(savedDirect.layover?.duration, '2h 15m');
     assert.equal(savedDirect.layover?.carrier, 'CA783');
@@ -341,6 +358,16 @@ async function run() {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       assert.equal(overflow, false, `${vp.width}x${vp.height}: nessun overflow orizzontale sul retro Aereo`);
       assert.ok((await page.getByTestId('toggle-layover-summary').innerText()).includes('PEK'), `${vp.width}x${vp.height}: riepilogo scalo visibile`);
+      const advanced = page.getByTestId('toggle-flight-advanced');
+      assert.equal(await advanced.getAttribute('aria-expanded'), 'false');
+      assert.ok((await advanced.innerText()).includes('Da verificare'));
+      await advanced.click();
+      assert.equal(await page.getByPlaceholder('es. Europe/Rome').nth(0).inputValue(), 'Europe/London', 'Fuso manuale preservato');
+      assert.equal(await page.getByPlaceholder('es. Europe/Rome').nth(1).inputValue(), 'Australia/Sydney', 'Fuso ereditato da IATA SYD');
+      await page.getByTestId('flight-use-auto-zones').click();
+      assert.equal(await page.getByPlaceholder('es. Europe/Rome').nth(0).inputValue(), 'Europe/Rome');
+      assert.ok((await advanced.innerText()).includes('Fusi rilevati'));
+      await advanced.click();
       await page.getByTestId('toggle-layover-summary').click();
       assert.equal(await page.getByTestId('flight-layover-notes').inputValue(), 'Nota scalo legacy');
       await page.locator('button:has-text("Annulla")').first().click();

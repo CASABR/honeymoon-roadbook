@@ -1900,3 +1900,16 @@ html.dark .hounigo-flight-compact .flight-section-finance .text-rose-500 { color
 .hounigo-flight-compact .flight-action-present, .hounigo-flight-compact .flight-action-empty { background: var(--flight-neutral-bg); border-color: var(--flight-neutral-border); color: var(--flight-neutral-fg); }
 .hounigo-flight-compact .flight-action-present { border-color: var(--flight-blue-border); }
 .hounigo-flight-compact .flight-action-present span:last-child { color: var(--flight-blue-fg); }
+
+/* 1.7.34 — Note Copilota collassabili, solo retro Aereo. */
+.hounigo-flight-compact .flight-section-notes { padding-block: 0.2rem; }
+.hounigo-flight-compact .flight-notes-toggle { display: flex; align-items: center; gap: 0.45rem; min-height: 2.75rem; color: var(--section-fg); }
+.hounigo-flight-compact .flight-notes-status { margin-left: auto; font-size: 0.6875rem; color: var(--section-fg); font-weight: 600; }
+.hounigo-flight-compact #flight-notes-content:not([hidden]) { padding-bottom: 0.35rem; }
+
+/* Riepiloghi tecnici compatti, solo Aereo. */
+.hounigo-flight-compact [data-testid="toggle-flight-details"], .hounigo-flight-compact [data-testid="toggle-flight-advanced"] { gap: 0.4rem; min-height: 2.75rem; }
+.hounigo-flight-compact .flight-compact-status { margin-left: auto; font-size: 0.6875rem; color: var(--flight-muted); font-weight: 650; white-space: nowrap; }
+.hounigo-flight-compact .flight-status-review { color: var(--flight-amber-fg); }
+.hounigo-flight-compact .flight-zone-help { font-size: 0.75rem; color: var(--flight-muted) !important; line-height: 1.4; }
+.hounigo-flight-compact .flight-use-auto { border: 1px solid var(--flight-blue-border); background: var(--flight-blue-bg); color: var(--flight-blue-fg); padding: 0.45rem 0.6rem; border-radius: 0.6rem; font-size: 0.75rem; font-weight: 700; min-height: 2.75rem; cursor: pointer; }
