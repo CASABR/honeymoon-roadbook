@@ -217,8 +217,11 @@ async function run() {
             width:outer.width,
             overflow:measured.some(n=>n.getBoundingClientRect().right>outer.right+1 || n.getBoundingClientRect().left<outer.left-1),
             hitTargets:actions.every(n=>n.getBoundingClientRect().width>=43 && n.getBoundingClientRect().height>=43),
+            actionSizes:actions.map(n=>({label:n.getAttribute('aria-label'),width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})),
+            specColumns:getComputedStyle(el.querySelector('.flight-front-spec-grid')).gridTemplateColumns.split(' ').length,
+            terminal:el.querySelector('.flight-front-terminal-value').textContent,
             cutoffText:el.querySelector('.flight-front-notice-text').textContent,
-            seats:el.querySelector('.flight-front-seats .truncate').textContent.trim()
+            seats:el.querySelector('.flight-front-seat-value').textContent.trim()
           });
         }
       } finally { el.style.width=savedWidth; }
@@ -229,6 +232,8 @@ async function run() {
       assert.equal(m.hitTargets,true,'Azioni mobile raggiungibili: '+JSON.stringify(m));
       assert.equal(m.cutoffText,FIXTURES.trasporti[0].checkinCutoff);
       assert.equal(m.seats,FIXTURES.trasporti[0].posti);
+      assert.equal(m.terminal,FIXTURES.trasporti[0].terminalGate.replace(/\s+\|\s+/g,'\n'));
+      if(m.width>=340) assert.equal(m.specColumns,2,'Terminal e posti affiancati quando c’è spazio');
     }
     // 1. Apri volo diretto e verifica auto-IATA, quadro economico sempre aperto, dettagli volo collassati, modali condivise e conservazione modifiche
     await page.locator('h3:visible').filter({ hasText: 'Air China CA950' }).first().click();

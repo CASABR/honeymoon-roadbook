@@ -2040,3 +2040,41 @@ html.dark [data-testid="flight-back-layout"] { --flight-blue-bg:#1b3047; --fligh
   .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-pay-badge { min-height:2rem; font-weight:650; }
 }
 [data-testid="flight-back-layout"] { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+
+/* Approved flight front concept. Only the flight card uses this layout. */
+.hounigo-ds-card[data-transport-type="volo"] { container-name:flight-front; border-radius:1rem; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-header-cat { letter-spacing:0.015em; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-category-icon { width:1.1rem; height:1.1rem; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-header-subrow { border-top:0; padding-top:0.25rem; gap:0.35rem; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-notice { display:flex; align-items:flex-start; gap:0.5rem; border:1px solid #f1d2ce; border-radius:0.75rem; padding:0.5rem; background:#fce8e6; color:#791e17; }
+html.dark .hounigo-ds-card[data-transport-type="volo"] .flight-front-notice { background:#402b2d; border-color:#74413d; color:#ffdbd6; }
+.flight-front-notice-icon { width:1.1rem; height:1.1rem; flex:none; margin-top:0.15rem; }
+.flight-front-notice-content { min-width:0; flex:1; display:flex; flex-direction:column; gap:0.12rem; }
+.flight-front-notice-label { font-size:0.75rem; letter-spacing:0; }
+.flight-front-notice-arrival { display:block; opacity:0.92; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-route { border-radius:0.85rem; background:#f2f6fb; border-color:#d6e0eb; }
+html.dark .hounigo-ds-card[data-transport-type="volo"] .flight-front-route { background:#1d2c40; border-color:#3b516d; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-route .font-mono { font-size:1.3rem; line-height:1.1; font-weight:750; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-spec-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:0.4rem; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-spec { display:flex; flex-direction:row; align-items:flex-start; gap:0.4rem; padding:0.5rem; border-radius:0.75rem; height:auto; min-width:0; width:100%; align-self:stretch; }
+.flight-front-spec-icon { width:1rem; height:1rem; flex:none; color:#1670a6; margin-top:0.05rem; }
+html.dark .flight-front-spec-icon { color:#7dd3fc; }
+.flight-front-spec-content { min-width:0; display:flex; flex-direction:column; gap:0.18rem; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-spec .hounigo-ds-spec-label { font-size:0.72rem; font-weight:650; text-transform:none; letter-spacing:0; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-spec .hounigo-ds-spec-value { font-size:0.8125rem; line-height:1.35; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer { flex-wrap:wrap; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn { min-width:44px; min-height:44px; box-sizing:border-box; border-radius:0.65rem; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-actions-group { flex-wrap:wrap; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-pay-badge { white-space:normal; max-width:100%; overflow-wrap:anywhere; font-weight:650; }
+@container flight-front (min-width:300px) {
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-spec-grid:has(> :nth-child(2)) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@container flight-front (max-width:440px) {
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer > div:last-child { flex:1 1 100%; justify-content:flex-start; min-width:0; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn { flex:0 0 44px; min-width:44px; min-height:44px; width:44px; padding:0.25rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-actions-group .hounigo-ds-btn-text,
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-actions-group .hounigo-ds-btn-arrow { display:none !important; }
+}
+@media(max-width:767px) {
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn.hidden { display:none; }
+}
