@@ -134,6 +134,24 @@ async function run() {
           updatedAt: 1,
         },
         {
+          id: 'tr-train-legacy',
+          type: 'treno',
+          carrier: 'Treno sintetico 9612',
+          date: '2026-12-01',
+          departureTime: '10:00',
+          departureLocation: 'Roma Termini',
+          arrivalDate: '2026-12-01',
+          arrivalTime: '13:00',
+          arrivalLocation: 'Milano Centrale',
+          terminalGate: '4',
+          posti: 'Car. 5 · 12A, 12B',
+          bookingCode: 'TEST-TRAIN',
+          noteCopilota: 'Nota treno sintetica',
+          status: 'prenotato',
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        {
           id: 'tr-flight-full',
           type: 'volo',
           carrier: 'Air China CA950',
@@ -210,14 +228,27 @@ async function run() {
     await page.getByTestId('flight-subcategory-select').selectOption('treno');
     assert.equal(await page.getByTestId('field-departureIata').count(), 0, 'Treno: IATA nascosto se vuoto');
     assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, 'Treno: Binario visibile');
-    assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Treno: Carrozza/Posto visibile');
+    assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Treno: posti visibili');
+    assert.equal(await page.getByTestId('field-carrozza').isVisible(), true, 'Treno: carrozza separata');
+    assert.equal(await page.getByTestId('train-finance-always-open').isVisible(), true);
+    assert.equal(await page.getByTestId('toggle-train-notes').getAttribute('aria-expanded'), 'false');
+    const coach = page.getByRole('textbox', {name:'Carrozza', exact:true});
+    const seats = page.getByRole('textbox', {name:'Posti', exact:true});
+    await coach.fill('5');
+    await seats.fill('12A, 12B');
+    assert.equal(await coach.inputValue(), '5');
+    assert.equal(await seats.inputValue(), '12A, 12B');
+    await coach.fill('');
+    await seats.fill('');
+    assert.equal(await coach.inputValue(), '');
+    assert.equal(await seats.inputValue(), '');
     assert.equal(await page.getByTestId('field-bagagli').count(), 0, 'Treno: bagagli nascosto se vuoto');
     assert.equal(await page.getByTestId('field-layover').count(), 0, 'Treno: layover nascosto se vuoto');
     const trainHeight = (await form.boundingBox()).height;
     assert.ok(trainHeight > 0, `Treno (${trainHeight}px) renderizzato correttamente`);
 
     // Traghetto
-    await page.getByTestId('transport-subcategory-traghetto').click();
+    await page.getByTestId('train-subcategory-select').selectOption('traghetto');
     assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, 'Traghetto: Molo/Imbarco visibile');
     assert.equal(await page.getByTestId('field-checkinCutoff').isVisible(), true, 'Traghetto: Imbarco entro visibile');
     assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Traghetto: Cabina/Posto visibile');
@@ -282,6 +313,40 @@ async function run() {
     assert.equal(saved.layover?.airport, 'PEK');
     assert.equal(saved.ticketUrl, 'https://example.com/boarding-pass');
     assert.equal(saved.noteCopilota, 'Check-in online 24h prima');
+
+    // Train-specific persistence, with legacy seat data and one connection.
+    await page.locator('h3:visible').filter({hasText:'Treno sintetico 9612'}).first().click();
+    await page.getByTestId('train-back-layout').waitFor({state:'visible'});
+    const coachEdit = page.getByRole('textbox', {name:'Carrozza', exact:true});
+    const seatsEdit = page.getByRole('textbox', {name:'Posti', exact:true});
+    assert.equal(await coachEdit.inputValue(),'5');
+    assert.equal(await seatsEdit.inputValue(),'12A, 12B');
+    await coachEdit.fill('8');
+    await seatsEdit.fill('21A, ');
+    assert.equal(await seatsEdit.inputValue(),'21A, ', 'Spazi durante la digitazione preservati');
+    await seatsEdit.fill('21A, 21B');
+    await page.getByTestId('train-action-pnr').click();
+    assert.equal(await page.getByTestId('pnr-modal-input').inputValue(),'TEST-TRAIN');
+    await page.locator('button:has-text("Fatto")').last().click();
+    await page.getByTestId('add-train-change').click();
+    const change = page.getByTestId('train-change');
+    await change.getByPlaceholder('es. Bologna Centrale').fill('Bologna Centrale');
+    await change.getByPlaceholder('es. FR 9520').fill('FR 9520');
+    await page.locator('button:has-text("Aggiorna")').first().click();
+    await page.waitForTimeout(400);
+    const trainSaved = await readTransportFromDb(page, DB_NAME, 'tr-train-legacy');
+    assert.equal(trainSaved.posti,'Carrozza: 8 · Posti: 21A, 21B');
+    assert.equal(trainSaved.terminalGate,'4');
+    assert.equal(trainSaved.departureTimeZone,'Europe/Rome');
+    assert.equal(trainSaved.dropoffTimeZone,'Europe/Rome');
+    assert.equal(trainSaved.noteCopilota,'Nota treno sintetica');
+    assert.equal(trainSaved.layover?.airport,'Bologna Centrale');
+    assert.equal(trainSaved.layover?.carrier,'FR 9520');
+    await page.locator('h3:visible').filter({hasText:'Treno sintetico 9612'}).first().click();
+    await page.getByTestId('train-back-layout').waitFor({state:'visible'});
+    assert.equal(await coachEdit.inputValue(),'8');
+    assert.equal(await seatsEdit.inputValue(),'21A, 21B');
+    await page.locator('button:has-text("Annulla")').first().click();
 
     console.log('✓ [PASS] Audit e test E2E sottocategorie retro card Trasporti (volo/treno/traghetto/auto/camper/transfer/taxi/metro) + cambio mezzo senza perdita dati');
   } finally {
