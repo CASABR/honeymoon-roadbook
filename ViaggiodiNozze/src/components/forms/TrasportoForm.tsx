@@ -347,6 +347,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   };
 
   const initializedIdRef = useRef<string | null | undefined>(undefined);
+  const departureAirportBeforeEdit = useRef('');
+  const arrivalAirportBeforeEdit = useRef('');
 
   useEffect(() => {
     const currentId = initialData?.id || '__new__';
@@ -559,8 +561,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       departureTime: parsedDepTime || undefined,
       departureTimeZone: departureTimeZone.trim() || (isFlight ? resolveFlightZone(departureIata, departureLocation) : undefined),
       departureLocation: departureLocation.trim(),
-      departureIata: departureIata.trim() || undefined,
-      arrivalIata: arrivalIata.trim() || undefined,
+      departureIata: departureIata.trim() || (isFlight ? resolveAirportIataAndTimeZone(departureLocation).iata : undefined),
+      arrivalIata: arrivalIata.trim() || (isFlight ? resolveAirportIataAndTimeZone(arrivalLocation).iata : undefined),
 
       ...normMeta,
       cost: packageIncluded ? 'Incluso nel pacchetto' : (normCost ?? (cost.trim() || undefined)),
@@ -811,17 +813,27 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   const handleDepartureAirportBlur = () => {
     if (!isFlight) return;
     const res = resolveAirportIataAndTimeZone(departureLocation);
-    if (res.iata && !departureIata.trim()) setDepartureIata(res.iata);
-    const zone = resolveFlightZone(departureIata || res.iata, departureLocation);
-    if (zone && !departureTimeZone.trim()) setDepartureTimeZone(zone);
+    const prior = resolveAirportIataAndTimeZone(departureAirportBeforeEdit.current);
+    const changed = departureAirportBeforeEdit.current.trim() !== departureLocation.trim();
+    const replaceCode = !departureIata.trim() || (changed && Boolean(prior.iata) && departureIata === prior.iata);
+    const nextCode = replaceCode ? (res.iata || '') : departureIata;
+    if (replaceCode) setDepartureIata(nextCode);
+    const zone = resolveFlightZone(nextCode, departureLocation);
+    const priorZone = resolveFlightZone(departureIata, departureAirportBeforeEdit.current);
+    if (!departureTimeZone.trim() || (changed && priorZone && departureTimeZone === priorZone)) setDepartureTimeZone(zone || '');
   };
 
   const handleArrivalAirportBlur = () => {
     if (!isFlight) return;
     const res = resolveAirportIataAndTimeZone(arrivalLocation);
-    if (res.iata && !arrivalIata.trim()) setArrivalIata(res.iata);
-    const zone = resolveFlightZone(arrivalIata || res.iata, arrivalLocation);
-    if (zone && !dropoffTimeZone.trim()) setDropoffTimeZone(zone);
+    const prior = resolveAirportIataAndTimeZone(arrivalAirportBeforeEdit.current);
+    const changed = arrivalAirportBeforeEdit.current.trim() !== arrivalLocation.trim();
+    const replaceCode = !arrivalIata.trim() || (changed && Boolean(prior.iata) && arrivalIata === prior.iata);
+    const nextCode = replaceCode ? (res.iata || '') : arrivalIata;
+    if (replaceCode) setArrivalIata(nextCode);
+    const zone = resolveFlightZone(nextCode, arrivalLocation);
+    const priorZone = resolveFlightZone(arrivalIata, arrivalAirportBeforeEdit.current);
+    if (!dropoffTimeZone.trim() || (changed && priorZone && dropoffTimeZone === priorZone)) setDropoffTimeZone(zone || '');
   };
 
   const syncLayoverAutoFields = (next: {
@@ -892,8 +904,12 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     (inferredArrivalZone && currentArrivalZone !== inferredArrivalZone)
   );
   const bothZonesValid = isValidIanaTimeZone(currentDepartureZone) && isValidIanaTimeZone(currentArrivalZone);
-  const flightAdvancedSummary = !bothZonesValid || zoneMismatch ? 'Da verificare' :
-    inferredDepartureZone && inferredArrivalZone ? 'Fusi rilevati' : 'Fusi salvati';
+  const knownDepCode = resolveAirportIataAndTimeZone(departureLocation).iata;
+  const knownArrCode = resolveAirportIataAndTimeZone(arrivalLocation).iata;
+  const airportNeedsReview = !bothZonesValid || zoneMismatch ||
+    !/^[A-Z]{3}$/.test(departureIata.trim()) || !/^[A-Z]{3}$/.test(arrivalIata.trim()) ||
+    Boolean(knownDepCode && knownDepCode !== departureIata.trim()) ||
+    Boolean(knownArrCode && knownArrCode !== arrivalIata.trim());
 
   const renderEconomicBody = () => (
     <div className="space-y-2">
@@ -1089,6 +1105,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                   placeholder="Aeroporto di partenza"
                   value={departureLocation}
                   onChange={(e) => setDepartureLocation(e.target.value)}
+                  onFocus={() => { departureAirportBeforeEdit.current = departureLocation; }}
                   onBlur={handleDepartureAirportBlur}
                   className={whiteInputClass}
                   required
@@ -1121,6 +1138,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                   placeholder="Aeroporto di arrivo"
                   value={arrivalLocation}
                   onChange={(e) => setArrivalLocation(e.target.value)}
+                  onFocus={() => { arrivalAirportBeforeEdit.current = arrivalLocation; }}
                   onBlur={handleArrivalAirportBlur}
                   className={whiteInputClass}
                 />
@@ -1145,6 +1163,75 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               />
             </div>
 
+            {/* 8. Sezione avanzata IATA & fusi orari — collassata */}
+            <div className="flight-airport-correction">
+              <button
+                type="button"
+                data-testid="toggle-flight-advanced"
+                aria-expanded={isFlightAdvancedOpen}
+                onClick={() => setIsFlightAdvancedOpen((prev) => !prev)}
+                className={`flight-airport-correction-toggle ${airportNeedsReview ? 'flight-status-review' : ''}`}
+              >
+                <Settings aria-hidden="true" className="flight-section-icon" />
+                <span>{airportNeedsReview ? 'Verifica aeroporti' : 'Correggi dati aeroporto'}</span>
+                {isFlightAdvancedOpen ? <ChevronUp aria-hidden="true" className="w-3.5 h-3.5" /> : <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />}
+              </button>
+
+              {isFlightAdvancedOpen && (
+                <div className="flight-technical-body p-2.5 space-y-2">
+                  <p className="flight-zone-help">I fusi sono ricavati dagli aeroporti riconosciuti. Correggili solo se necessario.</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div data-testid="field-departureIata">
+                      <label className={labelClass}>IATA Partenza</label>
+                      <input
+                        type="text"
+                        placeholder="es. FCO"
+                        value={departureIata}
+                        onChange={(e) => setDepartureIata(e.target.value.toUpperCase())}
+                        onBlur={() => {
+                          const zone = resolveFlightZone(departureIata, departureLocation);
+                          if (!departureTimeZone.trim() && zone) setDepartureTimeZone(zone);
+                        }}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div data-testid="field-arrivalIata">
+                      <label className={labelClass}>IATA Arrivo</label>
+                      <input
+                        type="text"
+                        placeholder="es. AKL"
+                        value={arrivalIata}
+                        onChange={(e) => setArrivalIata(e.target.value.toUpperCase())}
+                        onBlur={() => {
+                          const zone = resolveFlightZone(arrivalIata, arrivalLocation);
+                          if (!dropoffTimeZone.trim() && zone) setDropoffTimeZone(zone);
+                        }}
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <TimeZoneInput
+                      value={departureTimeZone}
+                      onChange={setDepartureTimeZone}
+                      label="Fuso orario partenza"
+                    />
+                    <TimeZoneInput
+                      value={dropoffTimeZone}
+                      onChange={setDropoffTimeZone}
+                      label="Fuso orario arrivo"
+                    />
+                  </div>
+                  {(inferredDepartureZone || inferredArrivalZone) && (
+                    <button type="button" className="flight-use-auto" data-testid="flight-use-auto-zones" onClick={() => {
+                      if (inferredDepartureZone) setDepartureTimeZone(inferredDepartureZone);
+                      if (inferredArrivalZone) setDropoffTimeZone(inferredArrivalZone);
+                    }}>Usa fusi rilevati</button>
+                  )}
+                </div>
+              )}
+            </div>
+
             </section>
 
             {/* 4. Quadro economico sempre aperto */}
@@ -1152,8 +1239,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               {renderEconomicBody()}
             </div>
 
-            {/* 5–8. Dettagli tecnici: un solo contenitore con separatori */}
-            <section className="flight-section flight-section-technical" data-testid="flight-technical-section" aria-label="Dettagli operativi">
+            {/* Scalo: blocco dedicato distinto dall'itinerario diretto */}
             {!hasLayover ? (
               <button
                 type="button"
@@ -1162,13 +1248,13 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                   setHasLayover(true);
                   setIsLayoverExpanded(true);
                 }}
-                className="flight-technical-row flight-add-layover w-full text-left cursor-pointer"
+                className="flight-section flight-section-layover flight-technical-row flight-add-layover w-full text-left cursor-pointer"
               >
                 <span className="flight-technical-label"><Route className="flight-section-icon" aria-hidden="true" /> Aggiungi scalo</span>
                 <Plus className="w-4 h-4 shrink-0" aria-hidden="true" />
               </button>
             ) : (
-              <div className="flight-technical-item overflow-hidden" data-testid="field-layover">
+              <div className="flight-section flight-section-layover overflow-hidden" data-testid="field-layover">
                 <div className="flight-technical-row gap-2">
                   <button
                     type="button"
@@ -1330,6 +1416,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               </div>
             )}
 
+            <section className="flight-section flight-section-technical" data-testid="flight-technical-section" aria-label="Dettagli operativi">
             {/* 6. Dettagli volo collassati */}
             <div className="flight-technical-item overflow-hidden">
               <button
@@ -1386,79 +1473,6 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
                       {atypicalFlightFields.map((f) => renderOperationalField(f))}
                     </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* 8. Sezione avanzata IATA & fusi orari — collassata */}
-            <div className="flight-technical-item overflow-hidden">
-              <button
-                type="button"
-                data-testid="toggle-flight-advanced"
-                aria-expanded={isFlightAdvancedOpen}
-                onClick={() => setIsFlightAdvancedOpen((prev) => !prev)}
-                className="flight-technical-row w-full text-left cursor-pointer"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="flight-technical-label shrink-0">
-                    <Settings aria-hidden="true" className="flight-section-icon" /> Aeroporti e fusi
-                  </span>
-                </div>
-                <span className={`flight-compact-status ${flightAdvancedSummary === 'Da verificare' ? 'flight-status-review' : ''}`}>{flightAdvancedSummary}</span>
-                {isFlightAdvancedOpen ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
-              </button>
-
-              {isFlightAdvancedOpen && (
-                <div className="flight-technical-body p-2.5 space-y-2">
-                  <p className="flight-zone-help">I fusi sono ricavati dagli aeroporti riconosciuti. Correggili solo se necessario.</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div data-testid="field-departureIata">
-                      <label className={labelClass}>IATA Partenza</label>
-                      <input
-                        type="text"
-                        placeholder="es. FCO"
-                        value={departureIata}
-                        onChange={(e) => setDepartureIata(e.target.value.toUpperCase())}
-                        onBlur={() => {
-                          const zone = resolveFlightZone(departureIata, departureLocation);
-                          if (!departureTimeZone.trim() && zone) setDepartureTimeZone(zone);
-                        }}
-                        className={inputClass}
-                      />
-                    </div>
-                    <div data-testid="field-arrivalIata">
-                      <label className={labelClass}>IATA Arrivo</label>
-                      <input
-                        type="text"
-                        placeholder="es. AKL"
-                        value={arrivalIata}
-                        onChange={(e) => setArrivalIata(e.target.value.toUpperCase())}
-                        onBlur={() => {
-                          const zone = resolveFlightZone(arrivalIata, arrivalLocation);
-                          if (!dropoffTimeZone.trim() && zone) setDropoffTimeZone(zone);
-                        }}
-                        className={inputClass}
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <TimeZoneInput
-                      value={departureTimeZone}
-                      onChange={setDepartureTimeZone}
-                      label="Fuso orario partenza"
-                    />
-                    <TimeZoneInput
-                      value={dropoffTimeZone}
-                      onChange={setDropoffTimeZone}
-                      label="Fuso orario arrivo"
-                    />
-                  </div>
-                  {(inferredDepartureZone || inferredArrivalZone) && (
-                    <button type="button" className="flight-use-auto" data-testid="flight-use-auto-zones" onClick={() => {
-                      if (inferredDepartureZone) setDepartureTimeZone(inferredDepartureZone);
-                      if (inferredArrivalZone) setDropoffTimeZone(inferredArrivalZone);
-                    }}>Usa fusi rilevati</button>
                   )}
                 </div>
               )}

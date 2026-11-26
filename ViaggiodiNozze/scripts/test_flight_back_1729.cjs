@@ -207,6 +207,18 @@ async function run() {
 
     assert.equal(await page.getByTestId('flight-departure-iata-badge').innerText(), 'FCO', 'Auto-IATA FCO da Roma Fiumicino');
     assert.equal(await page.getByTestId('flight-arrival-iata-badge').innerText(), 'AKL', 'Auto-IATA AKL da Auckland');
+    const arrival = page.getByPlaceholder('Aeroporto di arrivo');
+    await arrival.fill('Sydney');
+    await arrival.blur();
+    assert.equal(await page.getByTestId('flight-arrival-iata-badge').innerText(), 'SYD', 'IATA aggiornato al cambio aeroporto');
+    await page.getByTestId('toggle-flight-advanced').click();
+    assert.equal(await page.getByPlaceholder('es. Europe/Rome').nth(1).inputValue(), 'Australia/Sydney', 'Fuso aggiornato al cambio aeroporto');
+    await page.getByTestId('toggle-flight-advanced').click();
+    await arrival.fill('Auckland');
+    await arrival.blur();
+    assert.equal(await page.getByTestId('flight-arrival-iata-badge').innerText(), 'AKL');
+    assert.ok((await page.getByTestId('toggle-flight-advanced').innerText()).includes('Correggi dati aeroporto'));
+    assert.notEqual(await page.getByTestId('add-layover-btn').evaluate(el => getComputedStyle(el).backgroundColor), await page.getByTestId('flight-itinerary-section').evaluate(el => getComputedStyle(el).backgroundColor), 'Scalo distinto cromaticamente');
     assert.equal(await page.getByTestId('flight-subcategory-select').isVisible(), true, 'Selettore sottocategoria compatto accanto a Compagnia');
     assert.equal(await page.getByTestId('flight-finance-always-open').isVisible(), true, 'Quadro economico sempre aperto');
     assert.ok((await page.getByTestId('toggle-flight-details').innerText()).includes('3/3'), 'Riepilogo dettagli volo collassati');
@@ -281,10 +293,10 @@ async function run() {
         'field-carrier',
         'flight-departure-iata-badge',
         'field-terminalGate',
+        'toggle-flight-advanced',
         'flight-finance-always-open',
         'add-layover-btn',
         'toggle-flight-details',
-        'toggle-flight-advanced',
         'flight-shared-actions',
         'flight-notes',
       ];
@@ -360,13 +372,13 @@ async function run() {
       assert.ok((await page.getByTestId('toggle-layover-summary').innerText()).includes('PEK'), `${vp.width}x${vp.height}: riepilogo scalo visibile`);
       const advanced = page.getByTestId('toggle-flight-advanced');
       assert.equal(await advanced.getAttribute('aria-expanded'), 'false');
-      assert.ok((await advanced.innerText()).includes('Da verificare'));
+      assert.ok((await advanced.innerText()).includes('Verifica aeroporti'));
       await advanced.click();
       assert.equal(await page.getByPlaceholder('es. Europe/Rome').nth(0).inputValue(), 'Europe/London', 'Fuso manuale preservato');
       assert.equal(await page.getByPlaceholder('es. Europe/Rome').nth(1).inputValue(), 'Australia/Sydney', 'Fuso ereditato da IATA SYD');
       await page.getByTestId('flight-use-auto-zones').click();
       assert.equal(await page.getByPlaceholder('es. Europe/Rome').nth(0).inputValue(), 'Europe/Rome');
-      assert.ok((await advanced.innerText()).includes('Fusi rilevati'));
+      assert.ok((await advanced.innerText()).includes('Correggi dati aeroporto'));
       await advanced.click();
       await page.getByTestId('toggle-layover-summary').click();
       assert.equal(await page.getByTestId('flight-layover-notes').inputValue(), 'Nota scalo legacy');

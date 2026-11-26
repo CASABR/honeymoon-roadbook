@@ -84,7 +84,7 @@ async function run() {
   let browser;
   try {
     browser = await chromium.launch({
-      executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+      ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : process.platform === 'win32' ? { executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' } : {}),
       headless: true,
       timeout: 15000,
       args: ['--no-sandbox'],
@@ -113,7 +113,7 @@ async function run() {
       ],
     };
 
-    const ctx = await browser.newContext({ viewport: { width: 1133, height: 744 } });
+    const ctx = await browser.newContext({ viewport: { width: 1133, height: 744 }, serviceWorkers: 'block' });
     await ctx.addInitScript(({ tripId }) => {
       sessionStorage.setItem('hounigo_motion_splash_seen_v1', '1');
       sessionStorage.setItem('houni_dev_simulated_role', 'owner');
@@ -128,7 +128,7 @@ async function run() {
     }, { tripId: TRIP_ID });
 
     const page = await ctx.newPage();
-    await page.route('**/*firestore.googleapis.com*/**', (route) => route.abort());
+    await page.route('**/*', (route) => route.request().url().startsWith('http://127.0.0.1:5204/') ? route.continue() : route.abort());
     page.setDefaultTimeout(8000);
 
     await page.goto('http://127.0.0.1:5204/manifest.webmanifest', { waitUntil: 'domcontentloaded' });
@@ -160,6 +160,20 @@ async function run() {
     assert.equal(landscapeLayout.docOverflow, false, '1133x744: nessun overflow orizzontale');
     assert.ok(landscapeLayout.asideWidth > 0 && landscapeLayout.asideWidth <= 245, `Sidebar compatta: ${landscapeLayout.asideWidth}px`);
     assert.equal(landscapeLayout.sideBySide, true, '1133x744: card timeline affiancate su 2 colonne');
+
+    // Forced mobile layout must use a single full-width card per row, even in landscape.
+    await page.getByRole('button', { name: 'Visualizzazione mobile' }).click();
+    await page.locator('.app-forced-mobile .hounigo-ipad-landscape-timeline').waitFor({state:'visible'});
+    const mobile = await page.evaluate(() => {
+      const grid = document.querySelector('.app-forced-mobile .hounigo-ipad-landscape-timeline');
+      const cards = [...grid.querySelectorAll('.hounigo-timeline-item')].map(el => el.getBoundingClientRect());
+      const width = grid.getBoundingClientRect().width;
+      return { count: cards.length, width, fullWidth: cards.every(c => c.width >= width - 3), stacked: cards.every((c,n) => !n || c.top >= cards[n-1].bottom - 2) };
+    });
+    assert.ok(mobile.count >= 2 && mobile.fullWidth && mobile.stacked, 'Modalità mobile landscape: card intere in una sola colonna');
+    await page.getByRole('button', { name: /Torna a Desktop/ }).click();
+    await page.locator('.app-desktop-navigation').waitFor({state:'visible'});
+    assert.equal(await page.locator('.hounigo-ipad-landscape-timeline').evaluate(el => getComputedStyle(el).gridTemplateColumns.split(' ').length), 2, 'Desktop mantiene due colonne');
 
     // 2. Verifica modale più ampia in 1133x744
     await page.locator('h3:visible').filter({ hasText: 'Air China CA950' }).first().click();
