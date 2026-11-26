@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-26T11:14:00Z",
+  "requestedAt": "2026-11-26T11:46:29Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.31-flight-compact-20261126",
+  "requestId": "release-1.7.32-flight-final-density-20261126",
   "requestedBy": "CASABR",
-  "ref": "1d475e33231e531af3c03d5ac7a47e513a1fb80b",
+  "ref": "4e2561828054e10dd52d2e44171ce4a8a1576cbe",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.31: retro Aereo compatto; CI push e PR superate."
+  "note": "HOUNIGO 1.7.32: rifinitura retro Aereo, CI push e PR superate."
 }
