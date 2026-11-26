@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.30 — 2026-11-26
+
+- Retro card Aereo: riorganizzazione gerarchica (Compagnia con selettore mezzo accanto, Partenza/Arrivo, Terminal/Gate, Quadro economico sempre aperto, Scalo, Dettagli volo collassati, IATA/fusi avanzati collassati, PNR/Bagagli/Biglietti, Note Copilota) con durata scalo calcolata in sola lettura.
+
 ## 1.7.29 — 2026-11-26
 
 - Retro card Aereo ottimizzato: quadro economico sempre aperto, Terminal/Gate visibile, Dettagli volo collassati, gestione scali con calcolo automatico durata e fuso orario, IATA/fusi automatici, funzioni condivise PNR/Bagagli/Biglietti senza perdita modifiche e Note Copilota.

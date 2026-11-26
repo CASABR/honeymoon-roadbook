@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.30",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "6cbf73140867bdfb82cda9289443f85a4f32228f",
+      "changes": [
+        "Retro card Aereo: riorganizzazione gerarchica (Compagnia con selettore mezzo accanto, Partenza/Arrivo, Terminal/Gate, Quadro economico sempre aperto, Scalo, Dettagli volo collassati, IATA/fusi avanzati collassati, PNR/Bagagli/Biglietti, Note Copilota) con durata scalo calcolata in sola lettura."
+      ],
+      "publishedAtIso": "2026-11-26T10:57:03.000Z"
+    },
+    {
       "version": "1.7.29",
       "publishedAt": "2026-11-26",
       "sourceCommit": "8b922502a221289ae535d3495e08800c39b4982b",
