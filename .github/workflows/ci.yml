@@ -92,3 +92,7 @@ jobs:
       - name: Test - Retro Aereo compatto e note scalo
         working-directory: ViaggiodiNozze
         run: node scripts/test_flight_back_1729.cjs
+
+      - name: Test - iPad mini landscape e modalità mobile forzata
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_ipad_mini_landscape.cjs

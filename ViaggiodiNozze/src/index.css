@@ -1913,3 +1913,18 @@ html.dark .hounigo-flight-compact .flight-section-finance .text-rose-500 { color
 .hounigo-flight-compact .flight-status-review { color: var(--flight-amber-fg); }
 .hounigo-flight-compact .flight-zone-help { font-size: 0.75rem; color: var(--flight-muted) !important; line-height: 1.4; }
 .hounigo-flight-compact .flight-use-auto { border: 1px solid var(--flight-blue-border); background: var(--flight-blue-bg); color: var(--flight-blue-fg); padding: 0.45rem 0.6rem; border-radius: 0.6rem; font-size: 0.75rem; font-weight: 700; min-height: 2.75rem; cursor: pointer; }
+
+/* 1.7.35 — correzione aeroporti discreta e scalo autonomo. */
+.hounigo-flight-compact { --flight-layover-bg: #f3effa; --flight-layover-border: #d4c6e8; --flight-layover-fg: #62448a; }
+html.dark .hounigo-flight-compact { --flight-layover-bg: #322740; --flight-layover-border: #715788; --flight-layover-fg: #e4d3fa; }
+.hounigo-flight-compact .flight-section-layover { --section-bg: var(--flight-layover-bg); --section-border: var(--flight-layover-border); --section-fg: var(--flight-layover-fg); padding: 0; }
+.hounigo-flight-compact button.flight-section-layover { padding: 0.5rem 0.65rem; }
+.hounigo-flight-compact .flight-section-technical > .flight-technical-item:first-child { border-top: 0; }
+.hounigo-flight-compact .flight-airport-correction-toggle { display: flex; align-items: center; justify-content: flex-end; gap: 0.3rem; width: 100%; min-height: 2rem; font-size: 0.6875rem; font-weight: 650; color: var(--flight-blue-fg); cursor: pointer; }
+.hounigo-flight-compact .flight-airport-correction-toggle.flight-status-review { color: var(--flight-amber-fg); }
+.hounigo-flight-compact .flight-airport-correction .flight-technical-body { border-radius: 0.6rem; }
+/* The forced smartphone shell is narrow regardless of device viewport. */
+@media (min-width: 900px) and (max-width: 1279px) and (max-height: 820px) {
+  .app-forced-mobile .hounigo-ipad-landscape-timeline { display: block; }
+  .app-forced-mobile .hounigo-ipad-landscape-timeline > * + * { margin-top: 0.625rem !important; }
+}
