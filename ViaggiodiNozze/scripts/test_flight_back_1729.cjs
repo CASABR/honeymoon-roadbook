@@ -136,6 +136,7 @@ async function run() {
           checkinOpen: '24h prima',
           checkinCutoff: '17:30 — informazioni operative di prova con testo lungo e dettagli aggiuntivi per verificare la visualizzazione completa. '.repeat(3).trim(),
           posti: '14A, 14B',
+          noteCopilota: 'Nota copilota sintetica preesistente.',
           bagagli: '2x23kg stiva',
           cost: '1200',
           depositPaid: '400',
@@ -231,7 +232,20 @@ async function run() {
     assert.equal(await fits(cutoff), true, 'Textarea si adatta alla modifica');
     await page.getByTestId('toggle-flight-details').click();
     assert.equal(await fits(page.getByTestId('field-terminalGate').locator('textarea')), true, 'Terminal interamente visibile');
-    assert.equal(await fits(page.getByTestId('flight-notes').locator('textarea')), true, 'Note interamente visibili');
+    const notesToggle = page.getByTestId('toggle-flight-notes');
+    const notesInput = page.getByTestId('flight-notes').locator('textarea');
+    assert.equal(await notesToggle.getAttribute('aria-expanded'), 'false', 'Note collassate per impostazione predefinita');
+    assert.equal(await notesInput.count(), 0, 'Campo note nascosto');
+    assert.ok((await notesToggle.innerText()).includes('Presenti'), 'Indicatore note preesistenti');
+    await notesToggle.click();
+    assert.equal(await notesInput.inputValue(), FIXTURES.trasporti[0].noteCopilota, 'Note preesistenti preservate');
+    await notesInput.fill('Nota copilota aggiornata e conservata anche a sezione chiusa.');
+    assert.equal(await fits(notesInput), true, 'Note interamente visibili');
+    await notesToggle.click();
+    assert.equal(await notesToggle.getAttribute('aria-expanded'), 'false');
+    await notesToggle.click();
+    assert.equal(await notesInput.inputValue(), 'Nota copilota aggiornata e conservata anche a sezione chiusa.');
+    await notesToggle.click();
     // Semantic grouping and section contrast in both palettes.
     const groups = await page.evaluate(() => {
       const ids = ['flight-itinerary-section', 'flight-finance-always-open', 'flight-technical-section', 'flight-notes'];
@@ -321,6 +335,7 @@ async function run() {
     assert.equal(savedDirect.checkinOpen, '24h prima');
     assert.equal(savedDirect.checkinCutoff, FIXTURES.trasporti[0].checkinCutoff);
     assert.equal(savedDirect.posti, '14A, 14B');
+    assert.equal(savedDirect.noteCopilota, 'Nota copilota aggiornata e conservata anche a sezione chiusa.');
     assert.equal(savedDirect.layover?.iata, 'PEK');
     assert.equal(savedDirect.layover?.duration, '2h 15m');
     assert.equal(savedDirect.layover?.carrier, 'CA783');

@@ -320,6 +320,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   // Sezioni & modali dedicati Aereo
   const [isFlightDetailsOpen, setIsFlightDetailsOpen] = useState(false);
   const [isFlightAdvancedOpen, setIsFlightAdvancedOpen] = useState(false);
+  const [isFlightNotesOpen, setIsFlightNotesOpen] = useState(false);
   const [isLayoverExpanded, setIsLayoverExpanded] = useState(false);
   const [isPnrModalOpen, setIsPnrModalOpen] = useState(false);
   const [isBagagliModalOpen, setIsBagagliModalOpen] = useState(false);
@@ -429,6 +430,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setIsSecondaryOpen(false);
       setIsFlightDetailsOpen(false);
       setIsFlightAdvancedOpen(false);
+      setIsFlightNotesOpen(false);
     } else {
       setType('volo');
       setCarrier('');
@@ -475,6 +477,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setIsSecondaryOpen(false);
       setIsFlightDetailsOpen(false);
       setIsFlightAdvancedOpen(false);
+      setIsFlightNotesOpen(false);
     }
   }, [defaultDate, defaultTime, initialData]);
 
@@ -1481,16 +1484,31 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               </button>
             </div>
 
-            {/* 10. Note Copilota (visibile ed editabile, altezza contenuta) */}
-            <div className="flight-section flight-section-notes space-y-1" data-testid="flight-notes">
-              <label className="flight-section-title"><MessageSquare aria-hidden="true" className="flight-section-icon" /> Note Copilota</label>
-              <FlightAdaptiveText
-                aria-label="Note Copilota"
-                placeholder="Istruzioni operative, gate, check-in..."
-                value={noteCopilota}
-                onChange={(e) => setNoteCopilota(e.target.value)}
-                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
-              />
+            {/* 10. Note Copilota (collassate di default, contenuto preservato) */}
+            <div className="flight-section flight-section-notes" data-testid="flight-notes">
+              <button
+                type="button"
+                data-testid="toggle-flight-notes"
+                aria-expanded={isFlightNotesOpen}
+                aria-controls="flight-notes-content"
+                className="flight-notes-toggle w-full text-left cursor-pointer"
+                onClick={() => setIsFlightNotesOpen((prev) => !prev)}
+              >
+                <span className="flight-section-title"><MessageSquare aria-hidden="true" className="flight-section-icon" /> Note Copilota</span>
+                <span className="flight-notes-status">{noteCopilota.trim() ? 'Presenti' : 'Nessuna nota'}</span>
+                {isFlightNotesOpen ? <ChevronUp aria-hidden="true" className="w-4 h-4 shrink-0" /> : <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0" />}
+              </button>
+              <div id="flight-notes-content" hidden={!isFlightNotesOpen}>
+                {isFlightNotesOpen && (
+                  <FlightAdaptiveText
+                    aria-label="Note Copilota"
+                    placeholder="Istruzioni operative, gate, check-in..."
+                    value={noteCopilota}
+                    onChange={(e) => setNoteCopilota(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
+                  />
+                )}
+              </div>
             </div>
           </div>
         ) : (
