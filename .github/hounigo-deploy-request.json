@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-26T13:17:57Z",
+  "requestedAt": "2026-11-26T13:54:44Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.36-train-compact-20261126",
+  "requestId": "release-1.7.37-transport-mobile-20261126",
   "requestedBy": "CASABR",
-  "ref": "de099abf40d7ea7765e454868c61f2aed20c3a84",
+  "ref": "5651163bd7a112a00bec235a7e6170bdde01cc86",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.36: retro Treno compatto, carrozza e posti separati, CI push e PR superate."
+  "note": "HOUNIGO 1.7.37: tutte le sottocategorie e fronte/retro Aereo mobile-first; CI push e PR superate."
 }
