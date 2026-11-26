@@ -362,6 +362,13 @@ export default function TrasportoCard({
   );
 
   const checkinInfo = getCheckinDisplayInfo(transport);
+  // Keep the recorded cutoff verbatim. Avoid repeating an airport recommendation
+  // only when the same time is explicitly present after a clear arrival instruction.
+  const airportRecommendationAlreadyPresent = Boolean(
+    isFlight && checkinInfo.airportArrivalTime && checkinInfo.cutoffTime &&
+    /(?:presentarsi|arrivare|arrivo|in aeroporto)(?:[^\d\n]{0,60})\d{1,2}:\d{2}/i.test(checkinInfo.cutoffTime) &&
+    checkinInfo.cutoffTime.match(/(?:presentarsi|arrivare|arrivo|in aeroporto)[^\d\n]{0,60}(\d{1,2}:\d{2})/i)?.[1] === checkinInfo.airportArrivalTime
+  );
 
   const hasTicket = Boolean(
     transport.ticketUrl?.trim() ||
@@ -446,7 +453,7 @@ export default function TrasportoCard({
                   <div className="flight-front-notice-content">
                     <span className="flight-front-notice-label">{transport.checkinCutoff?.trim() ? 'Chiusura check-in' : 'Chiusura check-in stimata'}</span>
                     <strong className="flight-front-notice-text">{checkinInfo.cutoffTime}</strong>
-                    {checkinInfo.airportArrivalTime && <span className="flight-front-notice-arrival">In aeroporto consigliato: {checkinInfo.airportArrivalTime}</span>}
+                    {checkinInfo.airportArrivalTime && !airportRecommendationAlreadyPresent && <span className="flight-front-notice-arrival">In aeroporto consigliato: {checkinInfo.airportArrivalTime}</span>}
                   </div>
                 </div>
               ) : (

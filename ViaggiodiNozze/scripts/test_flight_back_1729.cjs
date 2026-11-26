@@ -125,6 +125,7 @@ async function run() {
           id: 'tr-direct',
           type: 'volo',
           carrier: 'Air China CA950',
+          platform: 'Trip.com sintetico',
           bookingCode: 'PNR111 | Long synthetic reference with additional e-ticket details '.repeat(4),
           date: '2026-12-01',
           departureTime: '19:30',
@@ -341,6 +342,7 @@ async function run() {
         'flight-finance-always-open',
         'add-layover-btn',
         'toggle-flight-details',
+        'field-platform',
         'flight-shared-actions',
         'flight-notes',
       ];
@@ -354,6 +356,9 @@ async function run() {
 
     // Modifica non ancora salvata su carrier + apertura PNR/Bagagli condivisi senza perdere carrier
     const carrierInput = page.getByTestId('field-carrier').locator('input');
+    const platformInput = page.getByLabel('Piattaforma di acquisto');
+    assert.equal(await platformInput.inputValue(),'Trip.com sintetico');
+    await platformInput.fill('Sito ufficiale sintetico');
     await carrierInput.fill('Air China CA950 Mod');
     await page.getByTestId('flight-action-pnr').click();
     assert.equal(await page.getByTestId('pnr-modal-input').inputValue(), FIXTURES.trasporti[0].bookingCode);
@@ -385,6 +390,11 @@ async function run() {
     await page.waitForTimeout(400);
     const savedDirect = await readTransportFromDb(page, DB_NAME, 'tr-direct');
     assert.equal(savedDirect.carrier, 'Air China CA950 Mod');
+    assert.equal(savedDirect.platform,'Sito ufficiale sintetico');
+    await page.locator('h3:visible').filter({hasText:'Air China CA950 Mod'}).first().click();
+    await page.getByTestId('flight-back-layout').waitFor({state:'visible'});
+    assert.equal(await page.getByLabel('Piattaforma di acquisto').inputValue(),'Sito ufficiale sintetico');
+    await page.locator('button:has-text("Annulla")').first().click();
     assert.equal(savedDirect.bookingCode, 'NEWPNR');
     assert.equal(savedDirect.departureIata, 'FCO');
     assert.equal(savedDirect.arrivalIata, 'AKL');
