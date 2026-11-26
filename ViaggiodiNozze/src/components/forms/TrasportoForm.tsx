@@ -1163,7 +1163,9 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               />
             </div>
 
-            {/* 8. Sezione avanzata IATA & fusi orari — collassata */}
+            {/* Mostra la correzione soltanto in caso di dati mancanti o incoerenti.
+                Mantieni aperto il pannello durante la correzione manuale. */}
+            {(airportNeedsReview || isFlightAdvancedOpen) && (
             <div className="flight-airport-correction">
               <button
                 type="button"
@@ -1173,7 +1175,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                 className={`flight-airport-correction-toggle ${airportNeedsReview ? 'flight-status-review' : ''}`}
               >
                 <Settings aria-hidden="true" className="flight-section-icon" />
-                <span>{airportNeedsReview ? 'Verifica aeroporti' : 'Correggi dati aeroporto'}</span>
+                <span>{airportNeedsReview ? 'Verifica aeroporti' : 'Chiudi verifica'}</span>
                 {isFlightAdvancedOpen ? <ChevronUp aria-hidden="true" className="w-3.5 h-3.5" /> : <ChevronDown aria-hidden="true" className="w-3.5 h-3.5" />}
               </button>
 
@@ -1226,11 +1228,13 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     <button type="button" className="flight-use-auto" data-testid="flight-use-auto-zones" onClick={() => {
                       if (inferredDepartureZone) setDepartureTimeZone(inferredDepartureZone);
                       if (inferredArrivalZone) setDropoffTimeZone(inferredArrivalZone);
+                      setIsFlightAdvancedOpen(false);
                     }}>Usa fusi rilevati</button>
                   )}
                 </div>
               )}
             </div>
+            )}
 
             </section>
 
