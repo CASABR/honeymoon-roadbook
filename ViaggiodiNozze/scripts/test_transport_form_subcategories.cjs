@@ -114,7 +114,7 @@ async function run() {
     const TRIP_ID = 'synth-transport-1726';
     const DB_NAME = `ViaggiodiNozzeDB_${encodeURIComponent(TRIP_ID)}`;
     const FIXTURES = {
-      giorni: [{ id: 'day-1', date: '2026-12-01', title: 'Giorno 1', location: 'Roma', createdAt: 1, updatedAt: 1 }],
+      giorni: Array.from({length:8},(_,n)=>({id:'day-'+(n+1),date:'2026-12-0'+(n+1),title:'Giorno '+(n+1),location:'Roma',createdAt:1,updatedAt:1})),
       attivita: [],
       tappe: [],
       ristoranti: [],
@@ -123,16 +123,16 @@ async function run() {
       trasporti: [
         ...['traghetto','auto','camper','transfer','taxi','metro'].map((type, n) => ({
           id: 'tr-compact-' + type, type, carrier: 'Test compatto ' + type,
-          date: '2026-12-01', departureTime: '11:00', departureLocation: 'Roma',
-          arrivalDate: '2026-12-01', arrivalTime: '12:00', arrivalLocation: 'Milano',
-          ...(['auto','camper'].includes(type) ? {dropoffLocation:'Milano',dropoffDate:'2026-12-03',dropoffTime:'12:00'} : {}),
+          date: '2026-12-0'+(n+3), departureTime: '11:00', departureLocation: 'Roma',
+          arrivalDate: '2026-12-0'+(n+3), arrivalTime: '12:00', arrivalLocation: 'Milano',
+          ...(['auto','camper'].includes(type) ? {dropoffLocation:'Milano',dropoffDate:'2026-12-0'+(n+3),dropoffTime:'14:00'} : {}),
           terminalGate: 'Punto 7', posti: 'Valore posti/modello', bookingCode: 'REF-' + n,
           checkinOpen: 'Info orario', checkinCutoff: '10:30', bagagli: 'Due valigie',
           veicolo: 'Veicolo legacy', assicurazione: 'Copertura legacy', cauzione: '100 EUR',
           noteCopilota:'Nota legacy '+type, ticketUrl:'https://example.com/test-ticket',
           attachments:[{id:'synth-'+type,name:'test.pdf',type:'pdf',purpose:'document',dataUrl:'data:application/pdf;base64,JVBERi0xLjQK',size:9,createdAt:'2026-12-01T00:00:00Z'}],
           departureIata:'FCO', arrivalIata:'MXP', departureTimeZone:'Europe/Rome', dropoffTimeZone:'Europe/Rome',
-          layover:{airport:'Bologna',iata:'BLQ',arrivalDate:'2026-12-01',arrivalTime:'11:30',departureDate:'2026-12-01',departureTime:'11:40',carrier:'Mezzo successivo',terminalGate:'Punto 2',duration:'10m',notes:'Nota sosta'},
+          layover:{airport:'Bologna',iata:'BLQ',arrivalDate:'2026-12-0'+(n+3),arrivalTime:'11:30',departureDate:'2026-12-0'+(n+3),departureTime:'11:40',carrier:'Mezzo successivo',terminalGate:'Punto 2',duration:'10m',notes:'Nota sosta'},
           status:'prenotato', createdAt:1, updatedAt:1
         })),
         {
@@ -364,7 +364,9 @@ async function run() {
     assert.equal(await seatsEdit.inputValue(),'21A, 21B');
     await page.locator('button:has-text("Annulla")').first().click();
 
+    await page.getByRole('button',{name:/Dopo →/i}).first().click();
     for (const type of ['traghetto','auto','camper','transfer','taxi','metro']) {
+      await page.getByRole('button',{name:/Dopo →/i}).first().click();
       await page.locator('h3:visible').filter({hasText:'Test compatto '+type}).first().click();
       await page.getByTestId('transport-back-layout').waitFor({state:'visible'});
       assert.equal(await page.getByTestId('transport-subcategory-select').inputValue(),type);

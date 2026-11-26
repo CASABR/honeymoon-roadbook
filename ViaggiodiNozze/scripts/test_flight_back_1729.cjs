@@ -222,6 +222,16 @@ async function run() {
     assert.notEqual(await page.getByTestId('add-layover-btn').evaluate(el => getComputedStyle(el).backgroundColor), await page.getByTestId('flight-itinerary-section').evaluate(el => getComputedStyle(el).backgroundColor), 'Scalo distinto cromaticamente');
     assert.equal(await page.getByTestId('flight-subcategory-select').isVisible(), true, 'Selettore sottocategoria compatto accanto a Compagnia');
     assert.equal(await page.getByTestId('flight-finance-always-open').isVisible(), true, 'Quadro economico sempre aperto');
+    const economy = page.getByTestId('flight-finance-always-open');
+    const originalCost = await economy.getByPlaceholder('es. 150.00').inputValue();
+    const originalDeposit = await economy.getByPlaceholder('es. 50.00').inputValue();
+    await economy.getByRole('checkbox',{name:'Incluso nel pacchetto'}).check();
+    assert.equal(await economy.getByPlaceholder('es. 150.00').count(),0,'Importi nascosti se inclusi');
+    await economy.getByRole('checkbox',{name:'Incluso nel pacchetto'}).uncheck();
+    assert.equal(await economy.getByPlaceholder('es. 150.00').inputValue(),originalCost,'Costo ripristinato dopo toggle');
+    assert.equal(await economy.getByPlaceholder('es. 50.00').inputValue(),originalDeposit,'Acconto ripristinato dopo toggle');
+    assert.equal(await page.getByPlaceholder('Aeroporto di partenza').evaluate(el=>el.scrollHeight<=el.clientHeight+2),true,'Nome aeroporto leggibile');
+    assert.ok(await page.getByTestId('flight-action-pnr').locator('svg').count(),'Icone vettoriali');
     assert.ok((await page.getByTestId('toggle-flight-details').innerText()).includes('3/3'), 'Riepilogo dettagli volo collassati');
 
     const carrierBox = await page.getByTestId('field-carrier').locator('input').boundingBox();

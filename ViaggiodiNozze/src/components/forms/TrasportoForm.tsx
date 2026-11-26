@@ -1,7 +1,7 @@
 import { formatDraftBalance } from '../../utils/budgetDisplay';
 import CurrencyAmountInput from '../common/CurrencyAmountInput';
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronUp, Plus, Trash2, Check, Copy, Route, Wallet, List, Settings, MessageSquare, PlaneTakeoff, PlaneLanding } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2, Check, Copy, Route, Wallet, List, Settings, MessageSquare, PlaneTakeoff, PlaneLanding, Luggage, Ticket } from 'lucide-react';
 import { usePresence } from '../../hooks/usePresence';
 import type { Trasporto, TipoTrasporto, StatoTrasporto, TransportAttachment } from '../../types';
 import TimeZoneInput from '../common/TimeZoneInput';
@@ -323,6 +323,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   const [depositPaid, setDepositPaid] = useState('');
   const [isSaldato, setIsSaldato] = useState(false);
   const [packageIncluded, setPackageIncluded] = useState(false);
+  const flightMoneyBeforePackage = useRef<{cost: string; deposit: string; paid: boolean} | null>(null);
 
   // Documenti & Note
   const [ticketUrl, setTicketUrl] = useState('');
@@ -366,6 +367,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       return;
     }
     initializedIdRef.current = currentId;
+    flightMoneyBeforePackage.current = null;
 
     if (initialData) {
       setType(initialData.type);
@@ -917,14 +919,21 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               const checked = e.target.checked;
               setPackageIncluded(checked);
               if (checked) {
+                if (isFlight) flightMoneyBeforePackage.current = {cost, deposit: depositPaid, paid: isSaldato};
                 setCost('Incluso');
                 setDepositPaid('0');
                 setIsSaldato(false);
+              } else if (isFlight && flightMoneyBeforePackage.current) {
+                const previous = flightMoneyBeforePackage.current;
+                setCost(previous.cost);
+                setDepositPaid(previous.deposit);
+                setIsSaldato(previous.paid);
+                flightMoneyBeforePackage.current = null;
               } else {
                 setCost('');
               }
             }}
-            className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500"
+            className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500 flight-package-toggle"
           />
           <span className="text-xs font-bold text-sky-800">Incluso nel pacchetto</span>
         </label>
@@ -1020,7 +1029,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         {isFlight ? (
           <div className="space-y-2 hounigo-flight-compact" data-testid="flight-back-layout">
             {/* 1. Compagnia e numero volo, con selettore sottocategoria accanto */}
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(6.2rem,0.42fr)] gap-2 items-end">
+            <div className="flight-identity grid grid-cols-[minmax(0,1fr)_minmax(6.2rem,0.42fr)] gap-2 items-end">
               <div className="min-w-0" data-testid="field-carrier">
                 <label className={labelClass}>Compagnia e numero volo</label>
                 <input
@@ -1052,7 +1061,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             {/* 2. Itinerario: partenza, arrivo e terminal condividono il contesto visivo */}
             <section className="flight-section flight-section-itinerary space-y-1.5" data-testid="flight-itinerary-section" aria-labelledby="flight-itinerary-title">
               <h3 id="flight-itinerary-title" className="flight-section-title"><Route aria-hidden="true" className="flight-section-icon" /> Itinerario</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            <div className="flight-itinerary-grid grid grid-cols-1 gap-1.5">
               <div className="p-1.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1 flight-airport-block">
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
@@ -1067,8 +1076,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     </span>
                   )}
                 </div>
-                <input
-                  type="text"
+                <FlightAdaptiveText
+                  aria-label="Aeroporto di partenza"
                   placeholder="Aeroporto di partenza"
                   value={departureLocation}
                   onChange={(e) => setDepartureLocation(e.target.value)}
@@ -1082,7 +1091,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                   onChange={setDepartureDate}
                   required
                   dateLabel="Data partenza"
-                  timeLabel="Orario"
+                  timeLabel="Orario partenza"
                 />
               </div>
 
@@ -1100,8 +1109,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     </span>
                   )}
                 </div>
-                <input
-                  type="text"
+                <FlightAdaptiveText
+                  aria-label="Aeroporto di arrivo"
                   placeholder="Aeroporto di arrivo"
                   value={arrivalLocation}
                   onChange={(e) => setArrivalLocation(e.target.value)}
@@ -1113,7 +1122,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                   value={arrivalDate}
                   onChange={setArrivalDate}
                   dateLabel="Data arrivo"
-                  timeLabel="Orario"
+                  timeLabel="Orario arrivo"
                 />
               </div>
             </div>
@@ -1231,17 +1240,22 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     type="button"
                     data-testid="toggle-layover-summary"
                     onClick={() => setIsLayoverExpanded((prev) => !prev)}
-                    className="flex-1 flex items-center justify-between text-left min-w-0 cursor-pointer"
+                    aria-expanded={isLayoverExpanded}
+                    className="flight-layover-summary flex-1 flex items-center justify-between text-left min-w-0 cursor-pointer"
                   >
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="flight-technical-label shrink-0">
-                        <Route aria-hidden="true" className="flight-section-icon" /> Scalo
-                      </span>
-                      <span className="text-xs font-semibold text-slate-600 truncate">
-                        · {layoverIata ? `${layoverIata.toUpperCase()} · ` : ''}{layoverAirport || 'Da configurare'}
-                        {layoverDuration ? ` · ${layoverDuration}` : ''}
-                        {layoverCarrier ? ` · ${layoverCarrier}` : ''}
-                      </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="flight-technical-label"><Route aria-hidden="true" className="flight-section-icon" /> Scalo</span>
+                        {layoverDuration && <span className="flight-duration-chip">{layoverDuration}</span>}
+                      </div>
+                      <p className="flight-layover-place">{layoverAirport || 'Da configurare'}{layoverIata ? ` · ${layoverIata.toUpperCase()}` : ''}</p>
+                      {layoverCarrier && <span className="flight-layover-meta">{layoverCarrier}</span>}
+                      {!isLayoverExpanded && (layoverArrivalDate || layoverArrivalTime || layoverDepartureDate || layoverDepartureTime) && (
+                        <div className="flight-layover-times">
+                          <span><small>Arrivo</small>{[layoverArrivalDate, layoverArrivalTime].filter(Boolean).join(' · ') || '—'}</span>
+                          <span><small>Ripartenza</small>{[layoverDepartureDate, layoverDepartureTime].filter(Boolean).join(' · ') || '—'}</span>
+                        </div>
+                      )}
                     </div>
                     {isLayoverExpanded ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
                   </button>
@@ -1262,7 +1276,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                       setLayoverNotes('');
                       setIsLayoverExpanded(false);
                     }}
-                    className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
+                    className="flight-layover-remove p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
                     title="Rimuovi scalo"
                     aria-label="Rimuovi scalo"
                   >
@@ -1463,7 +1477,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     : 'flight-action-empty'
                 }`}
               >
-                <span aria-hidden="true">🎫</span>
+                <Copy aria-hidden="true" className="flight-action-icon" />
                 <span>PNR{bookingCode.trim() ? ' · ✓' : ''}</span>
               </button>
 
@@ -1477,7 +1491,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     : 'flight-action-empty'
                 }`}
               >
-                <span aria-hidden="true">🧳</span>
+                <Luggage aria-hidden="true" className="flight-action-icon" />
                 <span>Bagagli{bagagli.trim() ? ' · ✓' : ''}</span>
               </button>
 
@@ -1491,7 +1505,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                     : 'flight-action-empty'
                 }`}
               >
-                <span aria-hidden="true">🎟️</span>
+                <Ticket aria-hidden="true" className="flight-action-icon" />
                 <span>Biglietti{attachments.length > 0 || ticketUrl.trim() ? ' · ✓' : ''}</span>
               </button>
             </div>
