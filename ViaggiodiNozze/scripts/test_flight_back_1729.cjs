@@ -105,7 +105,7 @@ async function run() {
   let browser;
   try {
     browser = await chromium.launch({
-      executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+      ...(process.env.CHROME_PATH ? { executablePath: process.env.CHROME_PATH } : process.platform === 'win32' ? { executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' } : {}),
       headless: true,
       timeout: 15000,
       args: ['--no-sandbox'],
@@ -125,14 +125,14 @@ async function run() {
           id: 'tr-direct',
           type: 'volo',
           carrier: 'Air China CA950',
-          bookingCode: 'PNR111',
+          bookingCode: 'PNR111 | Long synthetic reference with additional e-ticket details '.repeat(4),
           date: '2026-12-01',
           departureTime: '19:30',
           departureLocation: 'Roma Fiumicino',
           arrivalDate: '2026-12-02',
           arrivalTime: '12:45',
           arrivalLocation: 'Auckland',
-          terminalGate: 'T3 E12',
+          terminalGate: 'Partenza terminal 3 gate E12 | Arrivo terminal 1, informazioni di prova',
           checkinOpen: '24h prima',
           checkinCutoff: '17:30',
           posti: '14A, 14B',
@@ -166,6 +166,7 @@ async function run() {
             carrier: 'CA783',
             terminalGate: 'T3 E05',
             duration: '2h 15m',
+            notes: 'Nota scalo legacy',
           },
           status: 'prenotato',
           createdAt: 1,
@@ -174,7 +175,7 @@ async function run() {
       ],
     };
 
-    const ctx = await browser.newContext({ viewport: { width: 393, height: 852 } });
+    const ctx = await browser.newContext({ viewport: { width: 393, height: 852 }, serviceWorkers: 'block' });
     await ctx.addInitScript(({ tripId }) => {
       sessionStorage.setItem('hounigo_motion_splash_seen_v1', '1');
       sessionStorage.setItem('houni_dev_simulated_role', 'owner');
@@ -189,7 +190,7 @@ async function run() {
     }, { tripId: TRIP_ID });
 
     const page = await ctx.newPage();
-    await page.route('**/*firestore.googleapis.com*/**', (route) => route.abort());
+    await page.route('**/*', (route) => route.request().url().startsWith('http://127.0.0.1:5205/') ? route.continue() : route.abort());
     page.setDefaultTimeout(8000);
 
     await page.goto('http://127.0.0.1:5205/manifest.webmanifest', { waitUntil: 'domcontentloaded' });
@@ -207,6 +208,13 @@ async function run() {
     assert.equal(await page.getByTestId('flight-finance-always-open').isVisible(), true, 'Quadro economico sempre aperto');
     assert.ok((await page.getByTestId('toggle-flight-details').innerText()).includes('Posti: 14A, 14B'), 'Riepilogo dettagli volo collassati');
 
+    const carrierBox = await page.getByTestId('field-carrier').locator('input').boundingBox();
+    const selectorBox = await page.getByTestId('flight-subcategory-select').boundingBox();
+    assert.ok(Math.abs(carrierBox.y - selectorBox.y) < 3, 'Nome e mezzo sulla stessa riga mobile');
+    const actionBoxes = await Promise.all(['pnr','bagagli','tickets'].map(x => page.getByTestId('flight-action-'+x).boundingBox()));
+    assert.ok(actionBoxes.every(b => Math.abs(b.y - actionBoxes[0].y) < 2), 'Tre azioni sulla stessa riga');
+    assert.ok((await page.getByTestId('flight-action-pnr').innerText()).length < 20, 'PNR sintetico senza testo privato');
+    assert.equal(await page.getByTestId('field-terminalGate').locator('textarea').inputValue(), FIXTURES.trasporti[0].terminalGate);
     // Verifica gerarchia esatta 1..10 su Aereo
     const orderOk = await page.evaluate(() => {
       const ids = [
@@ -232,6 +240,7 @@ async function run() {
     const carrierInput = page.getByTestId('field-carrier').locator('input');
     await carrierInput.fill('Air China CA950 Mod');
     await page.getByTestId('flight-action-pnr').click();
+    assert.equal(await page.getByTestId('pnr-modal-input').inputValue(), FIXTURES.trasporti[0].bookingCode);
     await page.getByTestId('pnr-modal-input').fill('NEWPNR');
     await page.locator('button:has-text("Fatto")').last().click();
     assert.equal(await carrierInput.inputValue(), 'Air China CA950 Mod', 'Modifica carrier non persa dopo PNR modal');
@@ -254,6 +263,7 @@ async function run() {
     assert.equal(await layoverBox.locator('input[placeholder="Calcolata auto"]').inputValue(), '2h 15m', 'Durata scalo calcolata automaticamente');
     assert.equal(await layoverBox.locator('input[placeholder="Calcolata auto"]').getAttribute('readonly') !== null, true, 'Durata scalo non editabile manualmente');
 
+    await layoverBox.getByTestId('flight-layover-notes').fill('Nota scalo aggiornata');
     // Salva e verifica persistenza integrale in IndexedDB
     await page.locator('button:has-text("Aggiorna")').first().click();
     await page.waitForTimeout(400);
@@ -270,6 +280,8 @@ async function run() {
     assert.equal(savedDirect.layover?.iata, 'PEK');
     assert.equal(savedDirect.layover?.duration, '2h 15m');
     assert.equal(savedDirect.layover?.carrier, 'CA783');
+    assert.equal(savedDirect.layover?.notes, 'Nota scalo aggiornata');
+    assert.equal(savedDirect.terminalGate, FIXTURES.trasporti[0].terminalGate);
 
     // 2. Verifica responsive su tutti i 4 viewport (393x852, 744x1133, 1133x744, 1280x800) sul volo con scalo
     for (const vp of [
@@ -285,6 +297,8 @@ async function run() {
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
       assert.equal(overflow, false, `${vp.width}x${vp.height}: nessun overflow orizzontale sul retro Aereo`);
       assert.ok((await page.getByTestId('toggle-layover-summary').innerText()).includes('PEK'), `${vp.width}x${vp.height}: riepilogo scalo visibile`);
+      await page.getByTestId('toggle-layover-summary').click();
+      assert.equal(await page.getByTestId('flight-layover-notes').inputValue(), 'Nota scalo legacy');
       await page.locator('button:has-text("Annulla")').first().click();
       await page.waitForTimeout(150);
     }

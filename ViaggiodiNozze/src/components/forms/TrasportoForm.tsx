@@ -268,6 +268,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   const [layoverCarrier, setLayoverCarrier] = useState('');
   const [layoverTerminalGate, setLayoverTerminalGate] = useState('');
   const [layoverDuration, setLayoverDuration] = useState('');
+  const [layoverNotes, setLayoverNotes] = useState('');
 
   // Economico
   const [cost, setCost] = useState('');
@@ -360,6 +361,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setLayoverCarrier(initialData.layover?.carrier || '');
       setLayoverTerminalGate(initialData.layover?.terminalGate || '');
       setLayoverDuration(initialData.layover?.duration || '');
+      setLayoverNotes(initialData.layover?.notes || '');
       setIsLayoverExpanded(false);
 
       // Auto-risoluzione IATA/Fuso orario per voli esistenti solo se mancanti e univoci
@@ -428,6 +430,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setLayoverCarrier('');
       setLayoverTerminalGate('');
       setLayoverDuration('');
+      setLayoverNotes('');
       setIsLayoverExpanded(false);
       setCost('');
       setPackageIncluded(false);
@@ -500,6 +503,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             carrier: layoverCarrier.trim() || undefined,
             terminalGate: layoverTerminalGate.trim() || undefined,
             duration: layoverDuration.trim() || undefined,
+            notes: layoverNotes || undefined,
           }
         : undefined;
 
@@ -988,10 +992,10 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         )}
 
         {isFlight ? (
-          <div className="space-y-2.5" data-testid="flight-back-layout">
+          <div className="space-y-2 hounigo-flight-compact" data-testid="flight-back-layout">
             {/* 1. Compagnia e numero volo, con selettore sottocategoria accanto */}
-            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
-              <div className="sm:col-span-8" data-testid="field-carrier">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(6.2rem,0.42fr)] gap-2 items-end">
+              <div className="min-w-0" data-testid="field-carrier">
                 <label className={labelClass}>Compagnia e numero volo</label>
                 <input
                   type="text"
@@ -1001,7 +1005,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                   className={inputClass}
                 />
               </div>
-              <div className="sm:col-span-4">
+              <div className="min-w-0">
                 <label className={labelClass}>Mezzo</label>
                 <select
                   data-testid="flight-subcategory-select"
@@ -1020,8 +1024,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             </div>
 
             {/* 2. Partenza e arrivo, con date, orari e IATA */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
                     Partenza
@@ -1053,7 +1057,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                 />
               </div>
 
-              <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+              <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
                   <label className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
                     Arrivo
@@ -1087,17 +1091,18 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             {/* 3. Terminal / Gate */}
             <div data-testid="field-terminalGate">
               <label className={labelClass}>Terminal / Gate</label>
-              <input
-                type="text"
+              <textarea
+                rows={2}
+                aria-label="Terminal / Gate"
                 placeholder="es. T3, Gate E12"
                 value={terminalGate}
                 onChange={(e) => setTerminalGate(e.target.value)}
-                className={inputClass}
+                className={`${inputClass} h-auto min-h-[3rem] py-1.5 resize-y whitespace-pre-wrap break-words`}
               />
             </div>
 
             {/* 4. Quadro economico sempre aperto */}
-            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl" data-testid="flight-finance-always-open">
+            <div className="p-2 bg-slate-50 border border-slate-200 rounded-xl" data-testid="flight-finance-always-open">
               {renderEconomicBody()}
             </div>
 
@@ -1150,6 +1155,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                       setLayoverCarrier('');
                       setLayoverTerminalGate('');
                       setLayoverDuration('');
+                      setLayoverNotes('');
                       setIsLayoverExpanded(false);
                     }}
                     className="p-1 text-slate-400 hover:text-rose-500 transition-colors cursor-pointer"
@@ -1267,6 +1273,10 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                           className="w-full h-10 px-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm font-mono cursor-default"
                         />
                       </div>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Note dello scalo</label>
+                      <textarea rows={2} data-testid="flight-layover-notes" aria-label="Note dello scalo" value={layoverNotes} onChange={(e) => setLayoverNotes(e.target.value)} className="w-full p-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-sm resize-y" />
                     </div>
                   </div>
                 )}
@@ -1391,26 +1401,26 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             </div>
 
             {/* 9. Funzioni operative condivise con il fronte (PNR, Bagagli, Biglietti & Documenti) */}
-            <div className="flex flex-wrap items-center gap-2 pt-0.5" data-testid="flight-shared-actions">
+            <div className="grid grid-cols-3 gap-1.5 pt-0.5" data-testid="flight-shared-actions">
               <button
                 type="button"
                 data-testid="flight-action-pnr"
                 onClick={() => setIsPnrModalOpen(true)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 min-h-11 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
                   bookingCode.trim()
                     ? 'bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 <span aria-hidden="true">🎫</span>
-                <span>PNR{bookingCode.trim() ? `: ${bookingCode.trim()}` : ''}</span>
+                <span>PNR{bookingCode.trim() ? ' · ✓' : ''}</span>
               </button>
 
               <button
                 type="button"
                 data-testid="flight-action-bagagli"
                 onClick={() => setIsBagagliModalOpen(true)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 min-h-11 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
                   bagagli.trim()
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -1424,14 +1434,14 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                 type="button"
                 data-testid="flight-action-tickets"
                 onClick={() => setIsTicketsModalOpen(true)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition-colors cursor-pointer ${
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 min-h-11 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
                   attachments.length > 0 || ticketUrl.trim()
                     ? 'bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                 }`}
               >
                 <span aria-hidden="true">🎟️</span>
-                <span>Biglietti / PDF{attachments.length > 0 ? ` (${attachments.length})` : ''}</span>
+                <span>Biglietti{attachments.length > 0 || ticketUrl.trim() ? ' · ✓' : ''}</span>
               </button>
             </div>
 
@@ -1774,13 +1784,14 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
           <div className="space-y-3">
             <div>
               <label className={labelClass}>Codice PNR / Riferimento</label>
-              <input
-                type="text"
+              <textarea
+                rows={5}
+                aria-label="Codice PNR / Riferimento"
                 data-testid="pnr-modal-input"
                 placeholder="es. ABC123"
                 value={bookingCode}
-                onChange={(e) => setBookingCode(e.target.value.toUpperCase())}
-                className={`${inputClass} font-mono font-bold tracking-wider`}
+                onChange={(e) => setBookingCode(e.target.value)}
+                className={`${inputClass} h-auto py-2 resize-y whitespace-pre-wrap break-words font-mono`}
               />
             </div>
             <div className="flex items-center justify-end gap-2">

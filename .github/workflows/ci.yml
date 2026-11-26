@@ -88,3 +88,7 @@ jobs:
           TRANSPORT_TEST_WIDTH: '393'
           TRANSPORT_TEST_HEIGHT: '852'
         run: node scripts/test_transport_form_subcategories.cjs
+
+      - name: Test - Retro Aereo compatto e note scalo
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_flight_back_1729.cjs

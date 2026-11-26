@@ -1808,3 +1808,25 @@ input[type="date"]::-webkit-date-and-time-value {
 }
 
 
+
+/* 1.7.31 — densità retro Aereo, senza modificare safe area o viewport. */
+.modal-sheet-container:has(> .modal-sheet-body [data-testid="flight-back-layout"]) > .modal-sheet-header {
+  padding: 0.45rem 1rem !important;
+}
+.modal-sheet-container:has(> .modal-sheet-body [data-testid="flight-back-layout"]) > .modal-sheet-body {
+  padding: 0.65rem 0.85rem max(1rem, var(--app-safe-bottom)) !important;
+}
+.hounigo-flight-compact [data-testid="flight-finance-always-open"] input:not([type="checkbox"]),
+.hounigo-flight-compact [data-testid="flight-finance-always-open"] select {
+  padding-inline: 0.4rem;
+  min-width: 0;
+}
+.hounigo-flight-compact [data-testid="flight-finance-always-open"] select { max-width: 4.2rem; }
+.hounigo-flight-compact [data-testid="flight-subcategory-select"] { padding-inline: 0.4rem; }
+.hounigo-flight-compact [data-testid="field-terminalGate"] textarea { height: auto; min-height: 3rem; }
+.hounigo-flight-compact [data-testid="flight-shared-actions"] button { min-width: 0; }
+@media (max-width: 639px) {
+  .hounigo-flight-compact input:not([type="checkbox"]), .hounigo-flight-compact select, .hounigo-flight-compact textarea { font-size: 16px; }
+  .hounigo-flight-compact input[type="date"] { padding-inline: 0.5rem; }
+  .hounigo-flight-compact [data-testid="flight-finance-always-open"] select { font-size: 12px; }
+}
