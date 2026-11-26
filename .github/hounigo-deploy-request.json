@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-26T12:38:44Z",
+  "requestedAt": "2026-11-26T12:50:11Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.33-flight-section-hierarchy-20261126",
+  "requestId": "release-1.7.34-flight-compact-zones-20261126",
   "requestedBy": "CASABR",
-  "ref": "9873c783febdc9a4f900b3b67b7a417bb61f4c40",
+  "ref": "e53cf4857e2ade08e3554087631fe70640dbe284",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.33: gerarchia visiva retro Aereo, CI push e PR superate."
+  "note": "HOUNIGO 1.7.34: note collassate, dettagli compatti e fusi automatici, CI push e PR superate."
 }
