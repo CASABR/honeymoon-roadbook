@@ -1,10 +1,10 @@
-﻿{
-    "requestedAt":  "2026-11-26T10:57:03.000Z",
-    "action":  "deploy",
-    "confirm":  "CONFERMA",
-    "requestId":  "release-1.7.30-flight-hierarchy-20261126",
-    "requestedBy":  "CASABR",
-    "ref":  "main",
-    "$schema":  "./hounigo-deploy-request.schema.json",
-    "note":  "HOUNIGO 1.7.30: riorganizzazione gerarchica esclusiva retro card Aereo."
+{
+  "requestedAt": "2026-11-26T11:14:00Z",
+  "action": "deploy",
+  "confirm": "CONFERMA",
+  "requestId": "release-1.7.31-flight-compact-20261126",
+  "requestedBy": "CASABR",
+  "ref": "1d475e33231e531af3c03d5ac7a47e513a1fb80b",
+  "$schema": "./hounigo-deploy-request.schema.json",
+  "note": "HOUNIGO 1.7.31: retro Aereo compatto; CI push e PR superate."
 }
