@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-26T13:06:44Z",
+  "requestedAt": "2026-11-26T13:17:57Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.35-auto-airports-ipad-20261126",
+  "requestId": "release-1.7.36-train-compact-20261126",
   "requestedBy": "CASABR",
-  "ref": "9a4aef645f9a9390c51aa952df2b2156a548d3bd",
+  "ref": "de099abf40d7ea7765e454868c61f2aed20c3a84",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.35: dati aeroportuali automatici, scalo distinto e iPad mobile a una colonna, CI push e PR superate."
+  "note": "HOUNIGO 1.7.36: retro Treno compatto, carrozza e posti separati, CI push e PR superate."
 }
