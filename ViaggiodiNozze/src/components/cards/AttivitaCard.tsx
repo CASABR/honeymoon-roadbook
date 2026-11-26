@@ -606,12 +606,12 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-                className="hounigo-ds-action-btn hidden md:inline-flex"
+                className="hounigo-ds-action-btn hounigo-ds-duplicate-icon hidden md:inline-flex"
                 title="Duplica questa attività"
                 aria-label="Duplica attività"
               >
                 <span aria-hidden="true">📄</span>
-                <span className="hounigo-ds-btn-text">Duplica</span>
+                
               </button>
             )}
 

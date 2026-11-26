@@ -2113,3 +2113,10 @@ html.dark .flight-front-spec-icon { color:#7dd3fc; }
 @container flight-front (max-width:299px) {
   .hounigo-ds-card[data-transport-type="volo"] .flight-front-spec-grid:has(> :nth-child(2)) { grid-template-columns:minmax(0,1fr); }
 }
+
+/* Front clone action: icon only, desktop workspace only (not viewport alone). */
+.hounigo-ds-card .hounigo-ds-duplicate-icon { display:none !important; }
+@media (min-width:768px) {
+  .hounigo-ds-card .hounigo-ds-duplicate-icon { display:inline-flex !important; min-width:2rem; }
+  .app-forced-mobile .hounigo-ds-card .hounigo-ds-duplicate-icon { display:none !important; }
+}

@@ -429,12 +429,12 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-              className="hounigo-ds-action-btn hidden md:inline-flex"
+              className="hounigo-ds-action-btn hounigo-ds-duplicate-icon hidden md:inline-flex"
               title="Duplica questo alloggio"
               aria-label="Duplica alloggio"
             >
               <span aria-hidden="true">📄</span>
-              <span className="hounigo-ds-btn-text">Duplica</span>
+              
             </button>
           )}
 

@@ -221,12 +221,12 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-              className="hounigo-ds-action-btn hidden md:inline-flex"
+              className="hounigo-ds-action-btn hounigo-ds-duplicate-icon hidden md:inline-flex"
               title="Duplica questo ristorante"
               aria-label="Duplica ristorante"
             >
               <span aria-hidden="true">📄</span>
-              <span className="hounigo-ds-btn-text">Duplica</span>
+              
             </button>
           )}
           {mapTarget && (
