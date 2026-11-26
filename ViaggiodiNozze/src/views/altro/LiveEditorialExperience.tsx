@@ -905,9 +905,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
       {/* B. TAB MAPPA (Mappa protagonista + Trasporti accessibili + Controlli GPS) */}
       {activeTab === 'mappa' && (
-        <div className="mt-3 flex-1 space-y-4">
-          <LiveNextTransportCard item={props.nextImportantTransport} items={props.upcomingTransports} />
-          <div className="min-w-0">
+        <div className="mt-3 flex-1 space-y-4 lg:grid lg:grid-cols-12 lg:gap-4 lg:space-y-0 lg:items-start xl:block xl:space-y-4">
+          <div className="min-w-0 lg:col-span-7">
             <section id="live-position" data-testid="live-section-position" aria-labelledby="live-position-title" className="scroll-mt-20 md:scroll-mt-4">
               <div className="mb-2 flex items-end justify-between gap-2">
                 <div>
@@ -925,7 +924,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               </div>
 
               {props.tileGrid && !props.tileLoadFailed && (hasRealLocation || hasPlannedLocation) ? (
-                <div className="relative min-h-[300px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[420px] lg:min-h-[460px]">
+                <div className="relative min-h-[300px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[420px] lg:min-h-[340px] lg:h-[calc(100dvh-16rem)] lg:max-h-[430px] xl:h-auto xl:min-h-[460px] xl:max-h-none">
                   {!props.isExternal && (hasRealLocation || hasPlannedLocation) && (
                     <div className="absolute left-3 right-3 top-3 z-20 grid grid-cols-3 gap-1 rounded-full bg-[#172033]/90 p-1 text-[10px] font-bold text-white backdrop-blur" role="group" aria-label="Centra mappa">
                       {(['both', 'real', 'planned'] as const).map(mode => (
@@ -1065,7 +1064,13 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 </div>
               )}
 
-              <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5">
+              <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5 xl:hidden">
+              </div>
+            </section>
+          </div>
+          <div className="min-w-0 lg:col-span-5 space-y-2.5">
+            <LiveNextTransportCard item={props.nextImportantTransport} items={props.upcomingTransports} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5">
                 <div className={`border-l-3 pl-3 py-0.5 rounded-r-xl transition ${isFreshGps ? 'border-[#FF6B5F] bg-[#FFF0ED]/20 dark:bg-slate-900/40' : isStaleGps ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/10' : 'border-slate-300 dark:border-slate-700'}`}>
                   <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     {isFreshGps ? 'Posizione attuale (GPS Live)' : isStaleGps ? 'Ultima posizione conosciuta' : 'Posizione reale'}
@@ -1089,8 +1094,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   <p className="mt-0.5 text-sm font-extrabold text-[#172033] dark:text-white">{plannedLocation?.title || 'Nessuna tappa ora'}</p>
                   <p className="mt-0.5 text-xs text-slate-500">{plannedLocation?.coords ? 'Da itinerario · fuso locale' : 'Nessuna coordinata'}</p>
                 </div>
-              </div>
-            </section>
+            </div>
           </div>
         </div>
       )}

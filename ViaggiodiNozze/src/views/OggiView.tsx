@@ -116,7 +116,16 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   });
 
   const [tripDays, setTripDays] = useState<TripDayItem[]>(() => generateTripDays());
+  const selectedDateStorageKey = `hounigo_oggi_selected_date_${tripConfig?.id || '0000'}`;
   const [selectedDate, setSelectedDate] = useState<string>(() => {
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        const saved = sessionStorage.getItem(`hounigo_oggi_selected_date_${tripConfig?.id || '0000'}`);
+        if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) return saved;
+      }
+    } catch {
+      // ignore storage errors
+    }
     return getDefaultSelectedDate(tripConfig?.startDate, tripConfig?.endDate, tripConfig?.id);
   });
   const selectedDateRef = useRef(selectedDate);
@@ -136,8 +145,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const hasAutoFocusedOnOpenRef = useRef(false);
   const selectDateManually = useCallback((nextDate: string) => {
     hasUserSelectedDateRef.current = true;
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(selectedDateStorageKey, nextDate);
+      }
+    } catch {
+      // ignore storage errors
+    }
     setSelectedDate(nextDate);
-  }, []);
+  }, [selectedDateStorageKey]);
 
   bumpUiDebugCounter('oggiRenders');
   useEffect(() => {
@@ -1309,7 +1325,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       )}
 
       {/* ─── LIVELLO 1: MASTHEAD EDITORIALE CARTOGRAFICO & FOCUS IMMEDIATO ─── */}
-      <div className="hidden lg:flex sticky top-0 z-40 items-center justify-between gap-4 rounded-2xl border border-slate-200/90 dark:border-slate-700 bg-white/95 dark:bg-[#172033]/95 px-4 py-2.5 shadow-sm backdrop-blur">
+      <div className="hidden lg:flex sticky top-0 z-40 items-center justify-between gap-4 rounded-2xl border border-slate-200/90 dark:border-slate-700 bg-white/95 dark:bg-[#172033]/95 px-4 py-2 xl:py-2.5 shadow-sm backdrop-blur">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[#FF6B5F]">
             <span>{currentDayMeta?.dayNum ? `Giorno ${currentDayMeta.dayNum}` : 'Pre-viaggio'}</span>
@@ -2195,8 +2211,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
               {/* TIMELINE CRONOLOGICA DEGLI EVENTI DI GIORNATA */}
               {visibleCards.length > 0 && (
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-2 px-1 pt-1 pb-1">
+                <div className="space-y-2.5 hounigo-ipad-landscape-timeline">
+                  <div className="hounigo-ipad-landscape-span-full flex items-center justify-between gap-2 px-1 pt-1 pb-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
                       <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
@@ -2238,7 +2254,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         id={`timeline-card-${item.id}`}
                         ref={(el) => { timelineItemRefs.current[item.id] = el; }}
                         data-active-card={isActiveNow ? 'true' : undefined}
-                        className={`hounigo-timeline-item transition-colors duration-200 ${highlightedCardId === item.id ? 'hounigo-card-highlighted' : ''}`}
+                        className={`hounigo-timeline-item transition-colors duration-200 ${(isCheckinCallout || (isTransport && item.id.endsWith('_arrival'))) ? 'hounigo-ipad-landscape-span-full' : ''} ${highlightedCardId === item.id ? 'hounigo-card-highlighted' : ''}`}
                         style={{ animationDelay: `${Math.min(idx * 28, 168)}ms` }}
                       >
                         {isActiveNow && (

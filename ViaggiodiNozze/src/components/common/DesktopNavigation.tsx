@@ -175,7 +175,7 @@ export default function DesktopNavigation({
     <aside className="app-desktop-navigation w-full h-[100dvh] sticky top-0 flex flex-col justify-between overflow-x-hidden overflow-y-hidden bg-[#fffdfa] dark:bg-slate-900 border-r border-[#e5e3dd] dark:border-slate-800 shadow-[4px_0_24px_rgba(23,32,51,0.035)] select-none">
       
       {/* ─── LOGO & TRIP INFO ─────────────────────────────────────────── */}
-      <div className="px-3 pt-3 pb-1.5 space-y-2 xl:px-4 xl:pt-4 xl:pb-2 xl:space-y-3 shrink-0">
+      <div className="px-3 pt-2.5 pb-1 space-y-1.5 xl:px-4 xl:pt-4 xl:pb-2 xl:space-y-3 shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="dark:hidden">
@@ -263,7 +263,7 @@ export default function DesktopNavigation({
                 key={item.id}
                 type="button"
                 onClick={() => onSelectSection(item.id)}
-                className={`w-full flex items-center justify-between px-2.5 py-2 xl:px-3 xl:py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer text-left min-w-0 ${
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 xl:px-3 xl:py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer text-left min-w-0 ${
                   isActive
                     ? item.isPrimary
                       ? 'bg-[#FF6B5F] text-white shadow-md shadow-[#FF6B5F]/20'

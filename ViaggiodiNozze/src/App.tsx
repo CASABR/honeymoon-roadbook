@@ -664,6 +664,54 @@ export default function App() {
   };
 
   const mainScrollContainerRef = useRef<HTMLDivElement>(null);
+  const isForcedMobileViewRef = useRef(false);
+  const lastScrollSnapshotRef = useRef<{ isDesktopScroll: boolean; top: number }>({
+    isDesktopScroll: typeof window !== 'undefined' ? window.innerWidth >= 768 : false,
+    top: 0,
+  });
+
+  // Preserva la posizione di scorrimento durante la rotazione (es. iPad mini 744x1133 <-> 1133x744)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const recordScroll = () => {
+      const isDesktopScroll = !isForcedMobileViewRef.current && window.innerWidth >= 768;
+      const top = isDesktopScroll
+        ? (mainScrollContainerRef.current?.scrollTop ?? 0)
+        : (window.scrollY || window.pageYOffset || 0);
+      lastScrollSnapshotRef.current = { isDesktopScroll, top };
+    };
+
+    const handleResizeOrOrientation = () => {
+      const prev = lastScrollSnapshotRef.current;
+      const nextIsDesktopScroll = !isForcedMobileViewRef.current && window.innerWidth >= 768;
+      if (prev.isDesktopScroll !== nextIsDesktopScroll && prev.top > 0) {
+        const targetTop = prev.top;
+        window.requestAnimationFrame(() => {
+          if (nextIsDesktopScroll && mainScrollContainerRef.current) {
+            mainScrollContainerRef.current.scrollTop = targetTop;
+          } else if (!nextIsDesktopScroll) {
+            window.scrollTo(0, targetTop);
+          }
+          lastScrollSnapshotRef.current = { isDesktopScroll: nextIsDesktopScroll, top: targetTop };
+        });
+      } else {
+        recordScroll();
+      }
+    };
+
+    const container = mainScrollContainerRef.current;
+    window.addEventListener('scroll', recordScroll, { passive: true });
+    container?.addEventListener('scroll', recordScroll, { passive: true });
+    window.addEventListener('resize', handleResizeOrOrientation);
+    window.addEventListener('orientationchange', handleResizeOrOrientation);
+    return () => {
+      window.removeEventListener('scroll', recordScroll);
+      container?.removeEventListener('scroll', recordScroll);
+      window.removeEventListener('resize', handleResizeOrOrientation);
+      window.removeEventListener('orientationchange', handleResizeOrOrientation);
+    };
+  }, []);
+
   const mainSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleMainSwipeStart = (event: ReactTouchEvent<HTMLElement>) => {
@@ -837,6 +885,7 @@ export default function App() {
   };
 
   const isForcedMobileView = viewMode === 'mobile';
+  isForcedMobileViewRef.current = isForcedMobileView;
 
   return (
     <div className="app-safe-shell flex flex-col min-h-screen overflow-x-clip">
@@ -879,7 +928,7 @@ export default function App() {
 
       {/* ─── DESKTOP SIDEBAR NAVIGATION (Schermi md+ e solo se non in vista mobile forzata) ─── */}
       {!isForcedMobileView && (
-        <div className="hidden md:block shrink-0 w-64 xl:w-80">
+        <div className="hidden md:block shrink-0 w-60 xl:w-80">
           <DesktopNavigation
             currentSection={desktopSection}
             onSelectSection={handleSelectDesktopSection}
@@ -933,7 +982,7 @@ export default function App() {
 
         {/* Workspace Body */}
         <main
-          className={`app-workspace flex-1 px-3 sm:px-6 md:px-8 py-3 md:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : 'max-w-7xl w-full mx-auto pb-24 md:pb-12'}`}
+          className={`app-workspace flex-1 px-3 sm:px-6 md:px-6 xl:px-8 py-3 md:py-4 xl:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : 'max-w-7xl w-full mx-auto pb-24 md:pb-10 xl:pb-12'}`}
           onTouchStart={handleMainSwipeStart}
           onTouchEnd={handleMainSwipeEnd}
           onTouchCancel={() => { mainSwipeStartRef.current = null; }}
