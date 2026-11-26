@@ -1937,3 +1937,12 @@ html.dark .hounigo-flight-compact { --flight-layover-bg: #322740; --flight-layov
 .hounigo-train-compact #train-notes-content:not([hidden]) { padding-bottom: 0.35rem; }
 .hounigo-train-compact .train-seat-grid textarea { padding-inline: 0.45rem; }
 @media (max-width:639px) and (min-height:641px) { .modal-backdrop-layer:not([data-visual-viewport="active"]) > .modal-sheet-container:has(> .modal-sheet-body [data-testid="train-back-layout"]) { height:100% !important; max-height:calc(100% - 0.5rem) !important; } }
+
+/* 1.7.37 — shared compact layout for the six remaining transport types. */
+.modal-sheet-container:has(> .modal-sheet-body [data-testid="transport-back-layout"]) > .modal-sheet-header { padding: 0.45rem 1rem !important; }
+.modal-sheet-container:has(> .modal-sheet-body [data-testid="transport-back-layout"]) > .modal-sheet-body { padding: 0.65rem 0.85rem max(1rem, var(--app-safe-bottom)) !important; }
+.hounigo-generic-transport-compact [data-testid="transport-finance-always-open"] input:not([type=checkbox]), .hounigo-generic-transport-compact [data-testid="transport-finance-always-open"] select { padding-inline: 0.4rem; min-width: 0; }
+.hounigo-generic-transport-compact [data-testid="transport-finance-always-open"] select { max-width: 4.2rem; }
+.hounigo-generic-transport-compact #transport-notes-content:not([hidden]) { padding-bottom: 0.35rem; }
+.hounigo-generic-transport-compact .generic-operational-grid > * { min-width: 0; }
+@media (max-width:639px) and (min-height:641px) { .modal-backdrop-layer:not([data-visual-viewport="active"]) > .modal-sheet-container:has(> .modal-sheet-body [data-testid="transport-back-layout"]) { height:100% !important; max-height:calc(100% - 0.5rem) !important; } }

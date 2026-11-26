@@ -173,7 +173,7 @@ const SUBCATEGORY_OPTIONS: SubcategoryUiConfig[] = [
     checkinPlaceholder: 'es. 10 min prima',
     postiLabel: 'Posto',
     postiPlaceholder: 'es. Posto libero / 8A',
-    primaryFields: ['bookingCode', 'terminalGate', 'bagagli'],
+    primaryFields: ['bookingCode', 'terminalGate', 'posti', 'bagagli'],
   },
   {
     id: 'taxi',
@@ -211,7 +211,7 @@ const SUBCATEGORY_OPTIONS: SubcategoryUiConfig[] = [
     checkinPlaceholder: 'es. Ogni 5 min',
     postiLabel: 'Carrozza',
     postiPlaceholder: 'es. Testa treno',
-    primaryFields: [],
+    primaryFields: ['terminalGate'],
   },
 ];
 
@@ -331,10 +331,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   const [copilota, setCopilota] = useState(false);
 
   // Sezioni espandibili (altre sottocategorie)
-  const [isTimeZoneOpen, setIsTimeZoneOpen] = useState(false);
   const [isSecondaryOpen, setIsSecondaryOpen] = useState(false);
-  const [isFinanceOpen, setIsFinanceOpen] = useState(false);
-  const [isDocsOpen, setIsDocsOpen] = useState(false);
 
   // Sezioni & modali dedicati Aereo
   const [isFlightDetailsOpen, setIsFlightDetailsOpen] = useState(false);
@@ -402,10 +399,10 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setAssicurazione(initialData.assicurazione || '');
       setCauzione(initialData.cauzione || '');
 
-      const hasExistingLayover = Boolean(initialData.layover?.airport);
+      const hasExistingLayover = Boolean(initialData.layover && (initialData.type === 'volo' || initialData.type === 'treno' ? initialData.layover.airport : Object.values(initialData.layover).some(Boolean)));
       setHasLayover(hasExistingLayover);
       setLayoverAirport(initialData.layover?.airport || '');
-      const existingLayoverIata = initialData.layover?.iata || resolveAirportIataAndTimeZone(initialData.layover?.airport).iata || '';
+      const existingLayoverIata = initialData.layover?.iata || (initialData.type === 'volo' ? resolveAirportIataAndTimeZone(initialData.layover?.airport).iata : '') || '';
       setLayoverIata(existingLayoverIata);
       setLayoverArrivalDate(initialData.layover?.arrivalDate || initialData.date || '');
       setLayoverArrivalTime(initialData.layover?.arrivalTime || '');
@@ -448,10 +445,6 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         .join('\n\n');
       setNoteCopilota(existingNotes);
       setCopilota(Boolean(existingNotes.trim()) || initialData.copilota || false);
-
-      setIsTimeZoneOpen(Boolean(initialData.departureTimeZone?.trim() || initialData.dropoffTimeZone?.trim()));
-      setIsFinanceOpen(false);
-      setIsDocsOpen(Boolean(tUrl.trim() || existingNotes.trim()));
       setIsSecondaryOpen(false);
       setIsFlightDetailsOpen(false);
       setIsFlightAdvancedOpen(false);
@@ -496,9 +489,6 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setAttachments([]);
       setNoteCopilota('');
       setCopilota(false);
-      setIsTimeZoneOpen(false);
-      setIsFinanceOpen(false);
-      setIsDocsOpen(false);
       setIsSecondaryOpen(false);
       setIsFlightDetailsOpen(false);
       setIsFlightAdvancedOpen(false);
@@ -548,7 +538,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     const { cost: normCost, depositPaid: normDep, acconto: normAcc, ...normMeta } = normalizedMoney;
 
     const preservedLayover =
-      hasLayover && layoverAirport.trim()
+      hasLayover && (layoverAirport.trim() || (!isFlight && !isTrain && Boolean(initialData?.layover)))
         ? {
             ...(initialData?.layover || {}),
             airport: layoverAirport.trim(),
@@ -572,7 +562,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
 
       date: parsedDepDate,
       departureTime: parsedDepTime || undefined,
-      departureTimeZone: departureTimeZone.trim() || (isFlight ? resolveFlightZone(departureIata, departureLocation) : isTrain ? resolveUnambiguousPlaceTimeZone(departureLocation) || undefined : undefined),
+      departureTimeZone: departureTimeZone.trim() || (isFlight ? resolveFlightZone(departureIata, departureLocation) : resolveUnambiguousPlaceTimeZone(departureLocation) || undefined),
       departureLocation: departureLocation.trim(),
       departureIata: departureIata.trim() || (isFlight ? resolveAirportIataAndTimeZone(departureLocation).iata : undefined),
       arrivalIata: arrivalIata.trim() || (isFlight ? resolveAirportIataAndTimeZone(arrivalLocation).iata : undefined),
@@ -608,7 +598,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         dropoffLocation: arrivalLocation.trim() || undefined,
         dropoffDate: parsedArrDate || undefined,
         dropoffTime: parsedArrTime || undefined,
-        dropoffTimeZone: dropoffTimeZone.trim() || undefined,
+        dropoffTimeZone: dropoffTimeZone.trim() || resolveUnambiguousPlaceTimeZone(arrivalLocation) || undefined,
       });
     } else {
       onSave({
@@ -616,7 +606,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         arrivalLocation: arrivalLocation.trim() || departureLocation.trim(),
         arrivalDate: parsedArrDate || parsedDepDate || undefined,
         arrivalTime: parsedArrTime || undefined,
-        dropoffTimeZone: dropoffTimeZone.trim() || (isFlight ? resolveFlightZone(arrivalIata, arrivalLocation) : isTrain ? resolveUnambiguousPlaceTimeZone(arrivalLocation) || undefined : undefined),
+        dropoffTimeZone: dropoffTimeZone.trim() || (isFlight ? resolveFlightZone(arrivalIata, arrivalLocation) : resolveUnambiguousPlaceTimeZone(arrivalLocation) || undefined),
       });
     }
   };
@@ -656,21 +646,6 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
 
   // Visibile nel corpo principale se è primario per la sottocategoria OPPURE se è già compilato (anche se atipico)
   const isVisibleField = (field: OperationalFieldKey) => isPrimaryField(field) || hasValue(field);
-
-  const secondaryFields: OperationalFieldKey[] = (
-    ['bookingCode', 'terminalGate', 'checkinCutoff', 'posti', 'bagagli', 'veicolo', 'assicurazione', 'cauzione', 'layover'] as OperationalFieldKey[]
-  ).filter((f) => !isVisibleField(f));
-
-  const financeSummary = packageIncluded
-    ? 'Incluso nel pacchetto'
-    : cost.trim()
-      ? `${cost.trim()} · ${isSaldato ? 'Saldato' : 'Da saldare'}`
-      : 'Non impostato';
-
-  const docsSummaryParts: string[] = [];
-  if (ticketUrl.trim()) docsSummaryParts.push('Link allegato');
-  if (noteCopilota.trim()) docsSummaryParts.push('Note presenti');
-  const docsSummary = docsSummaryParts.length > 0 ? docsSummaryParts.join(' · ') : 'Facoltativo';
 
   const renderOperationalField = (field: OperationalFieldKey) => {
     switch (field) {
@@ -817,11 +792,14 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     }
   };
 
-  const visibleGridFields: OperationalFieldKey[] = (
-    ['terminalGate', 'checkinCutoff', 'posti', 'bagagli', 'veicolo', 'assicurazione', 'cauzione', 'layover'] as OperationalFieldKey[]
-  ).filter((f) => isVisibleField(f));
-
-  const showIataFields = isFlight || Boolean(departureIata.trim() || arrivalIata.trim());
+  const genericMainFields: OperationalFieldKey[] = (['terminalGate', 'checkinCutoff', 'posti', 'veicolo', 'assicurazione', 'cauzione'] as OperationalFieldKey[]).filter(isVisibleField);
+  const genericExtraFields: OperationalFieldKey[] = (['terminalGate', 'checkinCutoff', 'posti', 'veicolo', 'assicurazione', 'cauzione'] as OperationalFieldKey[]).filter(field => !genericMainFields.includes(field));
+  const genericDepZone = resolveUnambiguousPlaceTimeZone(departureLocation);
+  const genericArrZone = resolveUnambiguousPlaceTimeZone(arrivalLocation);
+  const genericZoneReview = Boolean(
+    (departureLocation.trim() && (!isValidIanaTimeZone(departureTimeZone.trim() || genericDepZone) || (genericDepZone && departureTimeZone && genericDepZone !== departureTimeZone))) ||
+    (arrivalLocation.trim() && (!isValidIanaTimeZone(dropoffTimeZone.trim() || genericArrZone) || (genericArrZone && dropoffTimeZone && genericArrZone !== dropoffTimeZone)))
+  );
 
   const handleDepartureAirportBlur = () => {
     if (!isFlight) return;
@@ -1036,30 +1014,6 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         {error && (
           <div className="p-2.5 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
             {error}
-          </div>
-        )}
-
-        {/* 1. Sottocategoria (pillole per le altre 7 sottocategorie; su Aereo è compatta accanto a Compagnia) */}
-        {!isFlight && !isTrain && (
-          <div>
-            <label className={labelClass}>Sottocategoria</label>
-            <div className="flex flex-wrap gap-1.5">
-              {SUBCATEGORY_OPTIONS.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  data-testid={`transport-subcategory-${cat.id}`}
-                  onClick={() => setType(cat.id)}
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all border ${
-                    type === cat.id
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
-                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  {cat.pillLabel}
-                </button>
-              ))}
-            </div>
           </div>
         )}
 
@@ -1891,309 +1845,187 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             </div>
           </div>
         ) : (
-          <>
-        {/* 2. Identità del mezzo (Compagnia + Codice se primario o compilato) */}
-        <div className={`grid grid-cols-1 ${isVisibleField('bookingCode') ? 'sm:grid-cols-2' : ''} gap-2.5`}>
-          <div data-testid="field-carrier">
-            <label className={labelClass}>{cfg.carrierLabel}</label>
-            <input
-              type="text"
-              placeholder={cfg.carrierPlaceholder}
-              value={carrier}
-              onChange={(e) => setCarrier(e.target.value)}
-              className={inputClass}
-            />
-          </div>
-          {isVisibleField('bookingCode') && renderOperationalField('bookingCode')}
-        </div>
-
-        {/* 3. Partenza / Ritiro & Arrivo / Riconsegna */}
-        <div className="grid grid-cols-1 gap-2.5">
-          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-            <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-              {cfg.departureLabel}
-            </label>
-            <div className={`grid grid-cols-1 ${showIataFields ? 'sm:grid-cols-12' : ''} gap-2`}>
-              <div className={showIataFields ? 'sm:col-span-8' : ''}>
+          <div className="space-y-2 hounigo-flight-compact hounigo-generic-transport-compact" data-testid="transport-back-layout">
+            {/* 1. Operatore / N. treno, con selettore sottocategoria accanto */}
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(6.2rem,0.42fr)] gap-2 items-end">
+              <div className="min-w-0" data-testid="field-carrier">
+                <label className={labelClass}>{cfg.carrierLabel}</label>
                 <input
                   type="text"
-                  placeholder={cfg.departurePlaceholder}
-                  value={departureLocation}
-                  onChange={(e) => setDepartureLocation(e.target.value)}
-                  className={whiteInputClass}
-                  required
+                  placeholder={cfg.carrierPlaceholder}
+                  value={carrier}
+                  onChange={(e) => setCarrier(e.target.value)}
+                  className={inputClass}
                 />
               </div>
-              {showIataFields && (
-                <div className="sm:col-span-4" data-testid="field-departureIata">
-                  <input
-                    type="text"
-                    placeholder="IATA (es. FCO)"
-                    value={departureIata}
-                    onChange={(e) => setDepartureIata(e.target.value)}
-                    className={whiteInputClass}
-                  />
-                </div>
-              )}
-            </div>
-            <DateTimePickerInput
-              value={departureDate}
-              onChange={setDepartureDate}
-              required
-              dateLabel={isRental ? 'Data ritiro' : 'Data partenza'}
-              timeLabel={isRental ? 'Orario ritiro' : 'Orario partenza'}
-            />
-          </div>
-
-          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-            <label className="block text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-              {cfg.arrivalLabel}
-            </label>
-            <div className={`grid grid-cols-1 ${showIataFields ? 'sm:grid-cols-12' : ''} gap-2`}>
-              <div className={showIataFields ? 'sm:col-span-8' : ''}>
-                <input
-                  type="text"
-                  placeholder={cfg.arrivalPlaceholder}
-                  value={arrivalLocation}
-                  onChange={(e) => setArrivalLocation(e.target.value)}
-                  className={whiteInputClass}
-                />
+              <div className="min-w-0">
+                <label className={labelClass}>Mezzo</label>
+                <select
+                  data-testid="transport-subcategory-select"
+                  aria-label="Sottocategoria trasporto"
+                  value={type}
+                  onChange={(e) => setType(e.target.value as TipoTrasporto)}
+                  className={inputClass}
+                >
+                  {SUBCATEGORY_OPTIONS.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.pillLabel}
+                    </option>
+                  ))}
+                </select>
               </div>
-              {showIataFields && (
-                <div className="sm:col-span-4" data-testid="field-arrivalIata">
-                  <input
-                    type="text"
-                    placeholder="IATA (es. AKL)"
-                    value={arrivalIata}
-                    onChange={(e) => setArrivalIata(e.target.value)}
-                    className={whiteInputClass}
-                  />
+            </div>
+
+
+            <section className="flight-section flight-section-itinerary space-y-1.5" data-testid="transport-itinerary-section">
+              <h3 className="flight-section-title"><Route aria-hidden="true" className="flight-section-icon" /> {isRental ? 'Ritiro e riconsegna' : 'Itinerario'}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5"><div className="p-1.5 rounded-xl space-y-1 flight-airport-block">
+                  <label className={labelClass}>{cfg.departureLabel}</label>
+                  <input type="text" aria-label={cfg.departureLabel} placeholder={cfg.departurePlaceholder} value={departureLocation} onFocus={() => { departureAirportBeforeEdit.current = departureLocation; }} onChange={e => setDepartureLocation(e.target.value)} onBlur={() => {
+                    const previous = resolveUnambiguousPlaceTimeZone(departureAirportBeforeEdit.current);
+                    const next = resolveUnambiguousPlaceTimeZone(departureLocation);
+                    if (!departureTimeZone.trim() || (departureTimeZone === previous && departureAirportBeforeEdit.current !== departureLocation)) setDepartureTimeZone(next || '');
+                  }} className={whiteInputClass} required />
+                  <DateTimePickerInput value={departureDate} onChange={setDepartureDate} required dateLabel={isRental ? 'Data ritiro' : 'Data partenza'} timeLabel="Orario" />
+                </div>
+<div className="p-1.5 rounded-xl space-y-1 flight-airport-block">
+                  <label className={labelClass}>{cfg.arrivalLabel}</label>
+                  <input type="text" aria-label={cfg.arrivalLabel} placeholder={cfg.arrivalPlaceholder} value={arrivalLocation} onFocus={() => { arrivalAirportBeforeEdit.current = arrivalLocation; }} onChange={e => setArrivalLocation(e.target.value)} onBlur={() => {
+                    const previous = resolveUnambiguousPlaceTimeZone(arrivalAirportBeforeEdit.current);
+                    const next = resolveUnambiguousPlaceTimeZone(arrivalLocation);
+                    if (!dropoffTimeZone.trim() || (dropoffTimeZone === previous && arrivalAirportBeforeEdit.current !== arrivalLocation)) setDropoffTimeZone(next || '');
+                  }} className={whiteInputClass}  />
+                  <DateTimePickerInput value={arrivalDate} onChange={setArrivalDate}  dateLabel={isRental ? 'Data riconsegna' : 'Data arrivo'} timeLabel="Orario" />
+                </div></div>
+              {genericMainFields.length > 0 && (
+                <div className="grid grid-cols-2 gap-1.5 generic-operational-grid" data-testid="transport-primary-fields">
+                  {genericMainFields.map(field => renderOperationalField(field))}
                 </div>
               )}
-            </div>
-            <DateTimePickerInput
-              value={arrivalDate}
-              onChange={setArrivalDate}
-              dateLabel={isRental ? 'Data riconsegna' : 'Data arrivo'}
-              timeLabel={isRental ? 'Orario riconsegna' : 'Orario arrivo'}
-            />
-          </div>
-        </div>
+            </section>
+            <div className="flight-section flight-section-finance" data-testid="transport-finance-always-open">{renderEconomicBody()}</div>
 
-        {/* 4. Campi Operativi Pertinenti (e campi già compilati anche se atipici) */}
-        {visibleGridFields.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5" data-testid="transport-primary-fields">
-            {visibleGridFields.map((field) => renderOperationalField(field))}
-          </div>
-        )}
-
-        {/* 5. Sezione espandibile: Dettagli secondari & Fusi orari */}
-        <div className="border border-slate-200 rounded-2xl bg-slate-50/70 overflow-hidden">
-          <button
-            type="button"
-            data-testid="toggle-secondary-details"
-            onClick={() => setIsSecondaryOpen((prev) => !prev)}
-            className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-slate-100/80 transition-colors"
-          >
-            <div>
-              <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider">
-                Dettagli secondari & Fusi orari
-              </span>
-              <span className="block text-[11px] text-slate-500">
-                {departureTimeZone || dropoffTimeZone
-                  ? `Fuso: ${departureTimeZone || dropoffTimeZone}`
-                  : secondaryFields.length > 0
-                    ? `${secondaryFields.length} campi facoltativi disponibili`
-                    : 'Fusi orari e opzioni avanzate'}
-              </span>
-            </div>
-            {isSecondaryOpen ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-          </button>
-
-          {(isSecondaryOpen || isTimeZoneOpen) && (
-            <div className="px-3 pb-3 pt-2 border-t border-slate-200/80 space-y-2.5 bg-white">
-              {secondaryFields.length > 0 && isSecondaryOpen && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  {secondaryFields.map((field) => renderOperationalField(field))}
+            {hasLayover && (
+              <section className="flight-section flight-section-layover" data-testid="field-layover">
+                <div className="flight-technical-row flex items-center gap-2">
+                  <button type="button" className="flex-1 min-w-0 flex items-center gap-1.5 text-left cursor-pointer" data-testid="toggle-transport-stop" aria-expanded={isLayoverExpanded} onClick={() => setIsLayoverExpanded(v => !v)}>
+                    <Route aria-hidden="true" className="flight-section-icon" />
+                    <span className="flight-technical-label">Sosta / cambio</span>
+                    <span className="truncate text-xs">{layoverAirport || 'Da completare'}</span>
+                    {isLayoverExpanded ? <ChevronUp className="ml-auto w-4 h-4 shrink-0" /> : <ChevronDown className="ml-auto w-4 h-4 shrink-0" />}
+                  </button>
+                  <button type="button" aria-label="Rimuovi sosta" className="p-1.5 text-slate-500" onClick={() => {
+                    setHasLayover(false); setLayoverAirport(''); setLayoverIata(''); setLayoverArrivalDate(''); setLayoverArrivalTime(''); setLayoverDepartureDate(''); setLayoverDepartureTime(''); setLayoverCarrier(''); setLayoverTerminalGate(''); setLayoverDuration(''); setLayoverNotes(''); setIsLayoverExpanded(false);
+                  }}><Trash2 className="w-4 h-4" /></button>
                 </div>
-              )}
+                {isLayoverExpanded && <div className="flight-technical-body p-2.5 grid grid-cols-2 gap-2"><div className="min-w-0"><label className={labelClass}>Località / punto intermedio</label><FlightAdaptiveText aria-label="Località / punto intermedio" value={layoverAirport} onChange={e => setLayoverAirport(e.target.value)} className={inputClass} /></div>
+<div className="min-w-0"><label className={labelClass}>Codice località (se presente)</label><FlightAdaptiveText aria-label="Codice località (se presente)" value={layoverIata} onChange={e => setLayoverIata(e.target.value)} className={inputClass} /></div>
+<div className="min-w-0"><label className={labelClass}>Data arrivo</label><input type="date" value={layoverArrivalDate} onChange={e => setLayoverArrivalDate(e.target.value)} className={inputClass} /></div>
+<div className="min-w-0"><label className={labelClass}>Orario arrivo</label><input type="time" value={layoverArrivalTime} onChange={e => setLayoverArrivalTime(e.target.value)} className={inputClass} /></div>
+<div className="min-w-0"><label className={labelClass}>Data ripartenza</label><input type="date" value={layoverDepartureDate} onChange={e => setLayoverDepartureDate(e.target.value)} className={inputClass} /></div>
+<div className="min-w-0"><label className={labelClass}>Orario ripartenza</label><input type="time" value={layoverDepartureTime} onChange={e => setLayoverDepartureTime(e.target.value)} className={inputClass} /></div>
+<div className="min-w-0"><label className={labelClass}>Mezzo successivo</label><FlightAdaptiveText aria-label="Mezzo successivo" value={layoverCarrier} onChange={e => setLayoverCarrier(e.target.value)} className={inputClass} /></div>
+<div className="min-w-0"><label className={labelClass}>Punto di ripartenza</label><FlightAdaptiveText aria-label="Punto di ripartenza" value={layoverTerminalGate} onChange={e => setLayoverTerminalGate(e.target.value)} className={inputClass} /></div>
+<div className="min-w-0"><label className={labelClass}>Durata / attesa</label><FlightAdaptiveText aria-label="Durata / attesa" value={layoverDuration} onChange={e => setLayoverDuration(e.target.value)} className={inputClass} /></div>
+<div className="col-span-2"><label className={labelClass}>Note</label><FlightAdaptiveText aria-label="Note" value={layoverNotes} onChange={e => setLayoverNotes(e.target.value)} className={inputClass} /></div></div>}
+              </section>
+            )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <TimeZoneInput
-                  value={departureTimeZone}
-                  onChange={setDepartureTimeZone}
-                  label={isRental ? 'Fuso orario ritiro' : 'Fuso orario partenza'}
-                />
-                {(isRental || Boolean(dropoffTimeZone.trim())) && (
-                  <TimeZoneInput
-                    value={dropoffTimeZone}
-                    onChange={setDropoffTimeZone}
-                    label="Fuso orario riconsegna"
+            <section className="flight-section flight-section-technical">
+              <button type="button" data-testid="toggle-secondary-details" aria-expanded={isSecondaryOpen} onClick={() => setIsSecondaryOpen(v => !v)} className="flight-technical-row w-full text-left cursor-pointer">
+                <span className="flight-technical-label"><List aria-hidden="true" className="flight-section-icon" /> Informazioni aggiuntive</span>
+                {genericZoneReview && <span className="flight-compact-status flight-status-review">Verifica orari</span>}
+                {isSecondaryOpen ? <ChevronUp className="w-4 h-4 shrink-0" /> : <ChevronDown className="w-4 h-4 shrink-0" />}
+              </button>
+              {isSecondaryOpen && <div className="flight-technical-body p-2.5 space-y-2">
+                <div className="grid grid-cols-2 gap-2 generic-operational-grid">
+                  {genericExtraFields.map(field => renderOperationalField(field))}
+                  <div><label className={labelClass}>Informazioni orario aggiuntive</label><FlightAdaptiveText aria-label="Informazioni orario aggiuntive" value={checkinOpen} onChange={e => setCheckinOpen(e.target.value)} className={inputClass} /></div>
+                  {(departureIata.trim() || arrivalIata.trim()) && <>
+                    <div data-testid="field-departureIata"><label className={labelClass}>Codice partenza preesistente</label><input value={departureIata} onChange={e => setDepartureIata(e.target.value)} className={inputClass} /></div>
+                    <div data-testid="field-arrivalIata"><label className={labelClass}>Codice arrivo preesistente</label><input value={arrivalIata} onChange={e => setArrivalIata(e.target.value)} className={inputClass} /></div>
+                  </>}
+                </div>
+                {genericZoneReview && <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <TimeZoneInput value={departureTimeZone || genericDepZone || ''} onChange={setDepartureTimeZone} label={isRental ? 'Fuso ritiro' : 'Fuso partenza'} />
+                  <TimeZoneInput value={dropoffTimeZone || genericArrZone || ''} onChange={setDropoffTimeZone} label={isRental ? 'Fuso riconsegna' : 'Fuso arrivo'} />
+                  {(genericDepZone || genericArrZone) && <button type="button" className="flight-use-auto" onClick={() => { if (genericDepZone) setDepartureTimeZone(genericDepZone); if (genericArrZone) setDropoffTimeZone(genericArrZone); }}>Usa orari rilevati</button>}
+                </div>}
+                {!hasLayover && <button type="button" className="flight-use-auto" data-testid="add-transport-stop" onClick={() => {setHasLayover(true);setIsLayoverExpanded(true);}}>Aggiungi sosta / cambio</button>}
+              </div>}
+            </section>
+            {/* 9. Funzioni operative condivise con il fronte (PNR, Bagagli, Biglietti & Documenti) */}
+            <div className="grid grid-cols-3 gap-1.5 pt-0.5" data-testid="transport-shared-actions">
+              <button
+                type="button"
+                data-testid="transport-action-pnr"
+                onClick={() => setIsPnrModalOpen(true)}
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 min-h-11 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
+                  bookingCode.trim()
+                    ? 'flight-action-present'
+                    : 'flight-action-empty'
+                }`}
+              >
+                <span aria-hidden="true">🎫</span>
+                <span>Codice{bookingCode.trim() ? ' · ✓' : ''}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="transport-action-bagagli"
+                onClick={() => setIsBagagliModalOpen(true)}
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 min-h-11 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
+                  bagagli.trim()
+                    ? 'flight-action-present'
+                    : 'flight-action-empty'
+                }`}
+              >
+                <span aria-hidden="true">🧳</span>
+                <span>Bagagli{bagagli.trim() ? ' · ✓' : ''}</span>
+              </button>
+
+              <button
+                type="button"
+                data-testid="transport-action-tickets"
+                onClick={() => setIsTicketsModalOpen(true)}
+                className={`flex min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1.5 min-h-11 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
+                  attachments.length > 0 || ticketUrl.trim()
+                    ? 'flight-action-present'
+                    : 'flight-action-empty'
+                }`}
+              >
+                <span aria-hidden="true">🎟️</span>
+                <span>Biglietti{attachments.length > 0 || ticketUrl.trim() ? ' · ✓' : ''}</span>
+              </button>
+            </div>
+
+            {/* 10. Note Copilota (collassate di default, contenuto preservato) */}
+            <div className="flight-section flight-section-notes" data-testid="transport-notes">
+              <button
+                type="button"
+                data-testid="toggle-transport-notes"
+                aria-expanded={isFlightNotesOpen}
+                aria-controls="transport-notes-content"
+                className="flight-notes-toggle w-full text-left cursor-pointer"
+                onClick={() => setIsFlightNotesOpen((prev) => !prev)}
+              >
+                <span className="flight-section-title"><MessageSquare aria-hidden="true" className="flight-section-icon" /> Note Copilota</span>
+                <span className="flight-notes-status">{noteCopilota.trim() ? 'Presenti' : 'Nessuna nota'}</span>
+                {isFlightNotesOpen ? <ChevronUp aria-hidden="true" className="w-4 h-4 shrink-0" /> : <ChevronDown aria-hidden="true" className="w-4 h-4 shrink-0" />}
+              </button>
+              <div id="transport-notes-content" hidden={!isFlightNotesOpen}>
+                {isFlightNotesOpen && (
+                  <FlightAdaptiveText
+                    aria-label="Note Copilota"
+                    placeholder="Istruzioni operative, indicazioni di viaggio..."
+                    value={noteCopilota}
+                    onChange={(e) => setNoteCopilota(e.target.value)}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
                   />
                 )}
               </div>
             </div>
-          )}
-        </div>
-
-        {/* 6. Sezione espandibile: Quadro Economico */}
-        <div className="border border-slate-200 rounded-2xl bg-slate-50 overflow-hidden">
-          <button
-            type="button"
-            data-testid="toggle-finance-details"
-            onClick={() => setIsFinanceOpen((prev) => !prev)}
-            className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-slate-100/80 transition-colors"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider shrink-0">
-                Quadro Economico
-              </span>
-              <span className="text-xs font-semibold text-slate-600 truncate">
-                · {financeSummary}
-              </span>
-            </div>
-            {isFinanceOpen ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
-          </button>
-
-          {isFinanceOpen && (
-            <div className="p-3 border-t border-slate-200 space-y-2.5">
-              <div className="flex justify-end">
-                <label className="inline-flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs hover:bg-sky-50 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={packageIncluded}
-                    onChange={(e) => {
-                      const checked = e.target.checked;
-                      setPackageIncluded(checked);
-                      if (checked) {
-                        setCost('Incluso');
-                        setDepositPaid('0');
-                        setIsSaldato(false);
-                      } else {
-                        setCost('');
-                      }
-                    }}
-                    className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500"
-                  />
-                  <span className="text-xs font-bold text-sky-800">Incluso nel pacchetto</span>
-                </label>
-              </div>
-
-              {!packageIncluded ? (
-                <>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className={labelClass}>Costo totale</label>
-                      <CurrencyAmountInput
-                        type="text"
-                        placeholder="es. 150.00"
-                        value={cost}
-                        onValueChange={(value) => setCost(value)}
-                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-bold focus:outline-none focus:border-[#FF6B5F]"
-                        uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)}
-                        currencyLabel="Valuta costo"
-                      />
-                    </div>
-                    <div>
-                      <label className={labelClass}>Acconto versato</label>
-                      <CurrencyAmountInput
-                        type="text"
-                        placeholder="es. 50.00"
-                        value={depositPaid}
-                        onValueChange={(value) => {
-                          setDepositPaid(value);
-                          setIsSaldato(false);
-                        }}
-                        className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-                        uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)}
-                        currencyLabel="Valuta acconto"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-                    <div
-                      className="flex items-center gap-2 cursor-pointer"
-                      onClick={() => {
-                        const newVal = !isSaldato;
-                        setIsSaldato(newVal);
-                        if (newVal && cost) {
-                          setDepositPaid(cost);
-                        } else if (!newVal) {
-                          setDepositPaid('0');
-                        }
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSaldato}
-                        readOnly
-                        className="w-4 h-4 rounded text-emerald-500 bg-white border-slate-300 focus:ring-emerald-500"
-                      />
-                      <span className="text-xs font-bold text-slate-700">Saldato interamente</span>
-                    </div>
-                    {cost && (
-                      <div className="text-right">
-                        <span className="text-[10px] uppercase text-slate-500 font-bold block">Saldo Rimanente</span>
-                        <span className={`text-sm font-extrabold ${getSaldo() > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                          {formatDraftBalance(cost, depositPaid)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="p-2.5 bg-sky-50 border border-sky-100 rounded-xl text-xs text-sky-800 font-medium">
-                  ℹ️ Servizio coperto dal pacchetto di viaggio. Non genera costi autonomi nel bilancio.
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* 7. Sezione espandibile: Documenti, Link & Note Copilota */}
-        <div className="border border-slate-200 rounded-2xl bg-slate-50 overflow-hidden">
-          <button
-            type="button"
-            data-testid="toggle-docs-notes"
-            onClick={() => setIsDocsOpen((prev) => !prev)}
-            className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-slate-100/80 transition-colors"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider shrink-0">
-                Biglietto & Note Copilota
-              </span>
-              <span className="text-xs text-slate-500 truncate">· {docsSummary}</span>
-            </div>
-            {isDocsOpen ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
-          </button>
-
-          {isDocsOpen && (
-            <div className="p-3 border-t border-slate-200 space-y-2.5 bg-white">
-              <div>
-                <label className={labelClass}>Link Biglietto / Voucher / Carta d'imbarco</label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={ticketUrl}
-                  onChange={(e) => setTicketUrl(e.target.value)}
-                  className={inputClass}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Note Copilota (Istruzioni Operative)</label>
-                <textarea
-                  rows={2}
-                  placeholder="..."
-                  value={noteCopilota}
-                  onChange={(e) => setNoteCopilota(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
-                />
-              </div>
-            </div>
-          )}
-        </div>
-          </>
+          </div>
         )}
 
         {/* Azioni finali */}
@@ -2211,15 +2043,15 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         <Modal
           isOpen={isPnrModalOpen}
           onClose={() => setIsPnrModalOpen(false)}
-          title={isTrain ? "Codice biglietto / Prenotazione" : "Codice Prenotazione (PNR)"}
+          title={isFlight ? "Codice Prenotazione (PNR)" : cfg.bookingCodeLabel}
           centered
         >
           <div className="space-y-3">
             <div>
-              <label className={labelClass}>Codice PNR / Riferimento</label>
+              <label className={labelClass}>{isFlight ? "Codice PNR / Riferimento" : cfg.bookingCodeLabel}</label>
               <textarea
                 rows={5}
-                aria-label="Codice PNR / Riferimento"
+                aria-label={isFlight ? "Codice PNR / Riferimento" : cfg.bookingCodeLabel}
                 data-testid="pnr-modal-input"
                 placeholder="es. ABC123"
                 value={bookingCode}
