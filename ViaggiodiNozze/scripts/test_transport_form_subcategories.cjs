@@ -206,8 +206,8 @@ async function run() {
     await page.getByTestId('toggle-flight-details').click();
     const flightHeight = (await form.boundingBox()).height;
 
-    // Treno
-    await page.getByTestId('transport-subcategory-treno').click();
+    // Treno (su Aereo il selettore sottocategoria è compatto accanto a Compagnia)
+    await page.getByTestId('flight-subcategory-select').selectOption('treno');
     assert.equal(await page.getByTestId('field-departureIata').count(), 0, 'Treno: IATA nascosto se vuoto');
     assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, 'Treno: Binario visibile');
     assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Treno: Carrozza/Posto visibile');
@@ -259,7 +259,7 @@ async function run() {
     // 2. Apri la card volo precompilata e cambia sottocategoria in Taxi: zero campi persi!
     await page.locator('h3:visible').filter({ hasText: 'Air China CA950' }).first().click();
     await form.waitFor({ state: 'visible' });
-    await page.getByTestId('transport-subcategory-taxi').click();
+    await page.getByTestId('flight-subcategory-select').selectOption('taxi');
 
     assert.equal(await page.getByTestId('field-departureIata').isVisible(), true, 'IATA partenza già compilato resta visibile su Taxi');
     assert.equal(await page.getByTestId('field-bagagli').isVisible(), true, 'Bagagli già compilati restano visibili su Taxi');

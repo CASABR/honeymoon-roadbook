@@ -963,43 +963,63 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
           </div>
         )}
 
-        {/* 1. Sottocategoria */}
-        <div>
-          <label className={labelClass}>Sottocategoria</label>
-          <div className="flex flex-wrap gap-1.5">
-            {SUBCATEGORY_OPTIONS.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                data-testid={`transport-subcategory-${cat.id}`}
-                onClick={() => setType(cat.id)}
-                className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all border ${
-                  type === cat.id
-                    ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                {cat.pillLabel}
-              </button>
-            ))}
+        {/* 1. Sottocategoria (pillole per le altre 7 sottocategorie; su Aereo è compatta accanto a Compagnia) */}
+        {!isFlight && (
+          <div>
+            <label className={labelClass}>Sottocategoria</label>
+            <div className="flex flex-wrap gap-1.5">
+              {SUBCATEGORY_OPTIONS.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  data-testid={`transport-subcategory-${cat.id}`}
+                  onClick={() => setType(cat.id)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-all border ${
+                    type === cat.id
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
+                      : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  {cat.pillLabel}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {isFlight ? (
           <div className="space-y-2.5" data-testid="flight-back-layout">
-            {/* 2. Compagnia e numero volo */}
-            <div data-testid="field-carrier">
-              <label className={labelClass}>Compagnia e numero volo</label>
-              <input
-                type="text"
-                placeholder="es. Air China CA950"
-                value={carrier}
-                onChange={(e) => setCarrier(e.target.value)}
-                className={inputClass}
-              />
+            {/* 1. Compagnia e numero volo, con selettore sottocategoria accanto */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-end">
+              <div className="sm:col-span-8" data-testid="field-carrier">
+                <label className={labelClass}>Compagnia e numero volo</label>
+                <input
+                  type="text"
+                  placeholder="es. Air China CA950"
+                  value={carrier}
+                  onChange={(e) => setCarrier(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div className="sm:col-span-4">
+                <label className={labelClass}>Mezzo</label>
+                <select
+                  data-testid="flight-subcategory-select"
+                  aria-label="Sottocategoria trasporto"
+                  value={type}
+                  onChange={(e) => setType(e.target.value as TipoTrasporto)}
+                  className={inputClass}
+                >
+                  {SUBCATEGORY_OPTIONS.map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.pillLabel}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {/* 3. Aeroporto di partenza & Aeroporto di arrivo (affiancati su sm+/landscape) */}
+            {/* 2. Partenza e arrivo, con date, orari e IATA */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
                 <div className="flex items-center justify-between gap-2">
@@ -1064,12 +1084,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               </div>
             </div>
 
-            {/* 4. Quadro economico — sempre aperto */}
-            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl" data-testid="flight-finance-always-open">
-              {renderEconomicBody()}
-            </div>
-
-            {/* 5. Terminal / Gate (sempre visibile) */}
+            {/* 3. Terminal / Gate */}
             <div data-testid="field-terminalGate">
               <label className={labelClass}>Terminal / Gate</label>
               <input
@@ -1081,67 +1096,12 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               />
             </div>
 
-            {/* 6. Dettagli volo — collassati */}
-            <div className="border border-slate-200 rounded-2xl bg-slate-50 overflow-hidden">
-              <button
-                type="button"
-                data-testid="toggle-flight-details"
-                onClick={() => setIsFlightDetailsOpen((prev) => !prev)}
-                className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-slate-100/80 transition-colors"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider shrink-0">
-                    Dettagli volo
-                  </span>
-                  <span className="text-xs text-slate-500 truncate">· {flightDetailsSummary}</span>
-                </div>
-                {isFlightDetailsOpen ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
-              </button>
-
-              {isFlightDetailsOpen && (
-                <div className="p-2.5 border-t border-slate-200 bg-white space-y-2.5">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <div data-testid="field-checkinOpen">
-                      <label className={labelClass}>Apertura check-in</label>
-                      <input
-                        type="text"
-                        placeholder="es. 24h prima / 16:00"
-                        value={checkinOpen}
-                        onChange={(e) => setCheckinOpen(e.target.value)}
-                        className={inputClass}
-                      />
-                    </div>
-                    <div data-testid="field-checkinCutoff">
-                      <label className={labelClass}>Chiusura check-in</label>
-                      <input
-                        type="text"
-                        placeholder="es. 18:00"
-                        value={checkinCutoff}
-                        onChange={(e) => setCheckinCutoff(e.target.value)}
-                        className={inputClass}
-                      />
-                    </div>
-                    <div data-testid="field-posti">
-                      <label className={labelClass}>Posti assegnati</label>
-                      <input
-                        type="text"
-                        placeholder="es. 14A, 14B"
-                        value={posti}
-                        onChange={(e) => setPosti(e.target.value)}
-                        className={inputClass}
-                      />
-                    </div>
-                  </div>
-                  {atypicalFlightFields.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
-                      {atypicalFlightFields.map((f) => renderOperationalField(f))}
-                    </div>
-                  )}
-                </div>
-              )}
+            {/* 4. Quadro economico sempre aperto */}
+            <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl" data-testid="flight-finance-always-open">
+              {renderEconomicBody()}
             </div>
 
-            {/* 7. Scali */}
+            {/* 5. Scalo, aggiungibile ed espandibile */}
             {!hasLayover ? (
               <button
                 type="button"
@@ -1297,13 +1257,14 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                         />
                       </div>
                       <div>
-                        <label className={labelClass}>Durata scalo</label>
+                        <label className={labelClass}>Durata scalo (auto)</label>
                         <input
                           type="text"
+                          readOnly
+                          tabIndex={-1}
                           placeholder="Calcolata auto"
                           value={layoverDuration}
-                          onChange={(e) => setLayoverDuration(e.target.value)}
-                          className={inputClass}
+                          className="w-full h-10 px-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-600 text-sm font-mono cursor-default"
                         />
                       </div>
                     </div>
@@ -1311,6 +1272,66 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                 )}
               </div>
             )}
+
+            {/* 6. Dettagli volo collassati */}
+            <div className="border border-slate-200 rounded-2xl bg-slate-50 overflow-hidden">
+              <button
+                type="button"
+                data-testid="toggle-flight-details"
+                onClick={() => setIsFlightDetailsOpen((prev) => !prev)}
+                className="w-full px-3 py-2 flex items-center justify-between text-left hover:bg-slate-100/80 transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider shrink-0">
+                    Dettagli volo
+                  </span>
+                  <span className="text-xs text-slate-500 truncate">· {flightDetailsSummary}</span>
+                </div>
+                {isFlightDetailsOpen ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
+              </button>
+
+              {isFlightDetailsOpen && (
+                <div className="p-2.5 border-t border-slate-200 bg-white space-y-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div data-testid="field-checkinOpen">
+                      <label className={labelClass}>Apertura check-in</label>
+                      <input
+                        type="text"
+                        placeholder="es. 24h prima / 16:00"
+                        value={checkinOpen}
+                        onChange={(e) => setCheckinOpen(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div data-testid="field-checkinCutoff">
+                      <label className={labelClass}>Chiusura check-in</label>
+                      <input
+                        type="text"
+                        placeholder="es. 18:00"
+                        value={checkinCutoff}
+                        onChange={(e) => setCheckinCutoff(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                    <div data-testid="field-posti">
+                      <label className={labelClass}>Posti assegnati</label>
+                      <input
+                        type="text"
+                        placeholder="es. 14A, 14B"
+                        value={posti}
+                        onChange={(e) => setPosti(e.target.value)}
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+                  {atypicalFlightFields.length > 0 && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                      {atypicalFlightFields.map((f) => renderOperationalField(f))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* 8. Sezione avanzata IATA & fusi orari — collassata */}
             <div className="border border-slate-200 rounded-2xl bg-slate-50 overflow-hidden">

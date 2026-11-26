@@ -203,8 +203,30 @@ async function run() {
 
     assert.equal(await page.getByTestId('flight-departure-iata-badge').innerText(), 'FCO', 'Auto-IATA FCO da Roma Fiumicino');
     assert.equal(await page.getByTestId('flight-arrival-iata-badge').innerText(), 'AKL', 'Auto-IATA AKL da Auckland');
+    assert.equal(await page.getByTestId('flight-subcategory-select').isVisible(), true, 'Selettore sottocategoria compatto accanto a Compagnia');
     assert.equal(await page.getByTestId('flight-finance-always-open').isVisible(), true, 'Quadro economico sempre aperto');
     assert.ok((await page.getByTestId('toggle-flight-details').innerText()).includes('Posti: 14A, 14B'), 'Riepilogo dettagli volo collassati');
+
+    // Verifica gerarchia esatta 1..10 su Aereo
+    const orderOk = await page.evaluate(() => {
+      const ids = [
+        'field-carrier',
+        'flight-departure-iata-badge',
+        'field-terminalGate',
+        'flight-finance-always-open',
+        'add-layover-btn',
+        'toggle-flight-details',
+        'toggle-flight-advanced',
+        'flight-shared-actions',
+        'flight-notes',
+      ];
+      const tops = ids.map((id) => document.querySelector(`[data-testid="${id}"]`)?.getBoundingClientRect().top ?? -1);
+      for (let i = 1; i < tops.length; i++) {
+        if (tops[i] < tops[i - 1]) return { ok: false, tops };
+      }
+      return { ok: true, tops };
+    });
+    assert.equal(orderOk.ok, true, `Gerarchia 1..9 rispettata: ${JSON.stringify(orderOk.tops)}`);
 
     // Modifica non ancora salvata su carrier + apertura PNR/Bagagli condivisi senza perdere carrier
     const carrierInput = page.getByTestId('field-carrier').locator('input');
@@ -230,6 +252,7 @@ async function run() {
     await layoverBox.locator('input[placeholder*="CA783"]').fill('CA783');
     await layoverBox.locator('input[placeholder*="T3 Gate"]').fill('T3 E09');
     assert.equal(await layoverBox.locator('input[placeholder="Calcolata auto"]').inputValue(), '2h 15m', 'Durata scalo calcolata automaticamente');
+    assert.equal(await layoverBox.locator('input[placeholder="Calcolata auto"]').getAttribute('readonly') !== null, true, 'Durata scalo non editabile manualmente');
 
     // Salva e verifica persistenza integrale in IndexedDB
     await page.locator('button:has-text("Aggiorna")').first().click();
