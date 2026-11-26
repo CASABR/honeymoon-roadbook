@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.31",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "d2fee9f6d376bdcccba5b4128b074c88d6165c3a",
+      "changes": [
+        "Retro Aereo più compatto su iPhone: nome e mezzo affiancati, azioni in una riga, terminal multilinea e note dello scalo editabili."
+      ]
+    },
+    {
       "version": "1.7.30",
       "publishedAt": "2026-11-26",
       "sourceCommit": "6cbf73140867bdfb82cda9289443f85a4f32228f",
@@ -81,146 +89,6 @@
         "Fix P0 LIVE: eliminato il loop infinito di sottoscrizione ai commenti foto nella lightbox che saturava il rate-limit IP (429) bloccando commenti e caricamento foto."
       ],
       "publishedAtIso": "2026-11-25T14:36:40.000Z"
-    },
-    {
-      "version": "1.7.21",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "877964b132863bfe4686795f0342e2dbce37eb6d",
-      "changes": [
-        "LIVE: commenti alle singole foto senza account, salvati su Cloudflare D1, con lettura condivisa e moderazione riservata agli organizzatori."
-      ]
-    },
-    {
-      "version": "1.7.20",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "6382f45e948f61e169965f1fb7c34fffb19bad73",
-      "changes": [
-        "LIVE ospiti: messaggi senza account, salvati su Cloudflare D1, condivisi tra dispositivi, con antispam e moderazione Owner/Copilota."
-      ],
-      "publishedAtIso": "2026-11-25T13:21:28.459Z"
-    },
-    {
-      "version": "1.7.19",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "cb1a60460783c5cbf0cee978d2c643f52aa066db",
-      "changes": [
-        "LIVE: conserva e mostra l'ultima posizione GPS autorizzata sulla mappa, anche su altri dispositivi e dopo perdita del segnale.",
-        "Diagnostica sicura dei problemi di salvataggio messaggi, commenti e reazioni sul backend."
-      ],
-      "publishedAtIso": "2026-11-25T11:10:00.000Z"
-    },
-    {
-      "version": "1.7.18",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "dea6fd654642466b23830ad98e2bc6ff0a63b58d",
-      "changes": [
-        "Fix P0 LIVE: stato temporale pre-partenza indipendente da GPS anche per ospiti esterni e preflight CORS Worker su reazioni, messaggi e commenti."
-      ],
-      "publishedAtIso": "2026-11-25T09:48:20.000Z"
-    },
-    {
-      "version": "1.7.17",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "c2d0a349e9cf42c15c4174ed6dcdf0df3f595526",
-      "changes": [
-        "Rifinitura LIVE mobile: intestazione compatta, orologio non duplicato, icone Lucide, stato vuoto mappa e safe-area Safari."
-      ],
-      "publishedAtIso": "2026-11-25T09:12:15.000Z"
-    },
-    {
-      "version": "1.7.16",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "d4ef78c365bcb28d79b111b25b881b7fe1333830",
-      "changes": [
-        "Restyling boarding pass TrasportoCard, reazioni LIVE persistenti e messaggi ospiti protetti."
-      ],
-      "publishedAtIso": "2026-11-25T08:47:28.000Z"
-    },
-    {
-      "version": "1.7.15",
-      "publishedAt": "2026-11-24",
-      "sourceCommit": "bd17d7d2acec23e4a29407f70bcb69e488bc2cd2",
-      "changes": [
-        "Card Trasporti: mini-timeline compatta Partenza e Arrivo con orari locali allineati e +1g."
-      ],
-      "publishedAtIso": "2026-11-24T20:26:52.000Z"
-    },
-    {
-      "version": "1.7.14",
-      "publishedAt": "2026-11-24",
-      "sourceCommit": "fb050462bb38ead20e51b8a0215bb1779858f28f",
-      "changes": [
-        "Card Trasporti: badge orizzontale compatto Posto con icona Armchair e troncamento su una riga."
-      ],
-      "publishedAtIso": "2026-11-24T20:20:15.000Z"
-    },
-    {
-      "version": "1.7.13",
-      "publishedAt": "2026-11-24",
-      "sourceCommit": "6151151169e477d4b28e020c1a54aa471082fd7f",
-      "changes": [
-        "Uniformati pulsanti Aggiorna/Annulla/Elimina nei form card con conferma esplicita e corretto layout orario Modifica Tappa."
-      ],
-      "publishedAtIso": "2026-11-24T15:53:48.000Z"
-    },
-    {
-      "version": "1.7.12",
-      "publishedAt": "2026-11-24",
-      "sourceCommit": "e8b83e01bf3180fc56c432aedf10ba24e9cdf45e",
-      "changes": [
-        "Card Trasporti: indicatore Check-in da fare spostato nel body accanto all'operatore con icona e testo compatto."
-      ],
-      "publishedAtIso": "2026-11-24T15:23:36.000Z"
-    },
-    {
-      "version": "1.7.11",
-      "publishedAt": "2026-11-24",
-      "sourceCommit": "b1f5b1cd7b4463d0bd1062aa30923df640588a00",
-      "changes": [
-        "Notifiche Push puntuali al minuto (cron */1 * * * * compatibile con piano Free e indice D1 due_at).",
-        "Payload descrittivi con categoria, titolo reale, ora locale HH:MM e luogo breve, sanitizzati lato client e Worker con fallback legacy."
-      ],
-      "publishedAtIso": "2026-11-24T08:18:10.000Z"
-    },
-    {
-      "version": "1.7.10",
-      "publishedAt": "2026-11-23",
-      "sourceCommit": "e2e5151cd526007b294e8d2f292b0bfc8917ae78",
-      "changes": [
-        "Push multi-fuso: associazione automatica imbarco→aeroporto di partenza del volo e checkout→località dell'alloggio collegato.",
-        "Preservato orario locale su tappe del 09/01 (Taipei e Cebu) senza eccezioni per ID e senza inventare fusi su casi ambigui."
-      ],
-      "publishedAtIso": "2026-11-23T12:41:45.000Z"
-    },
-    {
-      "version": "1.7.9",
-      "publishedAt": "2026-11-23",
-      "sourceCommit": "5b85d2b3342a0669d17ec978c1522c232d94d19a",
-      "changes": [
-        "Push Destinazione Prima: risoluzione fusi automatica multi-fonte (tappe, trasporti, alloggi) con blocco fallback su giorni multi-fuso o esteri futuri.",
-        "Corretti TAO 03/01 (Asia/Manila), Imbarco Taipei 09/01 (Asia/Taipei) e prevenzione falsi positivi IATA di destinazione."
-      ],
-      "publishedAtIso": "2026-11-23T12:28:40.000Z"
-    },
-    {
-      "version": "1.7.8",
-      "publishedAt": "2026-11-23",
-      "sourceCommit": "09d388c976ce8fff285b4679e8f494e639fa0f4f",
-      "changes": [
-        "Fusi orari automatici per promemoria Push: priorità card/luogo/tappa e fallback fuso dispositivo registrato in diagnostica.",
-        "Rilevamento cambio fuso dispositivo e recupero limitato (max 2, deduplicato) per soli eventi futuri."
-      ],
-      "publishedAtIso": "2026-11-23T10:53:30.000Z"
-    },
-    {
-      "version": "1.7.7",
-      "publishedAt": "2026-11-23",
-      "sourceCommit": "db2166bce19a04a17f84d6cf2a15a250491b9050",
-      "changes": [
-        "Diagnostica Push iPhone: storico ultime 10 mutazioni, evidenza dedicata all'ultima Attività e conferma D1 esplicita.",
-        "Pulsante Copia diagnostica senza dati personali né credenziali."
-      ],
-      "publishedAtIso": "2026-11-23T10:34:15.000Z"
     }
   ]
 }
