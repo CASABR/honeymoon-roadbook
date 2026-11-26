@@ -114,13 +114,27 @@ async function run() {
     const TRIP_ID = 'synth-transport-1726';
     const DB_NAME = `ViaggiodiNozzeDB_${encodeURIComponent(TRIP_ID)}`;
     const FIXTURES = {
-      giorni: [{ id: 'day-1', date: '2026-12-01', title: 'Giorno 1', location: 'Roma', createdAt: 1, updatedAt: 1 }],
+      giorni: Array.from({length:8},(_,n)=>({id:'day-'+(n+1),date:'2026-12-0'+(n+1),title:'Giorno '+(n+1),location:'Roma',createdAt:1,updatedAt:1})),
       attivita: [],
       tappe: [],
       ristoranti: [],
       shopping: [],
       alloggi: [],
       trasporti: [
+        ...['traghetto','auto','camper','transfer','taxi','metro'].map((type, n) => ({
+          id: 'tr-compact-' + type, type, carrier: 'Test compatto ' + type,
+          date: '2026-12-0'+(n+3), departureTime: '11:00', departureLocation: 'Roma',
+          arrivalDate: '2026-12-0'+(n+3), arrivalTime: '12:00', arrivalLocation: 'Milano',
+          ...(['auto','camper'].includes(type) ? {dropoffLocation:'Milano',dropoffDate:'2026-12-0'+(n+3),dropoffTime:'14:00'} : {}),
+          terminalGate: 'Punto 7', posti: 'Valore posti/modello', bookingCode: 'REF-' + n,
+          checkinOpen: 'Info orario', checkinCutoff: '10:30', bagagli: 'Due valigie',
+          veicolo: 'Veicolo legacy', assicurazione: 'Copertura legacy', cauzione: '100 EUR',
+          noteCopilota:'Nota legacy '+type, ticketUrl:'https://example.com/test-ticket',
+          attachments:[{id:'synth-'+type,name:'test.pdf',type:'pdf',purpose:'document',dataUrl:'data:application/pdf;base64,JVBERi0xLjQK',size:9,createdAt:'2026-12-01T00:00:00Z'}],
+          departureIata:'FCO', arrivalIata:'MXP', departureTimeZone:'Europe/Rome', dropoffTimeZone:'Europe/Rome',
+          layover:{airport:'Bologna',iata:'BLQ',arrivalDate:'2026-12-0'+(n+3),arrivalTime:'11:30',departureDate:'2026-12-0'+(n+3),departureTime:'11:40',carrier:'Mezzo successivo',terminalGate:'Punto 2',duration:'10m',notes:'Nota sosta'},
+          status:'prenotato', createdAt:1, updatedAt:1
+        })),
         {
           id: 'tr-empty',
           type: 'volo',
@@ -256,7 +270,7 @@ async function run() {
 
     // Auto & Camper
     for (const rentalType of ['auto', 'camper']) {
-      await page.getByTestId(`transport-subcategory-${rentalType}`).click();
+      await page.getByTestId('transport-subcategory-select').selectOption(rentalType);
       assert.equal(await page.getByTestId('field-posti').isVisible(), true, `${rentalType}: Modello/Veicolo visibile`);
       assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, `${rentalType}: Desk/Ufficio visibile`);
       assert.equal(await page.getByTestId('field-assicurazione').isVisible(), true, `${rentalType}: Assicurazione visibile`);
@@ -264,14 +278,15 @@ async function run() {
     }
 
     // Transfer / Bus
-    await page.getByTestId('transport-subcategory-transfer').click();
+    await page.getByTestId('transport-subcategory-select').selectOption('transfer');
     assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, 'Transfer: Fermata visibile');
-    assert.equal(await page.getByTestId('field-bagagli').isVisible(), true, 'Transfer: Bagagli visibile');
+    assert.equal(await page.getByTestId('transport-action-bagagli').isVisible(), true, 'Transfer: Bagagli accessibili');
+    assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Transfer: Posti visibili');
 
     // Taxi & Metro (compatti senza campi operativi vuoti)
     for (const compactType of ['taxi', 'metro']) {
-      await page.getByTestId(`transport-subcategory-${compactType}`).click();
-      assert.equal(await page.getByTestId('transport-primary-fields').count(), 0, `${compactType}: nessun campo operativo vuoto nel corpo`);
+      await page.getByTestId('transport-subcategory-select').selectOption(compactType);
+      assert.equal(await page.getByTestId('transport-primary-fields').count(), compactType === 'metro' ? 1 : 0, `${compactType}: soli campi operativi pertinenti`);
       assert.equal(await page.getByTestId('field-bookingCode').count(), 0, `${compactType}: bookingCode nascosto se vuoto`);
       const compactHeight = (await form.boundingBox()).height;
       assert.ok(compactHeight < trainHeight, `${compactType} (${compactHeight}px) più compatto di Treno (${trainHeight}px)`);
@@ -279,9 +294,9 @@ async function run() {
 
     // Verifica apertura sezioni espandibili
     await page.getByTestId('toggle-secondary-details').click();
-    assert.equal(await page.getByTestId('field-bagagli').isVisible(), true, 'Dettagli secondari espandibili mostrano bagagli');
-    await page.getByTestId('toggle-finance-details').click();
-    assert.equal(await page.locator('text=Incluso nel pacchetto').isVisible(), true, 'Quadro economico espandibile');
+    assert.equal(await page.getByTestId('field-checkinCutoff').isVisible(), true, 'Dettagli secondari espandibili');
+    assert.equal(await page.getByTestId('transport-finance-always-open').isVisible(), true, 'Quadro economico sempre aperto');
+    assert.equal(await page.getByTestId('toggle-transport-notes').getAttribute('aria-expanded'), 'false');
 
     // Chiudi nuovo form
     await page.locator('button:has-text("Annulla")').first().click();
@@ -292,8 +307,9 @@ async function run() {
     await form.waitFor({ state: 'visible' });
     await page.getByTestId('flight-subcategory-select').selectOption('taxi');
 
-    assert.equal(await page.getByTestId('field-departureIata').isVisible(), true, 'IATA partenza già compilato resta visibile su Taxi');
-    assert.equal(await page.getByTestId('field-bagagli').isVisible(), true, 'Bagagli già compilati restano visibili su Taxi');
+    await page.getByTestId('toggle-secondary-details').click();
+    assert.equal(await page.getByTestId('field-departureIata').isVisible(), true, 'IATA partenza già compilato accessibile su Taxi');
+    assert.equal(await page.getByTestId('transport-action-bagagli').isVisible(), true, 'Bagagli già compilati accessibili su Taxi');
     assert.equal(await page.getByTestId('field-layover').isVisible(), true, 'Scalo già compilato resta visibile su Taxi');
     assert.equal(await page.getByTestId('field-posti').isVisible(), true, 'Posti già compilati restano visibili su Taxi');
     assert.equal(await page.getByTestId('field-terminalGate').isVisible(), true, 'Terminal già compilato resta visibile su Taxi');
@@ -347,6 +363,39 @@ async function run() {
     assert.equal(await coachEdit.inputValue(),'8');
     assert.equal(await seatsEdit.inputValue(),'21A, 21B');
     await page.locator('button:has-text("Annulla")').first().click();
+
+    for (const type of ['traghetto','auto','camper','transfer','taxi','metro']) {
+      const fixture = FIXTURES.trasporti.find(x=>x.id==='tr-compact-'+type);
+      await page.getByLabel('Scegli data dal calendario').fill(fixture.date);
+      await page.locator('h3:visible').filter({hasText:'Test compatto '+type}).first().click();
+      await page.getByTestId('transport-back-layout').waitFor({state:'visible'});
+      assert.equal(await page.getByTestId('transport-subcategory-select').inputValue(),type);
+      assert.equal(await page.getByTestId('transport-finance-always-open').isVisible(),true);
+      assert.equal(await page.getByTestId('toggle-transport-notes').getAttribute('aria-expanded'),'false');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth),false,type+': overflow');
+      await page.getByTestId('toggle-secondary-details').click();
+      assert.equal(await page.getByTestId('field-departureIata').locator('input').inputValue(),'FCO');
+      assert.equal(await page.getByTestId('transport-ticket-url').inputValue(),'https://example.com/test-ticket');
+      await page.getByTestId('transport-ticket-url').fill('https://example.com/updated-ticket');
+      await page.getByTestId('transport-action-pnr').click();
+      assert.ok((await page.getByTestId('pnr-modal-input').inputValue()).startsWith('REF-'));
+      await page.locator('button:has-text("Fatto")').last().click();
+      await page.getByTestId('toggle-transport-stop').click();
+      assert.equal(await page.getByRole('textbox',{name:'Note',exact:true}).inputValue(),'Nota sosta');
+      await page.getByTestId('toggle-transport-notes').click();
+      await page.getByRole('textbox',{name:'Note Copilota',exact:true}).fill('Nota aggiornata '+type);
+      await page.getByTestId('toggle-transport-notes').click();
+      await page.locator('button:has-text("Aggiorna")').first().click();
+      await page.waitForTimeout(400);
+      const actual = await readTransportFromDb(page, DB_NAME, 'tr-compact-'+type);
+      const expected = FIXTURES.trasporti.find(x=>x.id==='tr-compact-'+type);
+      for (const key of ['type','carrier','bookingCode','terminalGate','posti','checkinOpen','checkinCutoff','bagagli','veicolo','assicurazione','cauzione','departureIata','arrivalIata','departureTimeZone','dropoffTimeZone']) assert.equal(actual[key],expected[key],type+': preserva '+key);
+      for (const [key,value] of Object.entries(expected.layover)) assert.equal(actual.layover[key],value,type+': preserva sosta '+key);
+      if (['auto','camper'].includes(type)) for (const key of ['dropoffLocation','dropoffDate','dropoffTime']) assert.equal(actual[key],expected[key],type+': preserva riconsegna '+key);
+      assert.equal(actual.noteCopilota,'Nota aggiornata '+type);
+      assert.equal(actual.ticketUrl,'https://example.com/updated-ticket');
+      assert.deepEqual(actual.attachments, expected.attachments, type+': allegati preservati');
+    }
 
     console.log('✓ [PASS] Audit e test E2E sottocategorie retro card Trasporti (volo/treno/traghetto/auto/camper/transfer/taxi/metro) + cambio mezzo senza perdita dati');
   } finally {

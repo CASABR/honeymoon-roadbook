@@ -201,6 +201,40 @@ async function run() {
     await page.goto('http://127.0.0.1:5205/', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
 
+    // Actual card width, independently of the viewport. Long operational text and touch targets.
+    const front = page.locator('[data-transport-type="volo"]').filter({has:page.locator('h3').filter({hasText:'Air China CA950'})}).first();
+    await front.waitFor({state:'visible'});
+    const mobileFront = await front.evaluate(el => {
+      const savedWidth = el.style.width;
+      const results = [];
+      try {
+        for (const width of [300, 340]) {
+          el.style.width = width+'px';
+          const outer = el.getBoundingClientRect();
+          const measured = [...el.querySelectorAll('.flight-front-notice,.flight-front-route,.hounigo-ds-spec-cell,.flight-front-seats,.hounigo-ds-action-btn')].filter(n=>n.getClientRects().length);
+          const actions = [...el.querySelectorAll('.hounigo-ds-action-btn')].filter(n=>n.getClientRects().length);
+          results.push({
+            width:outer.width,
+            overflow:measured.some(n=>n.getBoundingClientRect().right>outer.right+1 || n.getBoundingClientRect().left<outer.left-1),
+            hitTargets:actions.every(n=>n.getBoundingClientRect().width>=43 && n.getBoundingClientRect().height>=43),
+            actionSizes:actions.map(n=>({label:n.getAttribute('aria-label'),width:n.getBoundingClientRect().width,height:n.getBoundingClientRect().height})),
+            specColumns:getComputedStyle(el.querySelector('.flight-front-spec-grid')).gridTemplateColumns.split(' ').length,
+            terminal:el.querySelector('.flight-front-terminal-value').textContent,
+            cutoffText:el.querySelector('.flight-front-notice-text').textContent,
+            seats:el.querySelector('.flight-front-seat-value').textContent.trim()
+          });
+        }
+      } finally { el.style.width=savedWidth; }
+      return results;
+    });
+    for (const m of mobileFront) {
+      assert.equal(m.overflow,false,'Card mobile senza overflow: '+JSON.stringify(m));
+      assert.equal(m.hitTargets,true,'Azioni mobile raggiungibili: '+JSON.stringify(m));
+      assert.equal(m.cutoffText,FIXTURES.trasporti[0].checkinCutoff);
+      assert.equal(m.seats,FIXTURES.trasporti[0].posti);
+      assert.equal(m.terminal,FIXTURES.trasporti[0].terminalGate.replace(/\s+\|\s+/g,'\n'));
+      if(m.width>=340) assert.equal(m.specColumns,2,'Terminal e posti affiancati quando c’è spazio');
+    }
     // 1. Apri volo diretto e verifica auto-IATA, quadro economico sempre aperto, dettagli volo collassati, modali condivise e conservazione modifiche
     await page.locator('h3:visible').filter({ hasText: 'Air China CA950' }).first().click();
     await page.getByTestId('flight-back-layout').waitFor({ state: 'visible' });
@@ -222,6 +256,16 @@ async function run() {
     assert.notEqual(await page.getByTestId('add-layover-btn').evaluate(el => getComputedStyle(el).backgroundColor), await page.getByTestId('flight-itinerary-section').evaluate(el => getComputedStyle(el).backgroundColor), 'Scalo distinto cromaticamente');
     assert.equal(await page.getByTestId('flight-subcategory-select').isVisible(), true, 'Selettore sottocategoria compatto accanto a Compagnia');
     assert.equal(await page.getByTestId('flight-finance-always-open').isVisible(), true, 'Quadro economico sempre aperto');
+    const economy = page.getByTestId('flight-finance-always-open');
+    const originalCost = await economy.getByPlaceholder('es. 150.00').inputValue();
+    const originalDeposit = await economy.getByPlaceholder('es. 50.00').inputValue();
+    await economy.getByRole('checkbox',{name:'Incluso nel pacchetto'}).check();
+    assert.equal(await economy.getByPlaceholder('es. 150.00').count(),0,'Importi nascosti se inclusi');
+    await economy.getByRole('checkbox',{name:'Incluso nel pacchetto'}).uncheck();
+    assert.equal(await economy.getByPlaceholder('es. 150.00').inputValue(),originalCost,'Costo ripristinato dopo toggle');
+    assert.equal(await economy.getByPlaceholder('es. 50.00').inputValue(),originalDeposit,'Acconto ripristinato dopo toggle');
+    assert.equal(await page.getByPlaceholder('Aeroporto di partenza').evaluate(el=>el.scrollHeight<=el.clientHeight+2),true,'Nome aeroporto leggibile');
+    assert.ok(await page.getByTestId('flight-action-pnr').locator('svg').count(),'Icone vettoriali');
     assert.ok((await page.getByTestId('toggle-flight-details').innerText()).includes('3/3'), 'Riepilogo dettagli volo collassati');
 
     const carrierBox = await page.getByTestId('field-carrier').locator('input').boundingBox();

@@ -1937,3 +1937,144 @@ html.dark .hounigo-flight-compact { --flight-layover-bg: #322740; --flight-layov
 .hounigo-train-compact #train-notes-content:not([hidden]) { padding-bottom: 0.35rem; }
 .hounigo-train-compact .train-seat-grid textarea { padding-inline: 0.45rem; }
 @media (max-width:639px) and (min-height:641px) { .modal-backdrop-layer:not([data-visual-viewport="active"]) > .modal-sheet-container:has(> .modal-sheet-body [data-testid="train-back-layout"]) { height:100% !important; max-height:calc(100% - 0.5rem) !important; } }
+
+/* 1.7.37 — shared compact layout for the six remaining transport types. */
+.modal-sheet-container:has(> .modal-sheet-body [data-testid="transport-back-layout"]) > .modal-sheet-header { padding: 0.45rem 1rem !important; }
+.modal-sheet-container:has(> .modal-sheet-body [data-testid="transport-back-layout"]) > .modal-sheet-body { padding: 0.65rem 0.85rem max(1rem, var(--app-safe-bottom)) !important; }
+.hounigo-generic-transport-compact [data-testid="transport-finance-always-open"] input:not([type=checkbox]), .hounigo-generic-transport-compact [data-testid="transport-finance-always-open"] select { padding-inline: 0.4rem; min-width: 0; }
+.hounigo-generic-transport-compact [data-testid="transport-finance-always-open"] select { max-width: 4.2rem; }
+.hounigo-generic-transport-compact #transport-notes-content:not([hidden]) { padding-bottom: 0.35rem; }
+.hounigo-generic-transport-compact .generic-operational-grid > * { min-width: 0; }
+@media (max-width:639px) and (min-height:641px) { .modal-backdrop-layer:not([data-visual-viewport="active"]) > .modal-sheet-container:has(> .modal-sheet-body [data-testid="transport-back-layout"]) { height:100% !important; max-height:calc(100% - 0.5rem) !important; } }
+
+/* 1.7.37 — visual refresh: Aereo only. Preserve safe area, controls and data. */
+[data-testid="flight-back-layout"] { --flight-blue-bg:#eaf3fc; --flight-blue-border:#c4d9ed; --flight-blue-fg:#194d80; --flight-green-bg:#eaf5ee; --flight-green-border:#c4dfcc; --flight-green-fg:#185d3b; --flight-layover-bg:#f1ecfa; --flight-layover-border:#d8cceb; --flight-layover-fg:#563489; --flight-neutral-bg:#f1f3f7; --flight-neutral-border:#d9dfe9; }
+html.dark [data-testid="flight-back-layout"] { --flight-blue-bg:#1b3047; --flight-blue-border:#426587; --flight-blue-fg:#bfdbfe; --flight-green-bg:#18352d; --flight-green-border:#396a54; --flight-green-fg:#bbf7d0; --flight-layover-bg:#322740; --flight-layover-border:#715788; --flight-layover-fg:#e4d3fa; --flight-neutral-bg:#263343; --flight-neutral-border:#475569; }
+[data-testid="flight-back-layout"] .flight-section { border-radius:1rem; padding:0.65rem 0.7rem; }
+[data-testid="flight-back-layout"] .flight-section-title { font-size:0.9rem; font-weight:750; text-transform:none; letter-spacing:-0.015em; gap:0.4rem; }
+[data-testid="flight-back-layout"] .flight-section-icon { width:1.1rem; height:1.1rem; }
+[data-testid="flight-back-layout"] .flight-identity { grid-template-columns:minmax(0,1.65fr) minmax(6.2rem,1fr); }
+[data-testid="flight-back-layout"] .flight-identity input,[data-testid="flight-back-layout"] .flight-identity select { min-height:2.75rem; border-radius:0.8rem; }
+[data-testid="flight-back-layout"] .flight-section-itinerary { container-type:inline-size; }
+[data-testid="flight-back-layout"] .flight-itinerary-grid { gap:0.5rem; }
+[data-testid="flight-back-layout"] .flight-airport-block { min-width:0; background:color-mix(in srgb,var(--flight-inner) 84%,transparent); border:1px solid var(--flight-blue-border); border-radius:0.85rem; padding:0.5rem; }
+[data-testid="flight-back-layout"] .flight-airport-block + .flight-airport-block { border:1px solid var(--flight-blue-border); border-radius:0.85rem; padding:0.5rem; }
+[data-testid="flight-back-layout"] .flight-airport-block > div:first-child label { font-size:0.72rem; text-transform:none; letter-spacing:0; }
+[data-testid="flight-back-layout"] .flight-airport-block > textarea { min-height:2.75rem; font-weight:600; padding-inline:0.55rem; }
+[data-testid="flight-back-layout"] .flight-airport-block > div:last-child { gap:0.35rem; }
+[data-testid="flight-back-layout"] .flight-airport-block input[type="date"] { padding-inline:0.35rem; width:100%; }
+[data-testid="flight-back-layout"] .flight-airport-block input[aria-label^="Orario"] { padding-inline:0.55rem; }
+[data-testid="flight-back-layout"] .flight-airport-block button[aria-label="Scegli orario"] { padding-inline:0.5rem; }
+[data-testid="flight-back-layout"] .flight-airport-block button[aria-label="Scegli orario"] span:last-child:not(:first-child) { display:none; }
+@container (min-width: 332px) {
+  [data-testid="flight-back-layout"] .flight-itinerary-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  [data-testid="flight-back-layout"] .flight-airport-block > div:last-child { grid-template-columns:minmax(0,1fr); }
+}
+@container (min-width: 620px) {
+  [data-testid="flight-back-layout"] .flight-airport-block > div:last-child { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+[data-testid="flight-back-layout"] .flight-package-toggle { appearance:none; width:2rem; height:1.15rem; border:1px solid var(--flight-green-border); border-radius:999px; background:var(--flight-neutral-border); position:relative; flex-shrink:0; cursor:pointer; }
+[data-testid="flight-back-layout"] .flight-package-toggle::before { content:""; position:absolute; top:1px; left:1px; width:0.9rem; height:0.9rem; background:#fff; border-radius:50%; box-shadow:0 1px 2px #0002; }
+[data-testid="flight-back-layout"] .flight-package-toggle:checked { background:#26804d; border-color:#26804d; }
+[data-testid="flight-back-layout"] .flight-package-toggle:checked::before { transform:translateX(0.83rem); }
+[data-testid="flight-back-layout"] .flight-section-finance > div > div:first-child { flex-wrap:wrap; }
+[data-testid="flight-back-layout"] .flight-section-finance > div > div:first-child > label { padding:0.35rem 0.45rem; min-height:2rem; }
+[data-testid="flight-back-layout"] .flight-section-finance input:not([type=checkbox]), [data-testid="flight-back-layout"] .flight-section-finance select { font-weight:600; min-height:2.75rem; }
+[data-testid="flight-back-layout"] .flight-section-technical,[data-testid="flight-back-layout"] .flight-section-layover { padding:0; }
+[data-testid="flight-back-layout"] button.flight-section-layover { padding:0.65rem 0.7rem; }
+[data-testid="flight-back-layout"] .flight-layover-summary { gap:0.35rem; min-height:2.75rem; }
+[data-testid="flight-back-layout"] .flight-layover-place { font-size:0.88rem; font-weight:650; color:var(--section-fg); margin-top:0.25rem; overflow-wrap:anywhere; }
+[data-testid="flight-back-layout"] .flight-duration-chip { display:inline-flex; align-items:center; padding:0.12rem 0.4rem; border:1px solid var(--section-border); border-radius:999px; background:var(--flight-inner); color:var(--section-fg); font-size:0.65rem; font-weight:650; }
+[data-testid="flight-back-layout"] .flight-layover-meta { color:var(--flight-muted); font-size:0.72rem; overflow-wrap:anywhere; }
+[data-testid="flight-back-layout"] .flight-layover-times { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0.35rem; margin-top:0.4rem; }
+[data-testid="flight-back-layout"] .flight-layover-times > span { background:var(--flight-inner); border:1px solid var(--section-border); border-radius:0.55rem; padding:0.35rem; font-size:0.72rem; color:var(--section-fg); overflow-wrap:anywhere; font-variant-numeric:tabular-nums; }
+[data-testid="flight-back-layout"] .flight-layover-times small { display:block; font-size:0.62rem; font-weight:600; margin-bottom:0.1rem; }
+[data-testid="flight-back-layout"] .flight-layover-remove { align-self:flex-start; min-width:2.75rem; min-height:2.75rem; display:grid; place-items:center; }
+[data-testid="flight-back-layout"] .flight-technical-label { font-size:0.85rem; font-weight:650; }
+[data-testid="flight-back-layout"] .flight-action-icon { width:1.3rem; height:1.3rem; }
+[data-testid="flight-back-layout"] .flight-action-empty { background:var(--flight-neutral-bg); color:var(--flight-muted); }
+[data-testid="flight-back-layout"] .flight-action-present { background:var(--flight-green-bg); color:var(--flight-green-fg); border-color:var(--flight-green-border); }
+[data-testid="flight-back-layout"] .flight-action-present span:last-child { color:var(--flight-green-fg); }
+[data-testid="flight-back-layout"] [data-testid="flight-shared-actions"] button { min-height:3.25rem; border-radius:0.85rem; font-size:0.72rem; }
+[data-testid="flight-back-layout"] .flight-section-notes { padding:0.15rem 0.7rem; }
+[data-testid="trasporto-form"][data-transport-subcategory="volo"] form > div:last-child:has(> button[type="submit"]) { padding-top:0.5rem; gap:0.4rem; }
+[data-testid="trasporto-form"][data-transport-subcategory="volo"] form > div:last-child > button { border-radius:0.85rem; }
+
+/* Flight front: size against the real card container, not the desktop viewport. */
+.hounigo-ds-card[data-transport-type="volo"] {
+  -webkit-text-size-adjust:100%; text-size-adjust:100%;
+}
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-header-subrow { font-size:0.75rem; line-height:1.4; }
+.flight-front-notice { display:block; width:100%; min-width:0; overflow-wrap:anywhere; font-weight:500; }
+.flight-front-notice-label { display:block; font-size:0.6875rem; font-weight:750; letter-spacing:0.02em; }
+.flight-front-notice-text { font-family:inherit; font-weight:600; white-space:pre-wrap; overflow-wrap:anywhere; }
+.flight-front-notice-arrival { font-weight:500; }
+.flight-front-layover { min-width:0; overflow-wrap:anywhere; font-weight:600; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-time-stamp,
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-pay-badge,
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-spec-value,
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-route .font-mono,
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-seats .font-mono { font-family:inherit; font-variant-numeric:tabular-nums; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-spec-value { font-weight:600; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.35; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-spec-cell { max-width:100%; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-seats { min-height:1.75rem; height:auto; padding-block:0.35rem; white-space:normal; overflow:visible; align-items:flex-start; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-seats .truncate { white-space:pre-wrap; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; font-weight:600; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-action-icon { width:1rem; height:1rem; flex-shrink:0; }
+@container (max-width:440px) {
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-header { padding:0.45rem 0.65rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-body { padding:0.6rem 0.65rem; gap:0.5rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-heading { align-items:center; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-heading h3 { min-width:min(8rem,100%); font-size:1rem; font-weight:750; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-heading button { min-height:2rem; font-weight:650; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route { gap:0.35rem; padding:0.6rem; align-items:start; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route > div:nth-child(2) { padding-inline:0; gap:0.15rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route > div:nth-child(2) > span { width:0.3rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route > div:first-child > div:last-child,
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route > div:last-child > div:last-child { font-size:0.8125rem; font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route .font-mono { font-size:1.15rem; font-weight:750; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer { flex-wrap:wrap; padding:0.45rem 0.65rem; gap:0.35rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer > div:last-child { flex:1 1 auto; min-width:0; gap:0.3rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn:not(.hidden) { min-height:44px; min-width:44px; padding:0.35rem; border-radius:0.6rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn svg { width:1.1rem; height:1.1rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer:has(.hounigo-ds-pay-badge) .hounigo-ds-actions-group:has(> :nth-child(4)) { flex-basis:100%; justify-content:space-between; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-pay-badge { min-height:2rem; font-weight:650; }
+}
+[data-testid="flight-back-layout"] { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
+
+/* Approved flight front concept. Only the flight card uses this layout. */
+.hounigo-ds-card[data-transport-type="volo"] { container-name:flight-front; border-radius:1rem; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-header-cat { letter-spacing:0.015em; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-category-icon { width:1.1rem; height:1.1rem; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-header-subrow { border-top:0; padding-top:0.25rem; gap:0.35rem; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-notice { display:flex; align-items:flex-start; gap:0.5rem; border:1px solid #f1d2ce; border-radius:0.75rem; padding:0.5rem; background:#fce8e6; color:#791e17; }
+html.dark .hounigo-ds-card[data-transport-type="volo"] .flight-front-notice { background:#402b2d; border-color:#74413d; color:#ffdbd6; }
+.flight-front-notice-icon { width:1.1rem; height:1.1rem; flex:none; margin-top:0.15rem; }
+.flight-front-notice-content { min-width:0; flex:1; display:flex; flex-direction:column; gap:0.12rem; }
+.flight-front-notice-label { font-size:0.75rem; letter-spacing:0; }
+.flight-front-notice-arrival { display:block; opacity:0.92; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-route { border-radius:0.85rem; background:#f2f6fb; border-color:#d6e0eb; }
+html.dark .hounigo-ds-card[data-transport-type="volo"] .flight-front-route { background:#1d2c40; border-color:#3b516d; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-route .font-mono { font-size:1.3rem; line-height:1.1; font-weight:750; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-spec-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:0.4rem; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-spec { display:flex; flex-direction:row; align-items:flex-start; gap:0.4rem; padding:0.5rem; border-radius:0.75rem; height:auto; min-width:0; width:100%; align-self:stretch; }
+.flight-front-spec-icon { width:1rem; height:1rem; flex:none; color:#1670a6; margin-top:0.05rem; }
+html.dark .flight-front-spec-icon { color:#7dd3fc; }
+.flight-front-spec-content { min-width:0; display:flex; flex-direction:column; gap:0.18rem; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-spec .hounigo-ds-spec-label { font-size:0.72rem; font-weight:650; text-transform:none; letter-spacing:0; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-spec .hounigo-ds-spec-value { font-size:0.8125rem; line-height:1.35; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer { flex-wrap:wrap; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn { min-width:44px; min-height:44px; box-sizing:border-box; border-radius:0.65rem; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-actions-group { flex-wrap:wrap; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-pay-badge { white-space:normal; max-width:100%; overflow-wrap:anywhere; font-weight:650; }
+@container flight-front (min-width:300px) {
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-spec-grid:has(> :nth-child(2)) { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@container flight-front (max-width:440px) {
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer > div:last-child { flex:1 1 100%; justify-content:flex-start; min-width:0; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn { flex:0 0 44px; min-width:44px; min-height:44px; width:44px; padding:0.25rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-actions-group .hounigo-ds-btn-text,
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-actions-group .hounigo-ds-btn-arrow { display:none !important; }
+}
+@media(max-width:767px) {
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn.hidden { display:none; }
+}
