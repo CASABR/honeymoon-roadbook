@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.36",
+      "publishedAt": "2026-11-26",
+      "sourceCommit": "8df2b473eb30a7683a6e951caff6505205cc19ea",
+      "changes": [
+        "Retro Treno compatto: binario, carrozza e posti separati, cambio treno dedicato, fusi automatici per località riconosciute e note collassate, con compatibilità dei dati precedenti."
+      ]
+    },
+    {
       "version": "1.7.35",
       "publishedAt": "2026-11-26",
       "sourceCommit": "973e687c09b59e4fb4a6dd47c11a105cb52d9604",
@@ -76,15 +84,6 @@
         "Fix safe area iPhone Dynamic Island e tastiera software su modali e sheet mobile (Modal, useVisualViewportBox, index.css), con verifica automatica su viewport mobile/iPad e retro card Trasporti su iPhone 15 Pro simulato."
       ],
       "publishedAtIso": "2026-11-25T18:19:56.000Z"
-    },
-    {
-      "version": "1.7.26",
-      "publishedAt": "2026-11-25",
-      "sourceCommit": "0e44855fd90d3925057f29f05320e8740d22d6cf",
-      "changes": [
-        "Retro card Trasporti ottimizzato per sottocategoria (Aereo, Treno, Traghetto, Auto, Camper, Bus/Transfer, Taxi, Metro): altezza ridotta con sezioni espandibili per dettagli secondari, quadro economico e note, mantenendo sempre visibili e modificabili tutti i dati già compilati anche cambiando mezzo."
-      ],
-      "publishedAtIso": "2026-11-25T18:04:35.000Z"
     }
   ]
 }

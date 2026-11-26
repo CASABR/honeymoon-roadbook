@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.36 — 2026-11-26
+
+- Retro Treno compatto: binario, carrozza e posti separati, cambio treno dedicato, fusi automatici per località riconosciute e note collassate, con compatibilità dei dati precedenti.
+
 ## 1.7.35 — 2026-11-26
 
 - Retro Aereo: dati aeroportuali automatici con verifica solo in caso di anomalie, grafica dedicata allo scalo e card a larghezza intera nella modalità mobile su iPad.
