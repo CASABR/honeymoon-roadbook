@@ -1999,3 +1999,44 @@ html.dark [data-testid="flight-back-layout"] { --flight-blue-bg:#1b3047; --fligh
 [data-testid="flight-back-layout"] .flight-section-notes { padding:0.15rem 0.7rem; }
 [data-testid="trasporto-form"][data-transport-subcategory="volo"] form > div:last-child:has(> button[type="submit"]) { padding-top:0.5rem; gap:0.4rem; }
 [data-testid="trasporto-form"][data-transport-subcategory="volo"] form > div:last-child > button { border-radius:0.85rem; }
+
+/* Flight front: size against the real card container, not the desktop viewport. */
+.hounigo-ds-card[data-transport-type="volo"] {
+  -webkit-text-size-adjust:100%; text-size-adjust:100%;
+}
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-header-subrow { font-size:0.75rem; line-height:1.4; }
+.flight-front-notice { display:block; width:100%; min-width:0; overflow-wrap:anywhere; font-weight:500; }
+.flight-front-notice-label { display:block; font-size:0.6875rem; font-weight:750; letter-spacing:0.02em; }
+.flight-front-notice-text { font-family:inherit; font-weight:600; white-space:pre-wrap; overflow-wrap:anywhere; }
+.flight-front-notice-arrival { font-weight:500; }
+.flight-front-layover { min-width:0; overflow-wrap:anywhere; font-weight:600; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-time-stamp,
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-pay-badge,
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-spec-value,
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-route .font-mono,
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-seats .font-mono { font-family:inherit; font-variant-numeric:tabular-nums; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-spec-value { font-weight:600; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.35; }
+.hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-spec-cell { max-width:100%; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-seats { min-height:1.75rem; height:auto; padding-block:0.35rem; white-space:normal; overflow:visible; align-items:flex-start; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-seats .truncate { white-space:pre-wrap; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; font-weight:600; }
+.hounigo-ds-card[data-transport-type="volo"] .flight-front-action-icon { width:1rem; height:1rem; flex-shrink:0; }
+@container (max-width:440px) {
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-header { padding:0.45rem 0.65rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-body { padding:0.6rem 0.65rem; gap:0.5rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-heading { align-items:center; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-heading h3 { min-width:min(8rem,100%); font-size:1rem; font-weight:750; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-heading button { min-height:2rem; font-weight:650; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route { gap:0.35rem; padding:0.6rem; align-items:start; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route > div:nth-child(2) { padding-inline:0; gap:0.15rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route > div:nth-child(2) > span { width:0.3rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route > div:first-child > div:last-child,
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route > div:last-child > div:last-child { font-size:0.8125rem; font-weight:600; line-height:1.3; overflow-wrap:anywhere; }
+  .hounigo-ds-card[data-transport-type="volo"] .flight-front-route .font-mono { font-size:1.15rem; font-weight:750; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer { flex-wrap:wrap; padding:0.45rem 0.65rem; gap:0.35rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer > div:last-child { flex:1 1 auto; min-width:0; gap:0.3rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn:not(.hidden) { min-height:44px; min-width:44px; padding:0.35rem; border-radius:0.6rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-action-btn svg { width:1.1rem; height:1.1rem; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-card-footer:has(.hounigo-ds-pay-badge) .hounigo-ds-actions-group:has(> :nth-child(4)) { flex-basis:100%; justify-content:space-between; }
+  .hounigo-ds-card[data-transport-type="volo"] .hounigo-ds-pay-badge { min-height:2rem; font-weight:650; }
+}
+[data-testid="flight-back-layout"] { -webkit-text-size-adjust:100%; text-size-adjust:100%; }

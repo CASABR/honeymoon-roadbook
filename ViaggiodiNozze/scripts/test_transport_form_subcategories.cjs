@@ -364,9 +364,9 @@ async function run() {
     assert.equal(await seatsEdit.inputValue(),'21A, 21B');
     await page.locator('button:has-text("Annulla")').first().click();
 
-    await page.getByRole('button',{name:/Dopo →/i}).first().click();
     for (const type of ['traghetto','auto','camper','transfer','taxi','metro']) {
-      await page.getByRole('button',{name:/Dopo →/i}).first().click();
+      const fixture = FIXTURES.trasporti.find(x=>x.id==='tr-compact-'+type);
+      await page.getByLabel('Scegli data dal calendario').fill(fixture.date);
       await page.locator('h3:visible').filter({hasText:'Test compatto '+type}).first().click();
       await page.getByTestId('transport-back-layout').waitFor({state:'visible'});
       assert.equal(await page.getByTestId('transport-subcategory-select').inputValue(),type);

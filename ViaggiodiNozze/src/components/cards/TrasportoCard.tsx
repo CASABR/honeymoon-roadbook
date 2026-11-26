@@ -1,7 +1,7 @@
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
-import { Handshake, Check, Clock, Armchair, Plane, TrainFront, Ship, Bus, Car } from 'lucide-react';
+import { Handshake, Check, Clock, Armchair, Plane, TrainFront, Ship, Bus, Car, Luggage, Ticket, Copy } from 'lucide-react';
 import type { Trasporto, TipoTrasporto, TransportSegmentContext } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
@@ -441,14 +441,14 @@ export default function TrasportoCard({
           {hasHeaderNotice && (
             <div className="hounigo-ds-header-subrow flex items-center justify-between gap-3">
               {checkinInfo.cutoffTime && (
-                <span>
-                  {transport.type === 'traghetto' ? 'IMBARCO ENTRO' : 'CHIUSURA CHECK-IN'}{' '}
-                  <strong className="font-mono font-extrabold">{checkinInfo.cutoffTime}</strong>
-                  {checkinInfo.airportArrivalTime ? ` · In ${transport.type === 'traghetto' ? 'porto' : 'aeroporto'} ore ${checkinInfo.airportArrivalTime}` : ''}
+                <span className={isFlight ? 'flight-front-notice' : undefined}>
+                  <span className={isFlight ? 'flight-front-notice-label' : undefined}>{transport.type === 'traghetto' ? 'IMBARCO ENTRO' : 'CHIUSURA CHECK-IN'}</span>{' '}
+                  <strong className={isFlight ? 'flight-front-notice-text' : 'font-mono font-extrabold'}>{checkinInfo.cutoffTime}</strong>
+                  {checkinInfo.airportArrivalTime ? <span className={isFlight ? 'flight-front-notice-arrival' : undefined}>{isFlight ? ' · In aeroporto ore ' : ' · In porto ore '}{checkinInfo.airportArrivalTime}</span> : null}
                 </span>
               )}
               {transport.type === 'volo' && transport.layover && (
-                <span className="font-mono">
+                <span className="flight-front-layover">
                   SCALO: <strong>{transport.layover.airport}</strong>
                   {transport.layover.duration ? ` (${transport.layover.duration})` : ''}
                 </span>
@@ -459,7 +459,7 @@ export default function TrasportoCard({
 
         {/* 2. BODY: OPERATORE, CHECK-IN, TRACCIATO PARTENZA/ARRIVO E CASELLARIO OPERATIVO */}
         <div className="hounigo-ds-card-body">
-          <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1.5">
+          <div className={`flex flex-wrap items-start justify-between gap-x-2 gap-y-1.5 ${isFlight ? 'flight-front-heading' : ''}`}>
             <h3 className="min-w-[140px] flex-1 font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
               {transport.carrier || currentType.label}
             </h3>
@@ -535,7 +535,7 @@ export default function TrasportoCard({
               )}
             </div>
           ) : (
-            <div className="rounded-xl bg-[#F8F7F3]/85 dark:bg-slate-900/55 border border-[#E2E6EE] dark:border-slate-700/80 px-3 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+            <div className={`rounded-xl bg-[#F8F7F3]/85 dark:bg-slate-900/55 border border-[#E2E6EE] dark:border-slate-700/80 px-3 py-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 ${isFlight ? 'flight-front-route' : ''}`}>
               <div className="min-w-0 text-left">
                 {transport.departureTime?.trim() && (
                   <div className="font-mono tabular-nums text-base sm:text-[17px] font-extrabold leading-none text-slate-900 dark:text-white mb-1">
@@ -601,7 +601,7 @@ export default function TrasportoCard({
                   </div>
                 ) : (
                   <div
-                    className="inline-flex items-center flex-nowrap gap-1.5 h-7 max-w-full px-2.5 rounded-lg bg-[#F8F7F3] dark:bg-slate-900/60 border border-[#E2E6EE] dark:border-slate-700 self-center whitespace-nowrap overflow-hidden"
+                    className={`inline-flex items-center flex-nowrap gap-1.5 h-7 max-w-full px-2.5 rounded-lg bg-[#F8F7F3] dark:bg-slate-900/60 border border-[#E2E6EE] dark:border-slate-700 self-center whitespace-nowrap overflow-hidden ${isFlight ? 'flight-front-seats' : ''}`}
                     title={`Posto assegnato: ${transport.posti}`}
                     aria-label={`Posto assegnato: ${transport.posti}`}
                   >
@@ -675,7 +675,7 @@ export default function TrasportoCard({
               title={transport.bagagli?.trim() ? `Bagagli registrati: ${transport.bagagli}` : 'Gestisci informazioni bagagli'}
               aria-label="Informazioni bagagli"
             >
-              <span aria-hidden="true">🧳</span>
+              {isFlight ? <Luggage className="flight-front-action-icon" aria-hidden="true" /> : <span aria-hidden="true">🧳</span>}
               <span className="hounigo-ds-btn-text">Bagagli</span>
             </button>
 
@@ -698,7 +698,7 @@ export default function TrasportoCard({
                   </>
                 ) : (
                   <>
-                    <span aria-hidden="true">🎫</span>
+                    {isFlight ? <Copy className="flight-front-action-icon" aria-hidden="true" /> : <span aria-hidden="true">🎫</span>}
                     <span className="hounigo-ds-btn-text font-bold">PNR</span>
                   </>
                 )}
@@ -728,7 +728,7 @@ export default function TrasportoCard({
               title={`Biglietti e QR · ${currentType.ticketLabel}`}
               aria-label={currentType.ticketLabel}
             >
-              <span aria-hidden="true">🎟️</span>
+              {isFlight ? <Ticket className="flight-front-action-icon" aria-hidden="true" /> : <span aria-hidden="true">🎟️</span>}
               <span className="hounigo-ds-btn-text">{currentType.ticketLabel}</span>
             </button>
 

@@ -201,6 +201,35 @@ async function run() {
     await page.goto('http://127.0.0.1:5205/', { waitUntil: 'domcontentloaded' });
     await page.waitForTimeout(500);
 
+    // Actual card width, independently of the viewport. Long operational text and touch targets.
+    const front = page.locator('[data-transport-type="volo"]').filter({has:page.locator('h3').filter({hasText:'Air China CA950'})}).first();
+    await front.waitFor({state:'visible'});
+    const mobileFront = await front.evaluate(el => {
+      const savedWidth = el.style.width;
+      const results = [];
+      try {
+        for (const width of [300, 340]) {
+          el.style.width = width+'px';
+          const outer = el.getBoundingClientRect();
+          const measured = [...el.querySelectorAll('.flight-front-notice,.flight-front-route,.hounigo-ds-spec-cell,.flight-front-seats,.hounigo-ds-action-btn')].filter(n=>n.getClientRects().length);
+          const actions = [...el.querySelectorAll('.hounigo-ds-action-btn')].filter(n=>n.getClientRects().length);
+          results.push({
+            width:outer.width,
+            overflow:measured.some(n=>n.getBoundingClientRect().right>outer.right+1 || n.getBoundingClientRect().left<outer.left-1),
+            hitTargets:actions.every(n=>n.getBoundingClientRect().width>=43 && n.getBoundingClientRect().height>=43),
+            cutoffText:el.querySelector('.flight-front-notice-text').textContent,
+            seats:el.querySelector('.flight-front-seats .truncate').textContent.trim()
+          });
+        }
+      } finally { el.style.width=savedWidth; }
+      return results;
+    });
+    for (const m of mobileFront) {
+      assert.equal(m.overflow,false,'Card mobile senza overflow: '+JSON.stringify(m));
+      assert.equal(m.hitTargets,true,'Azioni mobile raggiungibili: '+JSON.stringify(m));
+      assert.equal(m.cutoffText,FIXTURES.trasporti[0].checkinCutoff);
+      assert.equal(m.seats,FIXTURES.trasporti[0].posti);
+    }
     // 1. Apri volo diretto e verifica auto-IATA, quadro economico sempre aperto, dettagli volo collassati, modali condivise e conservazione modifiche
     await page.locator('h3:visible').filter({ hasText: 'Air China CA950' }).first().click();
     await page.getByTestId('flight-back-layout').waitFor({ state: 'visible' });

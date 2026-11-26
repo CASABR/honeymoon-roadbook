@@ -75,8 +75,10 @@ jobs:
       - name: Install browser test runner
         working-directory: ViaggiodiNozze
         run: |
-          npm install --no-save --package-lock=false playwright
-          npx playwright install --with-deps chromium
+          # Install separately so npm cannot recalculate the application's pinned dependency tree.
+          npm install --prefix "$RUNNER_TEMP/hounigo-browser" --no-package-lock --no-audit --no-fund playwright
+          echo "NODE_PATH=$RUNNER_TEMP/hounigo-browser/node_modules" >> "$GITHUB_ENV"
+          node "$RUNNER_TEMP/hounigo-browser/node_modules/playwright/cli.js" install --with-deps chromium
 
       - name: Test - Dynamic Island / keyboard visual viewport
         working-directory: ViaggiodiNozze
