@@ -394,6 +394,9 @@ async function run() {
     assert.equal(savedDirect.platform,'Sito ufficiale sintetico');
     await page.locator('h3:visible').filter({hasText:'Air China CA950 Mod'}).first().click();
     await page.getByTestId('flight-back-layout').waitFor({state:'visible'});
+    // React initializes form fields in an effect after the modal first becomes visible.
+    // Wait for the persisted value rather than observing the initial empty render.
+    await page.waitForFunction(() => document.querySelector('#flight-platform')?.value === 'Sito ufficiale sintetico', null, {timeout:8000});
     assert.equal(await page.getByLabel('Piattaforma di acquisto').inputValue(),'Sito ufficiale sintetico');
     await page.locator('button:has-text("Annulla")').first().click();
     assert.equal(savedDirect.bookingCode, 'NEWPNR');
