@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-26T14:47:18Z",
+  "requestedAt": "2026-11-27T11:06:30Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.39-desktop-clone-20261126",
+  "requestId": "release-1.7.41-pdf-local-20261127",
   "requestedBy": "CASABR",
-  "ref": "4a69f9414ebc3b84d6235a4a4c17fae61d9a85b4",
+  "ref": "a18bd2b209926714d687734fe49e427761594185",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.39: icona Clona solo desktop sul fronte di tutte le categorie; CI push e PR superate."
+  "note": "HOUNIGO 1.7.41: resolver geografico condiviso, autocompletamento per data e download locale PDF con anteprima e permessi."
 }
