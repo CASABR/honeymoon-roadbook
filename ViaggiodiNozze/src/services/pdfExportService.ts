@@ -37,10 +37,52 @@ export interface PdfExportOptions {
   singleDate?: string;
 
   // Livello di dettaglio
-  detailLevel: 'compact' | 'detailed';
+  detailLevel: 'compact' | 'operational' | 'detailed';
+
+  // Formato di esportazione
+  exportFormat?: 'pdf' | 'docx';
 
   // Controllo esplicito permessi (Owner / Copilota vs Viewer)
   allowPrivateInfo?: boolean;
+}
+
+export interface OperationalEventRow {
+  time: string;
+  sortMin: number;
+  badge: 'Confermato' | 'Indicativo' | 'Facoltativo' | 'Scadenza';
+  category: string;
+  title: string;
+  details: string;
+}
+
+export interface OperationalAccommodationInfo {
+  name: string;
+  address: string;
+  checkInOut: string;
+  ref: string;
+  finance: string;
+  instructions: string;
+}
+
+export interface OperationalDayGroup {
+  dayNum: number;
+  date: string;
+  label: string;
+  accommodation: OperationalAccommodationInfo | null;
+  events: OperationalEventRow[];
+  dayNotes: string[];
+}
+
+export interface OperationalExportData {
+  tripTitle: string;
+  tripDates: string;
+  days: OperationalDayGroup[];
+  totalEventsCount: number;
+  documents: Array<{ title: string; category: string }>;
+  pendingBalances: Array<{ date: string; name: string; amount: string }>;
+  deposits: Array<{ date: string; name: string; cauzione: string }>;
+  undatedDeadlines: Array<{ title: string; details: string }>;
+  generalNotes: Array<{ title: string; content: string }>;
 }
 
 export interface PdfDayGroup {
@@ -469,6 +511,339 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
 }
 
 /**
+ * Pulisce testi operativi da URL Maps troncati/grezzi e caratteri CJK non supportati dai font PDF standard.
+ */
+export function cleanOperationalText(raw: string | undefined | null): string {
+  if (!raw || typeof raw !== 'string') return '';
+  let s = raw
+    .replace(/https?:\/\/(?:www\.)?(?:google\.com\/maps|maps\.app\.goo\.gl)\S*/gi, '')
+    .replace(/[\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]+/g, '')
+    .replace(/\(\s*\)/g, '')
+    .replace(/\s*\n+\s*/g, ' · ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  s = s.replace(/^[,.\s·-]+|[,.\s·-]+$/g, '').trim();
+  return sanitizePdfText(s);
+}
+
+function cleanOperationalTitle(raw: string | undefined | null, fallback = ''): string {
+  const cleaned = cleanOperationalText(raw);
+  if (!cleaned && raw && /东华门/.test(raw)) return 'Donghuamen (Porta Est)';
+  return cleaned || fallback;
+}
+
+function dedupeOperationalDetails(...parts: Array<string | undefined | null>): string {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const p of parts) {
+    const c = cleanOperationalText(p);
+    if (!c) continue;
+    const norm = c.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!norm || seen.has(norm)) continue;
+    if (out.some((prev) => prev.toLowerCase().includes(c.toLowerCase()))) continue;
+    seen.add(norm);
+    out.push(c);
+  }
+  return out.join(' | ');
+}
+
+function resolveOperationalBadge(item: any): 'Confermato' | 'Indicativo' | 'Facoltativo' {
+  if (item?.status === 'da_valutare' || item?.status === 'libero' || /facoltativ/i.test(item?.notes || item?.nota || '')) {
+    return 'Facoltativo';
+  }
+  if (item?.timeStatus === 'confermato' || item?.status === 'saldato' || item?.status === 'prenotato') {
+    return item?.timeStatus === 'indicativo' ? 'Indicativo' : 'Confermato';
+  }
+  return 'Indicativo';
+}
+
+function timeToMinutes(hhmm?: string): number {
+  const m = /^(\d{1,2}):(\d{2})/.exec((hhmm || '').trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : 9999;
+}
+
+/**
+ * Prepara i dati strutturati per l'esportazione "Compatto operativo" (PDF e Word .docx)
+ * leggendo dinamicamente dai dati locali aggiornati del viaggio attivo.
+ */
+export async function prepareOperationalExportData(options: PdfExportOptions): Promise<OperationalExportData> {
+  const allowPrivate = options.allowPrivateInfo !== undefined ? options.allowPrivateInfo : canMutateLocally();
+  const effectiveIncludeBookingRefs = Boolean(options.includeBookingRefs && allowPrivate);
+  const effectiveIncludeNotes = Boolean(options.includeNotes && allowPrivate);
+  const effectiveIncludeSpese = Boolean(options.includeSpese && allowPrivate);
+
+  const config = getTripConfig();
+  const tripTitle = cleanOperationalText(config?.title) || 'Il nostro Viaggio';
+  const tripDates = config?.startDate && config?.endDate
+    ? `${formatDateIT(config.startDate)} - ${formatDateIT(config.endDate)}`
+    : 'Roadbook Operativo';
+
+  const [
+    allActivities,
+    allTransports,
+    allAccommodations,
+    allTappe,
+    allRistoranti,
+    allShopping,
+    allNotes,
+    allDocuments,
+  ] = await Promise.all([
+    storageService.getActivities().catch(() => [] as Attivita[]),
+    storageService.getTransports().catch(() => [] as Trasporto[]),
+    storageService.getAccommodations().catch(() => [] as Alloggio[]),
+    storageService.getTappe().catch(() => [] as Tappa[]),
+    storageService.getRistoranti().catch(() => [] as Ristorante[]),
+    storageService.getShopping().catch(() => [] as Shopping[]),
+    storageService.getNote().catch(() => [] as NotaViaggio[]),
+    storageService.getDocuments().catch(() => [] as any[]),
+  ]);
+
+  const allDatesSet = new Set<string>();
+  if (config?.startDate && config?.endDate) {
+    const cur = new Date(config.startDate);
+    const end = new Date(config.endDate);
+    while (cur <= end) {
+      allDatesSet.add(cur.toISOString().split('T')[0]);
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+  allActivities.forEach((a) => { if (a.date) allDatesSet.add(a.date); });
+  allTransports.forEach((t) => { if (t.date) allDatesSet.add(t.date); });
+  allAccommodations.forEach((a) => {
+    if (a.checkIn) allDatesSet.add(a.checkIn);
+    if (a.checkOut) allDatesSet.add(a.checkOut);
+  });
+  allTappe.forEach((tp) => { const d = tp.data || (tp as any).date; if (d) allDatesSet.add(d); });
+  allRistoranti.forEach((r) => { const d = r.data || (r as any).date; if (d) allDatesSet.add(d); });
+  allShopping.forEach((s) => { const d = s.data || (s as any).date; if (s as any && d) allDatesSet.add(d); });
+
+  let sortedDates = Array.from(allDatesSet).sort();
+  if (options.periodType === 'single' && options.singleDate) {
+    sortedDates = sortedDates.filter((d) => d === options.singleDate);
+  } else if (options.periodType === 'range' && options.startDate && options.endDate) {
+    sortedDates = sortedDates.filter((d) => d >= options.startDate! && d <= options.endDate!);
+  }
+
+  let totalEventsCount = 0;
+  const days: OperationalDayGroup[] = [];
+
+  sortedDates.forEach((dateStr, idx) => {
+    const dayNum = idx + 1;
+    const acc = options.includeAccommodations
+      ? allAccommodations.find((a) => a.checkIn && (a.checkOut ? (a.checkIn <= dateStr && dateStr < a.checkOut) : a.checkIn === dateStr))
+      : undefined;
+
+    let accommodation: OperationalAccommodationInfo | null = null;
+    if (acc) {
+      const aAny = acc as any;
+      const ref = effectiveIncludeBookingRefs ? cleanOperationalText(aAny.bookingCode || aAny.pnr) : '';
+      const payStatus = allowPrivate ? (aAny.paymentStatus || acc.status || '') : '';
+      const costStr = effectiveIncludeSpese
+        ? (aAny.originalCost && aAny.originalCurrency ? `${aAny.originalCost} ${aAny.originalCurrency}${aAny.cost ? ` (~${aAny.cost})` : ''}` : (aAny.cost || ''))
+        : '';
+      const remStr = effectiveIncludeSpese && aAny.originalRemaining > 0 ? `Residuo: ${aAny.originalRemaining} ${aAny.originalCurrency || ''}` : '';
+      const cauzStr = effectiveIncludeSpese && aAny.cauzione ? `Cauzione: ${cleanOperationalText(aAny.cauzione)}` : '';
+      const instr = effectiveIncludeNotes ? dedupeOperationalDetails(acc.notes, aAny.nota, acc.noteCopilota) : '';
+      accommodation = {
+        name: cleanOperationalTitle(acc.name, 'Alloggio'),
+        address: cleanOperationalText(acc.address || acc.location),
+        checkInOut: `${acc.checkInTime || '14:00'} / out ${acc.checkOutTime || '10:00'}`,
+        ref,
+        finance: [payStatus, costStr, remStr, cauzStr].filter(Boolean).join(' · '),
+        instructions: instr,
+      };
+    }
+
+    const events: OperationalEventRow[] = [];
+
+    // Scadenze nella giornata di riferimento
+    if (allowPrivate) {
+      allNotes
+        .filter((n: any) => n.recordKind === 'scadenza' && n.dueDate === dateStr)
+        .forEach((n: any) => {
+          events.push({
+            time: n.dueTime || '--:--',
+            sortMin: timeToMinutes(n.dueTime),
+            badge: 'Scadenza',
+            category: 'Scadenza',
+            title: cleanOperationalTitle(n.title, 'Scadenza'),
+            details: effectiveIncludeNotes ? dedupeOperationalDetails(n.content, n.copilotNotes) : '',
+          });
+        });
+    }
+
+    if (options.includeTransports) {
+      allTransports
+        .filter((t) => t.date === dateStr)
+        .forEach((t) => {
+          const tAny = t as any;
+          const time = extractEventTime(t, 'trasporto') || '--:--';
+          const arrStr = t.arrivalTime ? ` -> ${t.arrivalTime}${t.arrivalDate && t.arrivalDate !== dateStr ? ` (${t.arrivalDate.slice(5)})` : ''}` : '';
+          const route = `${cleanOperationalText(t.departureLocation) || '?'} -> ${cleanOperationalText(t.arrivalLocation || t.dropoffLocation) || '?'}`;
+          const ref = effectiveIncludeBookingRefs ? (tAny.pnr ? `PNR ${tAny.pnr}` : (t.bookingCode ? `Rif. ${t.bookingCode}` : '')) : '';
+          const term = cleanOperationalText(t.terminalGate);
+          const bag = cleanOperationalText(t.bagagli);
+          const pay = effectiveIncludeSpese
+            ? [tAny.paymentStatus || t.status, tAny.originalRemaining > 0 ? `Residuo ${tAny.originalRemaining} ${tAny.originalCurrency || ''}` : '', tAny.cauzione ? `Cauzione ${cleanOperationalText(tAny.cauzione)}` : ''].filter(Boolean).join(' · ')
+            : '';
+          const ops = dedupeOperationalDetails(
+            t.checkinCutoff ? `Check-in/Cut-off: ${t.checkinCutoff}` : '',
+            effectiveIncludeNotes ? tAny.notes : '',
+            effectiveIncludeNotes ? t.noteCopilota : '',
+            effectiveIncludeNotes ? t.layover?.notes : ''
+          );
+          events.push({
+            time: `${time}${arrStr}`,
+            sortMin: timeToMinutes(time),
+            badge: resolveOperationalBadge(t),
+            category: (t.type || 'trasporto').toUpperCase(),
+            title: cleanOperationalTitle(t.carrier || t.type, 'Trasporto'),
+            details: [route, term, ref, pay, bag ? `Bagagli: ${bag}` : '', ops].filter(Boolean).join(' | '),
+          });
+        });
+    }
+
+    if (options.includeActivities) {
+      allActivities
+        .filter((a) => a.date === dateStr)
+        .forEach((a) => {
+          const aAny = a as any;
+          const time = extractEventTime(a, 'attivita') || '--:--';
+          const loc = cleanOperationalText(a.address || a.location);
+          const ref = effectiveIncludeBookingRefs ? cleanOperationalText(aAny.bookingCode || aAny.pnr) : '';
+          const pay = effectiveIncludeSpese && aAny.paymentStatus === 'saldato' && aAny.cost
+            ? `Saldato ${aAny.originalCost ? `${aAny.originalCost} ${aAny.originalCurrency || ''}` : aAny.cost}`
+            : '';
+          const info = dedupeOperationalDetails(
+            a.duration ? `Durata: ${a.duration}` : '',
+            formatActivityDetails(a),
+            effectiveIncludeNotes ? a.notes : '',
+            effectiveIncludeNotes ? a.noteCopilota : ''
+          );
+          events.push({
+            time,
+            sortMin: timeToMinutes(time),
+            badge: resolveOperationalBadge(a),
+            category: 'Attività',
+            title: cleanOperationalTitle(a.title, 'Attività'),
+            details: [loc, ref ? `Rif. ${ref}` : '', pay, info].filter(Boolean).join(' | '),
+          });
+        });
+
+      allRistoranti
+        .filter((r) => (r.data || (r as any).date) === dateStr)
+        .forEach((r) => {
+          const rAny = r as any;
+          const time = extractEventTime(r, 'ristorante') || '--:--';
+          const addr = cleanOperationalText(r.indirizzo);
+          const pay = effectiveIncludeSpese ? [rAny.paymentStatus || r.status, rAny.originalCost ? `${rAny.originalCost} ${rAny.originalCurrency || ''}` : ''].filter(Boolean).join(' ') : '';
+          const info = effectiveIncludeNotes ? dedupeOperationalDetails(r.notes, r.nota, r.noteCopilota) : '';
+          events.push({
+            time,
+            sortMin: timeToMinutes(time),
+            badge: resolveOperationalBadge(r),
+            category: `Ristorante (${r.sottocategoria || 'Pasto'})`,
+            title: cleanOperationalTitle(r.nome, 'Ristorante'),
+            details: [addr, pay, info].filter(Boolean).join(' | '),
+          });
+        });
+
+      allShopping
+        .filter((s) => (s.data || (s as any).date) === dateStr)
+        .forEach((s) => {
+          const time = extractEventTime(s, 'shopping') || '--:--';
+          events.push({
+            time,
+            sortMin: timeToMinutes(time),
+            badge: resolveOperationalBadge(s),
+            category: 'Shopping',
+            title: cleanOperationalTitle(s.nome, 'Shopping'),
+            details: [cleanOperationalText(s.indirizzo), effectiveIncludeNotes ? dedupeOperationalDetails(s.nota, s.noteCopilota) : ''].filter(Boolean).join(' | '),
+          });
+        });
+    }
+
+    if (options.includeTappe) {
+      allTappe
+        .filter((tp) => (tp.data || (tp as any).date) === dateStr)
+        .forEach((tp) => {
+          const time = extractEventTime(tp, 'tappa') || '--:--';
+          const desc = dedupeOperationalDetails(cleanOperationalText(tp.indirizzo), effectiveIncludeNotes ? tp.nota : '', effectiveIncludeNotes ? (tp as any).notes : '');
+          events.push({
+            time,
+            sortMin: timeToMinutes(time),
+            badge: resolveOperationalBadge(tp),
+            category: tp.sottocategoria === 'Task' ? 'Promemoria' : 'Tappa',
+            title: cleanOperationalTitle(tp.titolo, 'Tappa'),
+            details: desc,
+          });
+        });
+    }
+
+    events.sort((a, b) => a.sortMin - b.sortMin);
+    totalEventsCount += events.length;
+
+    const dayNotes = effectiveIncludeNotes
+      ? allNotes
+          .filter((n: any) => n.recordKind !== 'scadenza' && (n.date === dateStr || n.data === dateStr))
+          .map((n: any) => cleanOperationalText(n.content || n.testo || n.title))
+          .filter(Boolean)
+      : [];
+
+    days.push({
+      dayNum,
+      date: dateStr,
+      label: formatDateIT(dateStr),
+      accommodation,
+      events,
+      dayNotes,
+    });
+  });
+
+  const documents = (allDocuments || [])
+    .filter((d: any) => d && !String(d.id || '').startsWith('att_chunk_'))
+    .map((d: any) => ({ title: cleanOperationalTitle(d.title || d.name, 'Documento'), category: cleanOperationalText(d.category || 'documento') }));
+
+  const pendingBalances: Array<{ date: string; name: string; amount: string }> = [];
+  const deposits: Array<{ date: string; name: string; cauzione: string }> = [];
+  if (effectiveIncludeSpese) {
+    for (const a of allAccommodations as any[]) {
+      if (a.originalRemaining > 0) pendingBalances.push({ date: a.checkIn || '', name: cleanOperationalTitle(a.name), amount: `${a.originalRemaining} ${a.originalCurrency || ''}` });
+      if (a.cauzione) deposits.push({ date: a.checkIn || '', name: cleanOperationalTitle(a.name), cauzione: cleanOperationalText(a.cauzione) });
+    }
+    for (const t of allTransports as any[]) {
+      if (t.originalRemaining > 0) pendingBalances.push({ date: t.date || '', name: cleanOperationalTitle(t.carrier || t.type), amount: `${t.originalRemaining} ${t.originalCurrency || ''}` });
+      if (t.cauzione) deposits.push({ date: t.date || '', name: cleanOperationalTitle(t.carrier || t.type), cauzione: cleanOperationalText(t.cauzione) });
+    }
+  }
+
+  const undatedDeadlines = allowPrivate
+    ? allNotes
+        .filter((n: any) => n.recordKind === 'scadenza' && !n.dueDate)
+        .map((n: any) => ({ title: cleanOperationalTitle(n.title, 'Scadenza'), details: effectiveIncludeNotes ? cleanOperationalText(n.content) : '' }))
+    : [];
+
+  const generalNotes = effectiveIncludeNotes
+    ? allNotes
+        .filter((n: any) => n.recordKind !== 'scadenza' && !n.date && !n.data)
+        .map((n: any) => ({ title: cleanOperationalTitle(n.title, 'Nota'), content: cleanOperationalText(n.content || n.testo) }))
+        .filter((n) => n.content)
+    : [];
+
+  return {
+    tripTitle,
+    tripDates,
+    days,
+    totalEventsCount,
+    documents,
+    pendingBalances,
+    deposits,
+    undatedDeadlines,
+    generalNotes,
+  };
+}
+
+/**
  * Anteprima sintetica rapida senza dover generare il documento PDF completo.
  */
 export async function getPdfPreviewStats(options: PdfExportOptions): Promise<{
@@ -477,6 +852,16 @@ export async function getPdfPreviewStats(options: PdfExportOptions): Promise<{
   estimatedPages: number;
   dateRangeStr: string;
 }> {
+  if (options.detailLevel === 'operational') {
+    const op = await prepareOperationalExportData(options);
+    const daysCount = op.days.length;
+    const estimatedPages = Math.max(1, Math.ceil(daysCount / 2.4));
+    let dateRangeStr = op.tripDates;
+    if (options.periodType === 'single' && options.singleDate) dateRangeStr = formatDateIT(options.singleDate);
+    else if (options.periodType === 'range' && options.startDate && options.endDate) dateRangeStr = `${formatDateIT(options.startDate)} - ${formatDateIT(options.endDate)}`;
+    return { daysCount, totalEventsCount: op.totalEventsCount, estimatedPages, dateRangeStr };
+  }
+
   const prepared = await preparePdfData(options);
   const daysCount = prepared.days.length;
   const eventsCount = prepared.totalEventsCount;
@@ -500,6 +885,155 @@ export async function getPdfPreviewStats(options: PdfExportOptions): Promise<{
   };
 }
 
+async function renderOperationalPdf(op: OperationalExportData): Promise<{ blob: Blob; fileName: string; pageCount: number }> {
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', putOnlyUsedFonts: true });
+  const pageWidth = 210;
+  const pageHeight = 297;
+  const marginX = 10;
+  const contentWidth = pageWidth - marginX * 2;
+  const bottomLimit = pageHeight - 13;
+  let y = 11;
+
+  const NAVY = [23, 32, 51] as const;
+  const SLATE = [71, 85, 105] as const;
+  const BORDER = [203, 213, 225] as const;
+  const HEADER_BG = [238, 242, 246] as const;
+
+  const ensureSpace = (h: number) => {
+    if (y + h > bottomLimit) {
+      doc.addPage();
+      y = 11;
+    }
+  };
+
+  // Titolo sobrio
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(12);
+  doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.text(`HOUNIGO — Compatto Operativo (${op.tripTitle})`, marginX, y);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(SLATE[0], SLATE[1], SLATE[2]);
+  doc.text(op.tripDates, pageWidth - marginX, y, { align: 'right' });
+  y += 2;
+  doc.setDrawColor(NAVY[0], NAVY[1], NAVY[2]);
+  doc.setLineWidth(0.4);
+  doc.line(marginX, y, pageWidth - marginX, y);
+  y += 4;
+
+  // Riepilogo Documenti / Saldi / Cauzioni / Note generali
+  const summaryLines: string[] = [];
+  if (op.documents.length > 0) summaryLines.push(`Documenti: ${op.documents.map((d) => d.title).join(' · ')}`);
+  op.pendingBalances.forEach((b) => summaryLines.push(`Residuo (${b.date}): ${b.name} — ${b.amount}`));
+  op.deposits.forEach((c) => summaryLines.push(`Cauzione (${c.date}): ${c.name} — ${c.cauzione}`));
+  op.undatedDeadlines.forEach((s) => summaryLines.push(`Scadenza: ${s.title}${s.details ? ` — ${s.details}` : ''}`));
+  op.generalNotes.forEach((n) => summaryLines.push(`${n.title}: ${n.content}`));
+
+  if (summaryLines.length > 0) {
+    const wrapped = summaryLines.flatMap((l) => doc.splitTextToSize(l, contentWidth - 4));
+    const boxH = 3.5 + wrapped.length * 2.8;
+    ensureSpace(boxH + 2);
+    doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+    doc.setFillColor(248, 250, 252);
+    doc.setLineWidth(0.2);
+    doc.rect(marginX, y, contentWidth, boxH, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.6);
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    let sy = y + 3.2;
+    wrapped.forEach((ln) => { doc.text(ln, marginX + 2, sy); sy += 2.8; });
+    y += boxH + 3;
+  }
+
+  for (const dg of op.days) {
+    ensureSpace(14);
+    // Intestazione giorno
+    doc.setFillColor(HEADER_BG[0], HEADER_BG[1], HEADER_BG[2]);
+    doc.rect(marginX, y, contentWidth, 5.2, 'F');
+    doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.rect(marginX, y, 1.2, 5.2, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.text(`Giorno ${dg.dayNum} — ${dg.label}`, marginX + 3, y + 3.6);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.text(dg.date, pageWidth - marginX - 2, y + 3.6, { align: 'right' });
+    y += 6;
+
+    // Alloggio
+    doc.setFontSize(6.6);
+    const accText = dg.accommodation
+      ? `Alloggio: ${dg.accommodation.name}${dg.accommodation.address ? ` · ${dg.accommodation.address}` : ''} · Check-in/out: ${dg.accommodation.checkInOut}${dg.accommodation.ref ? ` · Rif: ${dg.accommodation.ref}` : ''}${dg.accommodation.finance ? ` · ${dg.accommodation.finance}` : ''}${dg.accommodation.instructions ? ` · ${dg.accommodation.instructions}` : ''}`
+      : 'Notte in volo / transito aeroportuale (nessun alloggio a terra).';
+    const accLines = doc.splitTextToSize(accText, contentWidth - 4);
+    const accH = 2.5 + accLines.length * 2.7;
+    ensureSpace(accH + 1);
+    doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+    doc.setFillColor(250, 250, 250);
+    doc.rect(marginX, y, contentWidth, accH, 'FD');
+    doc.setFont('helvetica', dg.accommodation ? 'normal' : 'italic');
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    let ay = y + 3;
+    accLines.forEach((ln: string) => { doc.text(ln, marginX + 2, ay); ay += 2.7; });
+    y += accH + 1.5;
+
+    // Eventi in formato tabellare sobrio
+    for (const ev of dg.events) {
+      const leftText = `${ev.time} [${ev.badge}]`;
+      const midText = `${ev.category}: ${ev.title}`;
+      const rightLines = doc.splitTextToSize(ev.details || '-', contentWidth - 76);
+      const midLines = doc.splitTextToSize(midText, 44);
+      const leftLines = doc.splitTextToSize(leftText, 27);
+      const maxLines = Math.max(leftLines.length, midLines.length, rightLines.length);
+      const rowH = 2.2 + maxLines * 2.65;
+      ensureSpace(rowH);
+
+      doc.setDrawColor(BORDER[0], BORDER[1], BORDER[2]);
+      doc.setLineWidth(0.15);
+      doc.rect(marginX, y, contentWidth, rowH);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.4);
+      doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+      leftLines.forEach((ln: string, i: number) => doc.text(ln, marginX + 1.5, y + 2.8 + i * 2.65));
+      midLines.forEach((ln: string, i: number) => doc.text(ln, marginX + 29, y + 2.8 + i * 2.65));
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(SLATE[0], SLATE[1], SLATE[2]);
+      rightLines.forEach((ln: string, i: number) => doc.text(ln, marginX + 74, y + 2.8 + i * 2.65));
+      y += rowH;
+    }
+
+    for (const dn of dg.dayNotes) {
+      const nLines = doc.splitTextToSize(`Nota: ${dn}`, contentWidth - 4);
+      ensureSpace(2 + nLines.length * 2.65);
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(6.4);
+      doc.setTextColor(SLATE[0], SLATE[1], SLATE[2]);
+      nLines.forEach((ln: string) => { doc.text(ln, marginX + 2, y + 2.5); y += 2.65; });
+    }
+    y += 2.5;
+  }
+
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(SLATE[0], SLATE[1], SLATE[2]);
+    doc.text('HOUNIGO — Compatto Operativo · Stampa offline', marginX, pageHeight - 6.5);
+    doc.text(`Pagina ${i} di ${totalPages}`, pageWidth - marginX, pageHeight - 6.5, { align: 'right' });
+  }
+
+  return {
+    blob: doc.output('blob'),
+    fileName: buildPdfFileName(op.tripTitle, 'Compatto Operativo'),
+    pageCount: totalPages,
+  };
+}
+
 /**
  * Genera il file PDF del Roadbook e lo restituisce come Blob e URL.
  */
@@ -508,6 +1042,11 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
   fileName: string;
   pageCount: number;
 }> {
+  if (options.detailLevel === 'operational') {
+    const opData = await prepareOperationalExportData(options);
+    return renderOperationalPdf(opData);
+  }
+
   // 1. Import dinamico di jsPDF (nessun impatto sul bundle iniziale)
   const { jsPDF } = await import('jspdf');
 
@@ -869,15 +1408,15 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
 }
 
 /**
- * Costruisce il nome file standardizzato: HOUNIGO – Nome viaggio – Itinerario.pdf
+ * Costruisce il nome file standardizzato: HOUNIGO – Nome viaggio – Itinerario.pdf (o Compatto Operativo)
  */
-export function buildPdfFileName(tripTitle: string): string {
+export function buildPdfFileName(tripTitle: string, docLabel = 'Itinerario'): string {
   const safeTitle = (tripTitle || '')
     .replace(/[\\/:*?"<>|\u0000-\u001F]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 60) || 'Viaggio';
-  return `HOUNIGO \u2013 ${safeTitle} \u2013 Itinerario.pdf`;
+  return `HOUNIGO \u2013 ${safeTitle} \u2013 ${docLabel}.pdf`;
 }
 
 /**
@@ -893,22 +1432,26 @@ export function isMobileOrTabletDevice(): boolean {
 }
 
 /**
- * Verifica se la Web Share API nativa supporta la condivisione di file PDF.
+ * Verifica se la Web Share API nativa supporta la condivisione di file (PDF o DOCX).
  */
-export function canSharePdfFile(fileName = 'itinerario.pdf'): boolean {
+export function canShareFile(mimeType = 'application/pdf', fileName = 'itinerario.pdf'): boolean {
   if (typeof navigator === 'undefined' || !navigator.share || !navigator.canShare) return false;
   try {
-    const probe = new File(['%PDF-1.4'], fileName, { type: 'application/pdf' });
+    const probe = new File(['HOUNIGO'], fileName, { type: mimeType });
     return navigator.canShare({ files: [probe] });
   } catch {
     return false;
   }
 }
 
+export function canSharePdfFile(fileName = 'itinerario.pdf'): boolean {
+  return canShareFile('application/pdf', fileName);
+}
+
 /**
- * Scarica direttamente il file PDF sul dispositivo (desktop o salvataggio locale mobile).
+ * Scarica direttamente un file Blob sul dispositivo (desktop o salvataggio locale mobile).
  */
-export function downloadPdfDirectly(blob: Blob, fileName: string): {
+export function downloadFileDirectly(blob: Blob, fileName: string): {
   shared: boolean;
   downloaded: boolean;
 } {
@@ -929,17 +1472,23 @@ export function downloadPdfDirectly(blob: Blob, fileName: string): {
     }, 1500);
     return { shared: false, downloaded: true };
   } catch (downloadErr) {
-    console.error('[PdfExport] Errore trigger download blob:', downloadErr);
+    console.error('[Export] Errore trigger download blob:', downloadErr);
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     return { shared: false, downloaded: true };
   }
 }
 
+export const downloadPdfDirectly = downloadFileDirectly;
+
 /**
- * Condivide il PDF tramite sheet nativo (iOS/iPadOS/Android) con fallback al download locale.
+ * Condivide il file tramite sheet nativo (iOS/iPadOS/Android) con fallback al download locale.
  */
-export async function sharePdfNatively(blob: Blob, fileName: string): Promise<{
+export async function shareFileNatively(
+  blob: Blob,
+  fileName: string,
+  mimeType = blob.type || 'application/pdf'
+): Promise<{
   shared: boolean;
   downloaded: boolean;
 }> {
@@ -948,7 +1497,7 @@ export async function sharePdfNatively(blob: Blob, fileName: string): Promise<{
   }
   if (navigator.share && navigator.canShare) {
     try {
-      const file = new File([blob], fileName, { type: 'application/pdf' });
+      const file = new File([blob], fileName, { type: mimeType });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
@@ -961,10 +1510,14 @@ export async function sharePdfNatively(blob: Blob, fileName: string): Promise<{
       if (shareErr?.name === 'AbortError') {
         return { shared: false, downloaded: false };
       }
-      console.warn('[PdfExport] Web Share API non completata, passaggio a download standard:', shareErr);
+      console.warn('[Export] Web Share API non completata, passaggio a download standard:', shareErr);
     }
   }
-  return downloadPdfDirectly(blob, fileName);
+  return downloadFileDirectly(blob, fileName);
+}
+
+export async function sharePdfNatively(blob: Blob, fileName: string) {
+  return shareFileNatively(blob, fileName, 'application/pdf');
 }
 
 /**

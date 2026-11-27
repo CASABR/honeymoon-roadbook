@@ -148,7 +148,7 @@ async function run() {
     await page.locator('label:visible').filter({ hasText: 'Riferimenti prenotazione' }).first().waitFor({ state: 'visible' });
 
     // Anteprima integrata
-    await page.locator('button:visible').filter({ hasText: 'Anteprima' }).first().click();
+    await page.locator('button:visible').filter({ hasText: /^Anteprima$/ }).first().click();
     const iframe = page.locator('iframe[title="Anteprima PDF Roadbook"]');
     await iframe.waitFor({ state: 'visible', timeout: 8000 });
     const iframeSrc = await iframe.getAttribute('src');
@@ -168,6 +168,30 @@ async function run() {
     assert.ok(pdfHead.startsWith('%PDF-'), `Header PDF valido: ${pdfHead}`);
     assert.ok(pdfTail.includes('%%EOF'), 'Footer %%EOF valido');
     assert.ok(pdfBuf.length > 2000, `Dimensione PDF valida: ${pdfBuf.length}`);
+
+    // 1b. Compatto operativo PDF + Word (.docx) offline
+    await page.locator('button:visible').filter({ hasText: 'Compatto operativo' }).first().click();
+    await page.waitForTimeout(200);
+    const [opPdfDl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('button:visible').filter({ hasText: 'Scarica PDF' }).first().click(),
+    ]);
+    assert.equal(opPdfDl.suggestedFilename(), 'HOUNIGO \u2013 Nuova Zelanda \u2013 Compatto Operativo.pdf');
+    const opPdfBuf = fs.readFileSync(await opPdfDl.path());
+    assert.ok(opPdfBuf.subarray(0, 5).toString('latin1') === '%PDF-', 'Compatto operativo PDF valido');
+
+    await page.locator('button:visible').filter({ hasText: 'Word (.docx)' }).first().click();
+    await page.waitForTimeout(150);
+    const [opDocxDl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('button:visible').filter({ hasText: 'Scarica Word (.docx)' }).first().click(),
+    ]);
+    assert.equal(opDocxDl.suggestedFilename(), 'HOUNIGO \u2013 Nuova Zelanda \u2013 Compatto Operativo.docx');
+    const docxBuf = fs.readFileSync(await opDocxDl.path());
+    assert.ok(docxBuf[0] === 0x50 && docxBuf[1] === 0x4b && docxBuf[2] === 0x03 && docxBuf[3] === 0x04, 'DOCX ZIP signature PK valide');
+    const docxLatin = docxBuf.toString('latin1');
+    assert.ok(docxLatin.includes('word/document.xml') && docxLatin.includes('word/styles.xml') && docxLatin.includes('word/footer1.xml'), 'DOCX contiene struttura OOXML completa');
+    assert.ok(docxLatin.includes('Mount Victoria Lookout'), 'DOCX contiene dati itinerario');
     await desktopCtx.close();
 
     // ── 2. MOBILE (iPhone): Condivisione nativa + Download locale ──
@@ -258,10 +282,10 @@ async function run() {
     await readOnlyNotice.waitFor({ state: 'visible', timeout: 3000 });
     assert.equal(await vPage.locator('label:visible').filter({ hasText: 'Riferimenti prenotazione' }).count(), 0, 'Viewer non vede checkbox PNR');
 
-    // Anche invocando il servizio direttamente, i dati privati devono essere esclusi
+    // Anche invocando i servizi direttamente (incluso Compatto operativo), i dati privati devono essere esclusi
     const viewerPdfInfo = await vPage.evaluate(async () => {
-      const { preparePdfData } = await import('/src/services/pdfExportService.ts');
-      return preparePdfData({
+      const { preparePdfData, prepareOperationalExportData } = await import('/src/services/pdfExportService.ts');
+      const standard = await preparePdfData({
         includeTappe: true,
         includeActivities: true,
         includeTransports: true,
@@ -273,6 +297,19 @@ async function run() {
         detailLevel: 'detailed',
         allowPrivateInfo: false,
       });
+      const operational = await prepareOperationalExportData({
+        includeTappe: true,
+        includeActivities: true,
+        includeTransports: true,
+        includeAccommodations: true,
+        includeBookingRefs: true,
+        includeNotes: true,
+        includeSpese: true,
+        periodType: 'all',
+        detailLevel: 'operational',
+        allowPrivateInfo: false,
+      });
+      return { standard, operational };
     });
     const serialized = JSON.stringify(viewerPdfInfo);
     assert.ok(!serialized.includes('SECRET-PNR-999'), 'Viewer PDF esclude PNR');

@@ -7,11 +7,12 @@ import {
   type PdfExportOptions,
   getPdfPreviewStats,
   generateRoadbookPdf,
-  downloadPdfDirectly,
-  sharePdfNatively,
+  downloadFileDirectly,
+  shareFileNatively,
   isMobileOrTabletDevice,
-  canSharePdfFile
+  canShareFile
 } from '../../services/pdfExportService';
+import { generateRoadbookDocx } from '../../services/docxExportService';
 
 interface PdfExportModalProps {
   isOpen: boolean;
@@ -43,8 +44,9 @@ export default function PdfExportModal({
   const [endDate, setEndDate] = useState(configEndDate);
   const [singleDate, setSingleDate] = useState(defaultDate || configStartDate);
 
-  // Dettaglio
-  const [detailLevel, setDetailLevel] = useState<'compact' | 'detailed'>('compact');
+  // Dettaglio e formato
+  const [detailLevel, setDetailLevel] = useState<'compact' | 'operational' | 'detailed'>('compact');
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'docx'>('pdf');
 
   const { canSeePrivateInfo, isViewer } = useDeviceRole();
   const canExportPrivate = canSeePrivateInfo && !isViewer;
@@ -65,7 +67,12 @@ export default function PdfExportModal({
   // Rilevamento stato online e capacità condivisione mobile
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
   const isMobile = isMobileOrTabletDevice();
-  const canNativeShare = isMobile && canSharePdfFile();
+  const canNativeShare = isMobile && canShareFile(
+    exportFormat === 'docx'
+      ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      : 'application/pdf',
+    exportFormat === 'docx' ? 'itinerario.docx' : 'itinerario.pdf'
+  );
 
   const clearPreviewPdf = () => {
     if (previewUrlRef.current) {
@@ -163,20 +170,22 @@ export default function PdfExportModal({
   const handleDownload = async () => {
     setIsGenerating(true);
     setErrorMessage(null);
-    setGenerationMsg('Preparazione PDF locale…');
+    setGenerationMsg(exportFormat === 'docx' ? 'Generazione Word (.docx)…' : 'Preparazione PDF locale…');
 
     try {
-      const target = previewPdf || await generateRoadbookPdf(getCurrentOptions());
+      const target = exportFormat === 'docx'
+        ? await generateRoadbookDocx(getCurrentOptions())
+        : (previewPdf || await generateRoadbookPdf(getCurrentOptions()));
       setGenerationMsg('Download sul dispositivo…');
-      downloadPdfDirectly(target.blob, target.fileName);
+      downloadFileDirectly(target.blob, target.fileName);
 
       setTimeout(() => {
         setIsGenerating(false);
         setGenerationMsg('');
       }, 350);
     } catch (err: any) {
-      console.error('[PdfExportModal] Errore generazione PDF:', err);
-      setErrorMessage(err?.message || 'Si è verificato un errore durante la creazione del PDF.');
+      console.error('[PdfExportModal] Errore generazione export:', err);
+      setErrorMessage(err?.message || 'Si è verificato un errore durante la creazione del file.');
       setIsGenerating(false);
       setGenerationMsg('');
     }
@@ -188,14 +197,16 @@ export default function PdfExportModal({
     setGenerationMsg('Preparazione condivisione…');
 
     try {
-      const target = previewPdf || await generateRoadbookPdf(getCurrentOptions());
+      const target = exportFormat === 'docx'
+        ? await generateRoadbookDocx(getCurrentOptions())
+        : (previewPdf || await generateRoadbookPdf(getCurrentOptions()));
       setGenerationMsg('Apertura condivisione nativa…');
-      await sharePdfNatively(target.blob, target.fileName);
+      await shareFileNatively(target.blob, target.fileName, target.blob.type);
       setIsGenerating(false);
       setGenerationMsg('');
     } catch (err: any) {
-      console.error('[PdfExportModal] Errore condivisione PDF:', err);
-      setErrorMessage(err?.message || 'Si è verificato un errore durante la condivisione del PDF.');
+      console.error('[PdfExportModal] Errore condivisione export:', err);
+      setErrorMessage(err?.message || 'Si è verificato un errore durante la condivisione del file.');
       setIsGenerating(false);
       setGenerationMsg('');
     }
@@ -423,10 +434,10 @@ export default function PdfExportModal({
             <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 block font-brand-title">
               Livello di Dettaglio
             </span>
-            <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
               <button
                 type="button"
-                onClick={() => setDetailLevel('compact')}
+                onClick={() => { clearPreviewPdf(); setDetailLevel('compact'); }}
                 className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
                   detailLevel === 'compact'
                     ? 'border-[#FF6B5F] bg-[#FFF0ED]/60 dark:bg-[#FF6B5F]/15 text-[#172033] dark:text-white shadow-2xs'
@@ -444,7 +455,25 @@ export default function PdfExportModal({
 
               <button
                 type="button"
-                onClick={() => setDetailLevel('detailed')}
+                onClick={() => { clearPreviewPdf(); setDetailLevel('operational'); }}
+                className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
+                  detailLevel === 'operational'
+                    ? 'border-[#FF6B5F] bg-[#FFF0ED]/60 dark:bg-[#FF6B5F]/15 text-[#172033] dark:text-white shadow-2xs'
+                    : 'border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                }`}
+              >
+                <div className="font-bold flex items-center justify-between">
+                  <span>Compatto operativo</span>
+                  {detailLevel === 'operational' && <span className="text-[#FF6B5F] font-bold">✓</span>}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
+                  Pronto stampa (15–20 pag.): documenti, saldi, cauzioni, scadenze e istruzioni.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { clearPreviewPdf(); setDetailLevel('detailed'); }}
                 className={`p-3 rounded-2xl border text-left transition cursor-pointer ${
                   detailLevel === 'detailed'
                     ? 'border-[#FF6B5F] bg-[#FFF0ED]/60 dark:bg-[#FF6B5F]/15 text-[#172033] dark:text-white shadow-2xs'
@@ -457,6 +486,50 @@ export default function PdfExportModal({
                 </div>
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-snug">
                   Indirizzi completi, tratte dei trasporti, note e riferimenti.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          {/* 4. FORMATO DI ESPORTAZIONE */}
+          <div className="space-y-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 block font-brand-title">
+              Formato di Esportazione
+            </span>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => { clearPreviewPdf(); setExportFormat('pdf'); }}
+                className={`p-2.5 rounded-2xl border text-left transition cursor-pointer ${
+                  exportFormat === 'pdf'
+                    ? 'border-[#FF6B5F] bg-[#FFF0ED]/60 dark:bg-[#FF6B5F]/15 text-[#172033] dark:text-white shadow-2xs'
+                    : 'border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                }`}
+              >
+                <div className="font-bold flex items-center justify-between">
+                  <span>PDF (.pdf)</span>
+                  {exportFormat === 'pdf' && <span className="text-[#FF6B5F] font-bold">✓</span>}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                  Pronto per la stampa e anteprima immediata.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => { clearPreviewPdf(); setExportFormat('docx'); }}
+                className={`p-2.5 rounded-2xl border text-left transition cursor-pointer ${
+                  exportFormat === 'docx'
+                    ? 'border-[#FF6B5F] bg-[#FFF0ED]/60 dark:bg-[#FF6B5F]/15 text-[#172033] dark:text-white shadow-2xs'
+                    : 'border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-850 text-slate-600 dark:text-slate-400 hover:border-slate-300'
+                }`}
+              >
+                <div className="font-bold flex items-center justify-between">
+                  <span>Word (.docx)</span>
+                  {exportFormat === 'docx' && <span className="text-[#FF6B5F] font-bold">✓</span>}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                  Modificabile con tabelle editabili prima di stampare.
                 </p>
               </button>
             </div>
@@ -531,14 +604,16 @@ export default function PdfExportModal({
             Annulla
           </button>
 
-          <button
-            type="button"
-            disabled={isGenerating || previewStats?.daysCount === 0}
-            onClick={handlePreview}
-            className="px-3.5 py-2.5 rounded-xl font-bold text-xs border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
-          >
-            Anteprima
-          </button>
+          {exportFormat === 'pdf' && (
+            <button
+              type="button"
+              disabled={isGenerating || previewStats?.daysCount === 0}
+              onClick={handlePreview}
+              className="px-3.5 py-2.5 rounded-xl font-bold text-xs border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+            >
+              Anteprima
+            </button>
+          )}
 
           {canNativeShare && (
             <button
@@ -564,7 +639,7 @@ export default function PdfExportModal({
               </>
             ) : (
               <>
-                <span>Scarica PDF</span>
+                <span>{exportFormat === 'docx' ? 'Scarica Word (.docx)' : 'Scarica PDF'}</span>
                 <span>↓</span>
               </>
             )}
