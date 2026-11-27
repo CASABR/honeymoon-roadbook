@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.41",
+      "publishedAt": "2026-11-27",
+      "sourceCommit": "6cfdf85797e7a4cc791660539f1ce8f1d3bc5c50",
+      "changes": [
+        "Download diretto PDF su desktop, salvataggio e condivisione nativa su mobile",
+        "Anteprima PDF integrata, nome file standardizzato e filtro permessi per ruolo"
+      ],
+      "publishedAtIso": "2026-11-27T11:04:37.821Z"
+    },
+    {
       "version": "1.7.40",
       "publishedAt": "2026-11-27",
       "sourceCommit": "a09816cfde9d86aa81f928c25fe38382377564ef",
@@ -75,14 +85,6 @@
       "sourceCommit": "9c30c6e05e0c5e6e35a3f5813d0e6320e7ad0e52",
       "changes": [
         "Retro Aereo: modale più alto su iPhone, campi testuali adattivi e spaziature più compatte, con safe area e tastiera preservate."
-      ]
-    },
-    {
-      "version": "1.7.31",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "d2fee9f6d376bdcccba5b4128b074c88d6165c3a",
-      "changes": [
-        "Retro Aereo più compatto su iPhone: nome e mezzo affiancati, azioni in una riga, terminal multilinea e note dello scalo editabili."
       ]
     }
   ]
