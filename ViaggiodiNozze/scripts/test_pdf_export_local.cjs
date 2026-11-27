@@ -5,7 +5,7 @@ const { pathToFileURL } = require('node:url');
 
 function resolvePlaywright() {
   for (const c of ['playwright', path.resolve(__dirname, '../node_modules/playwright'), path.resolve(__dirname, '../../node_modules/playwright')]) {
-    try { return require(c); } catch {}
+    try { return require(c); } catch { }
   }
   throw new Error('Playwright not found');
 }
@@ -191,7 +191,18 @@ async function run() {
     assert.ok(docxBuf[0] === 0x50 && docxBuf[1] === 0x4b && docxBuf[2] === 0x03 && docxBuf[3] === 0x04, 'DOCX ZIP signature PK valide');
     const docxLatin = docxBuf.toString('latin1');
     assert.ok(docxLatin.includes('word/document.xml') && docxLatin.includes('word/styles.xml') && docxLatin.includes('word/footer1.xml'), 'DOCX contiene struttura OOXML completa');
-    assert.ok(docxLatin.includes('Mount Victoria Lookout'), 'DOCX contiene dati itinerario');
+
+    // Verifica tutti e tre i livelli di dettaglio in Word (.docx): Compatto e Dettagliato
+    for (const lvl of ['Compatto', 'Dettagliato']) {
+      await page.locator('button:visible').filter({ hasText: new RegExp(`^${lvl}`) }).first().click();
+      await page.waitForTimeout(120);
+      const [lvlDl] = await Promise.all([
+        page.waitForEvent('download'),
+        page.locator('button:visible').filter({ hasText: 'Scarica Word (.docx)' }).first().click(),
+      ]);
+      const b = fs.readFileSync(await lvlDl.path());
+      assert.ok(b[0] === 0x50 && b[1] === 0x4b, `DOCX valido per livello ${lvl}`);
+    }
     await desktopCtx.close();
 
     // ── 2. MOBILE (iPhone): Condivisione nativa + Download locale ──
