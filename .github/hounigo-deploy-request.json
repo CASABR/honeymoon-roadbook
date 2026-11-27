@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-27T12:34:30Z",
+  "requestedAt": "2026-11-27T13:51:00Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.42-timeline-rollover-20261127",
+  "requestId": "release-1.7.43-compatto-operativo-docx-20261127",
   "requestedBy": "CASABR",
-  "ref": "51b234e5d50f7908ff941920deba4497442b46a2",
+  "ref": "12b0e9449adb94d12d824ffd55c3e7e864845220",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.42: aggiornamento card attiva al cambio data locale e ripresa app; rispetto navigazione manuale."
+  "note": "HOUNIGO 1.7.43: esportazione Compatto operativo e Word (.docx) modificabile con supporto offline e permessi."
 }
