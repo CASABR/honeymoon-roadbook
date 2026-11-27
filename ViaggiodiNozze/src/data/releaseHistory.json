@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.42",
+      "publishedAt": "2026-11-27",
+      "sourceCommit": "05a858e5ba2f9840aee58c2798be27ea8afc3f02",
+      "changes": [
+        "Card attiva: aggiornamento dell'orario locale anche dopo mezzanotte, al ritorno in primo piano e alla riapertura.",
+        "La timeline segue la nuova giornata solo quando si sta consultando oggi, rispettando la navigazione manuale e le finestre di modifica."
+      ]
+    },
+    {
       "version": "1.7.41",
       "publishedAt": "2026-11-27",
       "sourceCommit": "6cfdf85797e7a4cc791660539f1ce8f1d3bc5c50",
@@ -77,14 +86,6 @@
       "sourceCommit": "b42ee445a244e21a305eb86a118d9452fe3bf323",
       "changes": [
         "Retro Aereo: sezioni itinerario, economia, dettagli tecnici e note distinte per colore, con contrasto verificato nei temi chiaro e scuro."
-      ]
-    },
-    {
-      "version": "1.7.32",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "9c30c6e05e0c5e6e35a3f5813d0e6320e7ad0e52",
-      "changes": [
-        "Retro Aereo: modale più alto su iPhone, campi testuali adattivi e spaziature più compatte, con safe area e tastiera preservate."
       ]
     }
   ]

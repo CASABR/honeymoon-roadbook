@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.42 — 2026-11-27
+
+- Card attiva: aggiornamento dell'orario locale anche dopo mezzanotte, al ritorno in primo piano e alla riapertura.
+- La timeline segue la nuova giornata solo quando si sta consultando oggi, rispettando la navigazione manuale e le finestre di modifica.
+
 ## 1.7.41 — 2026-11-27
 
 - Download diretto PDF su desktop, salvataggio e condivisione nativa su mobile
