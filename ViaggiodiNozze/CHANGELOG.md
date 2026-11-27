@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.44 — 2026-11-27
+
+- Esportazione Word (.docx) compatibile con Microsoft Word senza errori di contenuto
+
 ## 1.7.43 — 2026-11-27
 
 - Livello Compatto operativo ottimizzato per la stampa (15-20 pag.)
@@ -43,7 +47,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 ## 1.7.35 — 2026-11-26
 
 - Retro Aereo: dati aeroportuali automatici con verifica solo in caso di anomalie, grafica dedicata allo scalo e card a larghezza intera nella modalità mobile su iPad.
-
-## 1.7.34 — 2026-11-26
-
-- Retro Aereo: note copilota chiuse di default, riepiloghi tecnici compatti e fusi ricavati dagli aeroporti riconosciuti, con correzione manuale.

@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.44",
+      "publishedAt": "2026-11-27",
+      "sourceCommit": "97e8dffa1ac98295bc9d55c3a70a06ea132ca991",
+      "changes": [
+        "Esportazione Word (.docx) compatibile con Microsoft Word senza errori di contenuto"
+      ],
+      "publishedAtIso": "2026-11-27T14:23:23.319Z"
+    },
+    {
       "version": "1.7.43",
       "publishedAt": "2026-11-27",
       "sourceCommit": "54a84af24a8295b8412d54582c0d78a76e87021a",
@@ -80,14 +89,6 @@
       "sourceCommit": "973e687c09b59e4fb4a6dd47c11a105cb52d9604",
       "changes": [
         "Retro Aereo: dati aeroportuali automatici con verifica solo in caso di anomalie, grafica dedicata allo scalo e card a larghezza intera nella modalità mobile su iPad."
-      ]
-    },
-    {
-      "version": "1.7.34",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "fe10fe694eb2a84f48fc5aa4112a7f92575cc27c",
-      "changes": [
-        "Retro Aereo: note copilota chiuse di default, riepiloghi tecnici compatti e fusi ricavati dagli aeroporti riconosciuti, con correzione manuale."
       ]
     }
   ]
