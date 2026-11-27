@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-27T11:06:30Z",
+  "requestedAt": "2026-11-27T12:34:30Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.41-pdf-local-20261127",
+  "requestId": "release-1.7.42-timeline-rollover-20261127",
   "requestedBy": "CASABR",
-  "ref": "a18bd2b209926714d687734fe49e427761594185",
+  "ref": "51b234e5d50f7908ff941920deba4497442b46a2",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.41: resolver geografico condiviso, autocompletamento per data e download locale PDF con anteprima e permessi."
+  "note": "HOUNIGO 1.7.42: aggiornamento card attiva al cambio data locale e ripresa app; rispetto navigazione manuale."
 }
