@@ -125,6 +125,25 @@ export function computeDayFocalEvent(
   };
 }
 
+/** Follow the local calendar only when the user was already viewing today. */
+export function resolveFollowingTimelineDate(
+  selectedDate: string,
+  previousLocalDate: string,
+  currentLocalDate: string,
+  tripStartDate: string,
+  tripEndDate: string,
+  manuallySelected: boolean,
+): string | null {
+  if (manuallySelected || currentLocalDate === previousLocalDate) return null;
+  if (currentLocalDate < tripStartDate || currentLocalDate > tripEndDate) return null;
+  if (selectedDate === currentLocalDate) return null;
+  if (selectedDate === previousLocalDate ||
+      (previousLocalDate < tripStartDate && selectedDate === tripStartDate)) {
+    return currentLocalDate;
+  }
+  return null;
+}
+
 export interface ActiveTimelineFocusOptions {
   now?: Date;
   tripStartDate: string;

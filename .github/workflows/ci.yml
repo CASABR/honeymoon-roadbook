@@ -98,3 +98,7 @@ jobs:
       - name: Test - iPad mini landscape e modalità mobile forzata
         working-directory: ViaggiodiNozze
         run: node scripts/test_ipad_mini_landscape.cjs
+
+      - name: Test - Card attiva e cambio giornata locale (unitari)
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_p2_active_card_focus.cjs --unit-only

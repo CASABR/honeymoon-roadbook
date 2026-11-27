@@ -43,7 +43,7 @@ import {
 import { useDeviceRole } from '../utils/useDeviceRole';
 import { formatDateIT } from '../utils/tripDates';
 import { compareTimelineItems, isPhysicalTimelineItem } from '../utils/timelineOrdering';
-import { computeDayFocalEvent, resolveTripActiveCard } from '../utils/dayFocusPriority';
+import { computeDayFocalEvent, resolveTripActiveCard, resolveFollowingTimelineDate } from '../utils/dayFocusPriority';
 import { buildDayLocationsMap } from '../utils/pushReminders';
 import { getLocalIsoDate } from '../utils/reliableTimeZone';
 import { getEffectiveDeadlineStatus, isDeadlineReminderActive } from '../utils/deadlines';
@@ -143,6 +143,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [nowTickMs, setNowTickMs] = useState<number>(() => Date.now());
   const hasUserSelectedDateRef = useRef(false);
   const hasAutoFocusedOnOpenRef = useRef(false);
+  const lastTimelineLocalDateRef = useRef(getLocalIsoDate(new Date(nowTickMs)));
   const selectDateManually = useCallback((nextDate: string) => {
     hasUserSelectedDateRef.current = true;
     try {
@@ -1176,18 +1177,42 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   );
 
   useEffect(() => {
-    if (!activeTimelineFocus.isDuringTrip || !activeTimelineFocus.isCurrentDay) return;
+    // Keep the clock alive even before departure or on a different day:
+    // otherwise crossing midnight can permanently stop active-card updates.
     const syncClock = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      if (document.visibilityState === 'hidden') return;
       setNowTickMs(Date.now());
     };
+    syncClock();
     const interval = window.setInterval(syncClock, 60_000);
     document.addEventListener('visibilitychange', syncClock);
+    window.addEventListener('pageshow', syncClock);
+    window.addEventListener('focus', syncClock);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener('visibilitychange', syncClock);
+      window.removeEventListener('pageshow', syncClock);
+      window.removeEventListener('focus', syncClock);
     };
-  }, [activeTimelineFocus.isDuringTrip, activeTimelineFocus.isCurrentDay]);
+  }, []);
+
+  useEffect(() => {
+    const localDate = activeTimelineFocus.localTodayStr;
+    const previousLocalDate = lastTimelineLocalDateRef.current;
+    if (previousLocalDate === localDate) return;
+    const nextDate = resolveFollowingTimelineDate(
+      selectedDate,
+      previousLocalDate,
+      localDate,
+      tripDateBounds.startDate,
+      tripDateBounds.endDate,
+      hasUserSelectedDateRef.current
+    );
+    // Never move a form/modal out from under the user. Retry at the next tick.
+    if (nextDate && hasOpenDayOverlay()) return;
+    lastTimelineLocalDateRef.current = localDate;
+    if (nextDate) setSelectedDate(nextDate);
+  }, [activeTimelineFocus.localTodayStr, nowTickMs, selectedDate, tripDateBounds.startDate, tripDateBounds.endDate]);
 
   // Scorrimento una sola volta all'apertura dell'app durante il viaggio verso la card pertinente
   useEffect(() => {
