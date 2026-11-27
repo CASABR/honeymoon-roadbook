@@ -17,6 +17,7 @@
 import { storageService } from '../storage/storageService';
 import { getTripConfig } from '../utils/tripConfig';
 import { formatDateIT } from '../utils/tripDates';
+import { canMutateLocally } from '../utils/useAuthIdentity';
 import type { Attivita, Trasporto, Tappa, Alloggio, Ristorante, Shopping, NotaViaggio, Spesa } from '../types';
 
 export interface PdfExportOptions {
@@ -37,6 +38,9 @@ export interface PdfExportOptions {
 
   // Livello di dettaglio
   detailLevel: 'compact' | 'detailed';
+
+  // Controllo esplicito permessi (Owner / Copilota vs Viewer)
+  allowPrivateInfo?: boolean;
 }
 
 export interface PdfDayGroup {
@@ -179,6 +183,11 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
   totalEventsCount: number;
   hasUnsyncedChanges: boolean;
 }> {
+  const allowPrivate = options.allowPrivateInfo !== undefined ? options.allowPrivateInfo : canMutateLocally();
+  const effectiveIncludeBookingRefs = Boolean(options.includeBookingRefs && allowPrivate);
+  const effectiveIncludeNotes = Boolean(options.includeNotes && allowPrivate);
+  const effectiveIncludeSpese = Boolean(options.includeSpese && allowPrivate);
+
   const config = getTripConfig();
   const tripTitle = config?.title || 'Il nostro Viaggio';
   const tripDates = config?.startDate && config?.endDate
@@ -202,8 +211,8 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
     storageService.getTappe().catch(() => [] as Tappa[]),
     storageService.getRistoranti().catch(() => [] as Ristorante[]),
     storageService.getShopping().catch(() => [] as Shopping[]),
-    options.includeNotes ? storageService.getNote().catch(() => [] as NotaViaggio[]) : Promise.resolve([]),
-    options.includeSpese ? storageService.getSpese().catch(() => [] as Spesa[]) : Promise.resolve([])
+    effectiveIncludeNotes ? storageService.getNote().catch(() => [] as NotaViaggio[]) : Promise.resolve([]),
+    effectiveIncludeSpese ? storageService.getSpese().catch(() => [] as Spesa[]) : Promise.resolve([])
   ]);
 
   // Raccogli tutte le date uniche del viaggio
@@ -290,7 +299,7 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
             categoryOrType: sanitizePdfText(tappa.sottocategoria || 'Tappa'),
             location: sanitizePdfText(tappa.indirizzo),
             address: sanitizePdfText(tappa.indirizzo),
-            note: options.includeNotes ? joinPdfDetails(tappa.nota, tappa.noteCopilota) : undefined
+            note: effectiveIncludeNotes ? joinPdfDetails(tappa.nota, tappa.noteCopilota) : undefined
           });
         });
     }
@@ -311,7 +320,7 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
             address: sanitizePdfText(a.address || a.location),
             note: joinPdfDetails(
               formatActivityDetails(a),
-              options.includeNotes ? joinPdfDetails(a.notes, a.noteCopilota) : ''
+              effectiveIncludeNotes ? joinPdfDetails(a.notes, a.noteCopilota) : ''
             )
           });
         });
@@ -336,10 +345,10 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
             categoryOrType: typeLabel,
             departureLocation: sanitizePdfText(t.departureLocation),
             arrivalLocation: sanitizePdfText(t.arrivalLocation || t.dropoffLocation),
-            bookingRef: options.includeBookingRefs ? sanitizePdfText(t.bookingCode || (t as any).pnr || (t as any).ticketNumber) : undefined,
+            bookingRef: effectiveIncludeBookingRefs ? sanitizePdfText(t.bookingCode || (t as any).pnr || (t as any).ticketNumber) : undefined,
             note: joinPdfDetails(
               formatTransportDetails(t),
-              options.includeNotes ? joinPdfDetails((t as any).notes, t.noteCopilota, t.layover?.notes) : ''
+              effectiveIncludeNotes ? joinPdfDetails((t as any).notes, t.noteCopilota, t.layover?.notes) : ''
             )
           });
         });
@@ -359,7 +368,7 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
             categoryOrType: 'Ristorante',
             location: sanitizePdfText(r.indirizzo || (r as any).citta),
             address: sanitizePdfText(r.indirizzo),
-            note: options.includeNotes ? joinPdfDetails(r.nota, r.noteCopilota, r.telefono ? `Telefono ${r.telefono}` : '') : undefined
+            note: effectiveIncludeNotes ? joinPdfDetails(r.nota, r.noteCopilota, r.telefono ? `Telefono ${r.telefono}` : '') : undefined
           });
         });
     }
@@ -378,7 +387,7 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
             categoryOrType: 'Shopping',
             location: sanitizePdfText(s.indirizzo),
             address: sanitizePdfText(s.indirizzo),
-            note: options.includeNotes ? joinPdfDetails(s.nota, s.noteCopilota) : undefined
+            note: effectiveIncludeNotes ? joinPdfDetails(s.nota, s.noteCopilota) : undefined
           });
         });
     }
@@ -400,7 +409,7 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
 
     // Note personali della giornata
     const dayNotes: string[] = [];
-    if (options.includeNotes) {
+    if (effectiveIncludeNotes) {
       allNotes
         .filter(n => (n as any).data === dateStr || (n as any).date === dateStr)
         .forEach(n => {
@@ -411,7 +420,7 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
 
     // Spese della giornata
     const daySpese: Spesa[] = [];
-    if (options.includeSpese) {
+    if (effectiveIncludeSpese) {
       allSpese
         .filter(s => s.date === dateStr || (s as any).data === dateStr)
         .forEach(s => daySpese.push(s));
@@ -419,11 +428,25 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
 
     totalEventsCount += timedEvents.length + untimedEvents.length;
 
+    const sanitizedAcc = options.includeAccommodations && dayAcc
+      ? (allowPrivate
+          ? dayAcc
+          : {
+              ...dayAcc,
+              nota: undefined,
+              notes: undefined,
+              noteCopilota: undefined,
+              bookingCode: undefined,
+              pnr: undefined,
+              ticketNumber: undefined,
+            })
+      : null;
+
     days.push({
       date: dateStr,
       dayNum,
       tappaTitle,
-      accommodation: options.includeAccommodations ? dayAcc : null,
+      accommodation: sanitizedAcc,
       timedEvents,
       untimedEvents,
       notes: dayNotes,
@@ -638,14 +661,15 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
         day.accommodation.arrivalTime ? `Arrivo previsto ${day.accommodation.arrivalTime}` : '',
         day.accommodation.checkOutTime ? `Check-out ${day.accommodation.checkOutTime}` : ''
       );
+      const allowPrivate = options.allowPrivateInfo !== undefined ? options.allowPrivateInfo : canMutateLocally();
       const accommodationLines = [
         accommodationSummary,
         day.accommodation.address ? `Indirizzo: ${sanitizePdfText(day.accommodation.address)}` : '',
         accommodationSchedule,
-        options.detailLevel === 'detailed' && options.includeNotes
+        allowPrivate && options.detailLevel === 'detailed' && options.includeNotes
           ? joinPdfDetails(day.accommodation.notes, day.accommodation.noteCopilota)
           : '',
-        options.includeBookingRefs && day.accommodation.bookingCode
+        allowPrivate && options.includeBookingRefs && day.accommodation.bookingCode
           ? `Conferma: ${sanitizePdfText(day.accommodation.bookingCode)}`
           : ''
       ].filter(Boolean).flatMap(line => doc.splitTextToSize(line, contentWidth - 22));
@@ -833,9 +857,7 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
   }
 
   // ─── 4. GENERAZIONE FILE BLOB ───
-  const cleanTitleForFile = data.tripTitle.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 30);
-  const dateTag = new Date().toISOString().split('T')[0];
-  const fileName = `HOUNIGO_Itinerario_${cleanTitleForFile}_${dateTag}.pdf`;
+  const fileName = buildPdfFileName(data.tripTitle);
 
   const blob = doc.output('blob');
 
@@ -847,17 +869,83 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
 }
 
 /**
- * Gestisce il download o la condivisione nativa su mobile (iOS Safari / PWA).
+ * Costruisce il nome file standardizzato: HOUNIGO – Nome viaggio – Itinerario.pdf
  */
-export async function downloadOrSharePdf(blob: Blob, fileName: string): Promise<{
+export function buildPdfFileName(tripTitle: string): string {
+  const safeTitle = (tripTitle || '')
+    .replace(/[\\/:*?"<>|\u0000-\u001F]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60) || 'Viaggio';
+  return `HOUNIGO \u2013 ${safeTitle} \u2013 Itinerario.pdf`;
+}
+
+/**
+ * Rileva se il dispositivo corrente è mobile/tablet (iPhone, iPad, Android).
+ */
+export function isMobileOrTabletDevice(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPhone|iPad|iPod|Android/i.test(ua)) return true;
+  // iPadOS >= 13 segnala MacIntel con touch points > 1
+  if (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1) return true;
+  return false;
+}
+
+/**
+ * Verifica se la Web Share API nativa supporta la condivisione di file PDF.
+ */
+export function canSharePdfFile(fileName = 'itinerario.pdf'): boolean {
+  if (typeof navigator === 'undefined' || !navigator.share || !navigator.canShare) return false;
+  try {
+    const probe = new File(['%PDF-1.4'], fileName, { type: 'application/pdf' });
+    return navigator.canShare({ files: [probe] });
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Scarica direttamente il file PDF sul dispositivo (desktop o salvataggio locale mobile).
+ */
+export function downloadPdfDirectly(blob: Blob, fileName: string): {
+  shared: boolean;
+  downloaded: boolean;
+} {
+  if (typeof window === 'undefined') {
+    return { shared: false, downloaded: false };
+  }
+  try {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (a.parentNode) a.parentNode.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1500);
+    return { shared: false, downloaded: true };
+  } catch (downloadErr) {
+    console.error('[PdfExport] Errore trigger download blob:', downloadErr);
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    return { shared: false, downloaded: true };
+  }
+}
+
+/**
+ * Condivide il PDF tramite sheet nativo (iOS/iPadOS/Android) con fallback al download locale.
+ */
+export async function sharePdfNatively(blob: Blob, fileName: string): Promise<{
   shared: boolean;
   downloaded: boolean;
 }> {
   if (typeof window === 'undefined') {
     return { shared: false, downloaded: false };
   }
-
-  // 1. Tenta Web Share API nativa con file (ottimale per iPhone / iPad / Android)
   if (navigator.share && navigator.canShare) {
     try {
       const file = new File([blob], fileName, { type: 'application/pdf' });
@@ -871,31 +959,26 @@ export async function downloadOrSharePdf(blob: Blob, fileName: string): Promise<
       }
     } catch (shareErr: any) {
       if (shareErr?.name === 'AbortError') {
-        // L'utente ha annullato lo share sheet volontariamente
         return { shared: false, downloaded: false };
       }
       console.warn('[PdfExport] Web Share API non completata, passaggio a download standard:', shareErr);
     }
   }
+  return downloadPdfDirectly(blob, fileName);
+}
 
-  // 2. Fallback standard tramite creazione link blob download
-  try {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 1000);
-    return { shared: false, downloaded: true };
-  } catch (downloadErr) {
-    console.error('[PdfExport] Errore trigger download blob:', downloadErr);
-    // 3. Fallback estremo per Safari iOS in standalone: apri in nuova scheda
-    const url = URL.createObjectURL(blob);
-    window.open(url, '_blank');
-    return { shared: false, downloaded: true };
+/**
+ * Gestisce il download su desktop o la condivisione/salvataggio su mobile.
+ */
+export async function downloadOrSharePdf(blob: Blob, fileName: string): Promise<{
+  shared: boolean;
+  downloaded: boolean;
+}> {
+  if (typeof window === 'undefined') {
+    return { shared: false, downloaded: false };
   }
+  if (!isMobileOrTabletDevice()) {
+    return downloadPdfDirectly(blob, fileName);
+  }
+  return sharePdfNatively(blob, fileName);
 }

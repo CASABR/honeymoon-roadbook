@@ -1,12 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { TrailPdf } from '../icons/TrailIcons';
 import { getTripConfig } from '../../utils/tripConfig';
+import { useDeviceRole } from '../../utils/useDeviceRole';
 import {
   type PdfExportOptions,
   getPdfPreviewStats,
   generateRoadbookPdf,
-  downloadOrSharePdf
+  downloadPdfDirectly,
+  sharePdfNatively,
+  isMobileOrTabletDevice,
+  canSharePdfFile
 } from '../../services/pdfExportService';
 
 interface PdfExportModalProps {
@@ -42,10 +46,15 @@ export default function PdfExportModal({
   // Dettaglio
   const [detailLevel, setDetailLevel] = useState<'compact' | 'detailed'>('compact');
 
+  const { canSeePrivateInfo, isViewer } = useDeviceRole();
+  const canExportPrivate = canSeePrivateInfo && !isViewer;
+
   // Stato generazione e anteprima
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationMsg, setGenerationMsg] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [previewPdf, setPreviewPdf] = useState<{ url: string; blob: Blob; fileName: string; pageCount: number } | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const [previewStats, setPreviewStats] = useState<{
     daysCount: number;
     totalEventsCount: number;
@@ -53,23 +62,46 @@ export default function PdfExportModal({
     dateRangeStr: string;
   } | null>(null);
 
-  // Rilevamento stato online
+  // Rilevamento stato online e capacità condivisione mobile
   const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  const isMobile = isMobileOrTabletDevice();
+  const canNativeShare = isMobile && canSharePdfFile();
 
-  // Calcolo opzioni correnti
+  const clearPreviewPdf = () => {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setPreviewPdf(null);
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      clearPreviewPdf();
+    }
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+    };
+  }, [isOpen]);
+
+  // Calcolo opzioni correnti (con rispetto rigoroso permessi Owner/Copilota vs Viewer)
   const getCurrentOptions = (): PdfExportOptions => ({
     includeTappe,
     includeActivities,
     includeTransports,
     includeAccommodations,
-    includeBookingRefs,
-    includeNotes,
-    includeSpese,
+    includeBookingRefs: canExportPrivate ? includeBookingRefs : false,
+    includeNotes: canExportPrivate ? includeNotes : false,
+    includeSpese: canExportPrivate ? includeSpese : false,
     periodType,
     startDate: periodType === 'range' ? startDate : undefined,
     endDate: periodType === 'range' ? endDate : undefined,
     singleDate: periodType === 'single' ? singleDate : undefined,
-    detailLevel
+    detailLevel,
+    allowPrivateInfo: canExportPrivate
   });
 
   // Aggiornamento dinamico dell'anteprima sintetica al variare delle impostazioni
@@ -108,26 +140,62 @@ export default function PdfExportModal({
 
   if (!isOpen) return null;
 
-  const handleGenerate = async () => {
+  const handlePreview = async () => {
     setIsGenerating(true);
     setErrorMessage(null);
-    setGenerationMsg('Preparazione dati locali…');
+    setGenerationMsg('Generazione anteprima PDF…');
+    try {
+      const { blob, fileName, pageCount } = await generateRoadbookPdf(getCurrentOptions());
+      clearPreviewPdf();
+      const url = URL.createObjectURL(blob);
+      previewUrlRef.current = url;
+      setPreviewPdf({ url, blob, fileName, pageCount });
+      setIsGenerating(false);
+      setGenerationMsg('');
+    } catch (err: any) {
+      console.error('[PdfExportModal] Errore anteprima PDF:', err);
+      setErrorMessage(err?.message || 'Si è verificato un errore durante la creazione dell’anteprima PDF.');
+      setIsGenerating(false);
+      setGenerationMsg('');
+    }
+  };
+
+  const handleDownload = async () => {
+    setIsGenerating(true);
+    setErrorMessage(null);
+    setGenerationMsg('Preparazione PDF locale…');
 
     try {
-      setGenerationMsg('Generazione layout PDF in corso…');
-      const { blob, fileName } = await generateRoadbookPdf(getCurrentOptions());
-
-      setGenerationMsg('Download o condivisione…');
-      await downloadOrSharePdf(blob, fileName);
+      const target = previewPdf || await generateRoadbookPdf(getCurrentOptions());
+      setGenerationMsg('Download sul dispositivo…');
+      downloadPdfDirectly(target.blob, target.fileName);
 
       setTimeout(() => {
         setIsGenerating(false);
         setGenerationMsg('');
-        onClose();
-      }, 500);
+      }, 350);
     } catch (err: any) {
       console.error('[PdfExportModal] Errore generazione PDF:', err);
       setErrorMessage(err?.message || 'Si è verificato un errore durante la creazione del PDF.');
+      setIsGenerating(false);
+      setGenerationMsg('');
+    }
+  };
+
+  const handleShare = async () => {
+    setIsGenerating(true);
+    setErrorMessage(null);
+    setGenerationMsg('Preparazione condivisione…');
+
+    try {
+      const target = previewPdf || await generateRoadbookPdf(getCurrentOptions());
+      setGenerationMsg('Apertura condivisione nativa…');
+      await sharePdfNatively(target.blob, target.fileName);
+      setIsGenerating(false);
+      setGenerationMsg('');
+    } catch (err: any) {
+      console.error('[PdfExportModal] Errore condivisione PDF:', err);
+      setErrorMessage(err?.message || 'Si è verificato un errore durante la condivisione del PDF.');
       setIsGenerating(false);
       setGenerationMsg('');
     }
@@ -228,38 +296,46 @@ export default function PdfExportModal({
                 <span className="font-semibold text-slate-800 dark:text-slate-200">Alloggi & check-in</span>
               </label>
 
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <input
-                  type="checkbox"
-                  checked={includeBookingRefs}
-                  onChange={e => setIncludeBookingRefs(e.target.checked)}
-                  className="rounded text-[#FF6B5F] focus:ring-[#FF6B5F] accent-[#FF6B5F] w-4 h-4 cursor-pointer"
-                />
-                <div className="min-w-0">
-                  <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">Riferimenti prenotazione</span>
-                  <span className="text-[10px] text-slate-400 block">Disattivati per privacy; abilita solo se servono</span>
+              {canExportPrivate ? (
+                <>
+                  <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    <input
+                      type="checkbox"
+                      checked={includeBookingRefs}
+                      onChange={e => setIncludeBookingRefs(e.target.checked)}
+                      className="rounded text-[#FF6B5F] focus:ring-[#FF6B5F] accent-[#FF6B5F] w-4 h-4 cursor-pointer"
+                    />
+                    <div className="min-w-0">
+                      <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">Riferimenti prenotazione</span>
+                      <span className="text-[10px] text-slate-400 block">Disattivati per privacy; abilita solo se servono</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition">
+                    <input
+                      type="checkbox"
+                      checked={includeNotes}
+                      onChange={e => setIncludeNotes(e.target.checked)}
+                      className="rounded text-[#FF6B5F] focus:ring-[#FF6B5F] accent-[#FF6B5F] w-4 h-4 cursor-pointer"
+                    />
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">Note personali</span>
+                  </label>
+
+                  <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition sm:col-span-2">
+                    <input
+                      type="checkbox"
+                      checked={includeSpese}
+                      onChange={e => setIncludeSpese(e.target.checked)}
+                      className="rounded text-[#FF6B5F] focus:ring-[#FF6B5F] accent-[#FF6B5F] w-4 h-4 cursor-pointer"
+                    />
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">Spese previste & budget giornaliero</span>
+                  </label>
+                </>
+              ) : (
+                <div className="sm:col-span-2 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 text-[11px] text-slate-600 dark:text-slate-300">
+                  Accesso in sola lettura: riferimenti di prenotazione, note private e spese sono esclusi dal PDF.
                 </div>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition">
-                <input
-                  type="checkbox"
-                  checked={includeNotes}
-                  onChange={e => setIncludeNotes(e.target.checked)}
-                  className="rounded text-[#FF6B5F] focus:ring-[#FF6B5F] accent-[#FF6B5F] w-4 h-4 cursor-pointer"
-                />
-                <span className="font-semibold text-slate-800 dark:text-slate-200">Note personali</span>
-              </label>
-
-              <label className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-850 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition sm:col-span-2">
-                <input
-                  type="checkbox"
-                  checked={includeSpese}
-                  onChange={e => setIncludeSpese(e.target.checked)}
-                  className="rounded text-[#FF6B5F] focus:ring-[#FF6B5F] accent-[#FF6B5F] w-4 h-4 cursor-pointer"
-                />
-                <span className="font-semibold text-slate-800 dark:text-slate-200">Spese previste & budget giornaliero</span>
-              </label>
+              )}
             </div>
           </div>
 
@@ -403,6 +479,39 @@ export default function PdfExportModal({
             </div>
           )}
 
+          {/* ANTEPRIMA PDF INTEGRATA */}
+          {previewPdf && (
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 overflow-hidden space-y-2 p-2.5">
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="font-bold text-slate-700 dark:text-slate-200 truncate">
+                  Anteprima · {previewPdf.pageCount} pag. ({previewPdf.fileName})
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <a
+                    href={previewPdf.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-[#FF6B5F] hover:underline"
+                  >
+                    Apri ↗
+                  </a>
+                  <button
+                    type="button"
+                    onClick={clearPreviewPdf}
+                    className="font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer"
+                  >
+                    Chiudi
+                  </button>
+                </div>
+              </div>
+              <iframe
+                src={previewPdf.url}
+                title="Anteprima PDF Roadbook"
+                className="w-full h-56 sm:h-64 rounded-xl border border-slate-200 dark:border-slate-800 bg-white"
+              />
+            </div>
+          )}
+
           {/* Errore eventuale */}
           {errorMessage && (
             <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-semibold">
@@ -411,13 +520,13 @@ export default function PdfExportModal({
           )}
         </div>
 
-        {/* Footer con azione principale */}
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+        {/* Footer con anteprima, download e condivisione */}
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
           <button
             type="button"
             disabled={isGenerating}
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
+            className="px-3.5 py-2.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
           >
             Annulla
           </button>
@@ -425,8 +534,28 @@ export default function PdfExportModal({
           <button
             type="button"
             disabled={isGenerating || previewStats?.daysCount === 0}
-            onClick={handleGenerate}
-            className="flex-1 py-3 px-4 rounded-xl font-bold text-sm bg-[#FF6B5F] hover:bg-[#e85c50] text-white shadow-md shadow-[#FF6B5F]/20 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
+            onClick={handlePreview}
+            className="px-3.5 py-2.5 rounded-xl font-bold text-xs border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+          >
+            Anteprima
+          </button>
+
+          {canNativeShare && (
+            <button
+              type="button"
+              disabled={isGenerating || previewStats?.daysCount === 0}
+              onClick={handleShare}
+              className="px-3.5 py-2.5 rounded-xl font-bold text-xs border border-[#FF6B5F]/40 bg-[#FFF0ED] dark:bg-[#FF6B5F]/15 text-[#FF6B5F] hover:bg-[#ffe3dd] transition cursor-pointer disabled:opacity-50 disabled:pointer-events-none"
+            >
+              Condividi
+            </button>
+          )}
+
+          <button
+            type="button"
+            disabled={isGenerating || previewStats?.daysCount === 0}
+            onClick={handleDownload}
+            className="flex-1 min-w-[140px] py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm bg-[#FF6B5F] hover:bg-[#e85c50] text-white shadow-md shadow-[#FF6B5F]/20 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50 disabled:pointer-events-none"
           >
             {isGenerating ? (
               <>
@@ -435,7 +564,7 @@ export default function PdfExportModal({
               </>
             ) : (
               <>
-                <span>Scarica PDF Roadbook</span>
+                <span>Scarica PDF</span>
                 <span>↓</span>
               </>
             )}
