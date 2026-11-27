@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.43 — 2026-11-27
+
+- Livello Compatto operativo ottimizzato per la stampa (15-20 pag.)
+- Esportazione Word (.docx) modificabile con tabelle editabili e numerazione pagine
+
 ## 1.7.42 — 2026-11-27
 
 - Card attiva: aggiornamento dell'orario locale anche dopo mezzanotte, al ritorno in primo piano e alla riapertura.
@@ -42,11 +47,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 ## 1.7.34 — 2026-11-26
 
 - Retro Aereo: note copilota chiuse di default, riepiloghi tecnici compatti e fusi ricavati dagli aeroporti riconosciuti, con correzione manuale.
-
-## 1.7.33 — 2026-11-26
-
-- Retro Aereo: sezioni itinerario, economia, dettagli tecnici e note distinte per colore, con contrasto verificato nei temi chiaro e scuro.
-
-## 1.7.32 — 2026-11-26
-
-- Retro Aereo: modale più alto su iPhone, campi testuali adattivi e spaziature più compatte, con safe area e tastiera preservate.

@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.43",
+      "publishedAt": "2026-11-27",
+      "sourceCommit": "54a84af24a8295b8412d54582c0d78a76e87021a",
+      "changes": [
+        "Livello Compatto operativo ottimizzato per la stampa (15-20 pag.)",
+        "Esportazione Word (.docx) modificabile con tabelle editabili e numerazione pagine"
+      ],
+      "publishedAtIso": "2026-11-27T13:50:36.431Z"
+    },
+    {
       "version": "1.7.42",
       "publishedAt": "2026-11-27",
       "sourceCommit": "05a858e5ba2f9840aee58c2798be27ea8afc3f02",
@@ -78,14 +88,6 @@
       "sourceCommit": "fe10fe694eb2a84f48fc5aa4112a7f92575cc27c",
       "changes": [
         "Retro Aereo: note copilota chiuse di default, riepiloghi tecnici compatti e fusi ricavati dagli aeroporti riconosciuti, con correzione manuale."
-      ]
-    },
-    {
-      "version": "1.7.33",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "b42ee445a244e21a305eb86a118d9452fe3bf323",
-      "changes": [
-        "Retro Aereo: sezioni itinerario, economia, dettagli tecnici e note distinte per colore, con contrasto verificato nei temi chiaro e scuro."
       ]
     }
   ]
