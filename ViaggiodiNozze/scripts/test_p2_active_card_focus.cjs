@@ -155,6 +155,18 @@ function runUnitTests() {
     assert.equal(res.reason, 'other_day');
   });
 
+  check('5. Cambio giorno locale: segue oggi, rispetta navigazione manuale e limiti viaggio', () => {
+    const follow = (selected, previous, current, manual = false) =>
+      focus.resolveFollowingTimelineDate(selected, previous, current, '2026-11-28', '2027-01-10', manual);
+    assert.equal(follow('2026-12-03', '2026-12-03', '2026-12-04'), '2026-12-04');
+    assert.equal(follow('2026-11-28', '2026-11-27', '2026-11-28'), null);
+    assert.equal(follow('2026-11-28', '2026-11-27', '2026-11-29'), '2026-11-29');
+    assert.equal(follow('2026-12-03', '2026-12-03', '2026-12-04', true), null);
+    assert.equal(follow('2026-12-06', '2026-12-03', '2026-12-04'), null);
+    assert.equal(follow('2027-01-10', '2027-01-10', '2027-01-11'), null);
+    assert.equal(follow('2026-12-03', '2026-12-03', '2026-12-03'), null);
+  });
+
   return passed;
 }
 
@@ -405,7 +417,7 @@ async function runBrowserTests() {
   const unitCount = runUnitTests();
   console.log(`\n=== TEST P2 UNITARI: ${unitCount}/${unitCount} PASS ===`);
 
-  if (process.argv.includes('--require-browser') || fs.existsSync(path.join(projectRoot, 'dist/index.html'))) {
+  if (!process.argv.includes('--unit-only') && (process.argv.includes('--require-browser') || fs.existsSync(path.join(projectRoot, 'dist/index.html')))) {
     await runBrowserTests();
   }
 
