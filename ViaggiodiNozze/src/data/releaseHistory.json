@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.40",
+      "publishedAt": "2026-11-27",
+      "sourceCommit": "a09816cfde9d86aa81f928c25fe38382377564ef",
+      "changes": [
+        "Resolver geografico condiviso con priorita alle coordinate salvate",
+        "Autocompletamento Photon contestualizzato sulla data della card anche su Shopping e Trasporti"
+      ],
+      "publishedAtIso": "2026-11-27T10:45:19.287Z"
+    },
+    {
       "version": "1.7.39",
       "publishedAt": "2026-11-26",
       "sourceCommit": "6a927c61dced4765cfa57eb920c6127b362e6c9d",
@@ -74,15 +84,6 @@
       "changes": [
         "Retro Aereo più compatto su iPhone: nome e mezzo affiancati, azioni in una riga, terminal multilinea e note dello scalo editabili."
       ]
-    },
-    {
-      "version": "1.7.30",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "6cbf73140867bdfb82cda9289443f85a4f32228f",
-      "changes": [
-        "Retro card Aereo: riorganizzazione gerarchica (Compagnia con selettore mezzo accanto, Partenza/Arrivo, Terminal/Gate, Quadro economico sempre aperto, Scalo, Dettagli volo collassati, IATA/fusi avanzati collassati, PNR/Bagagli/Biglietti, Note Copilota) con durata scalo calcolata in sola lettura."
-      ],
-      "publishedAtIso": "2026-11-26T10:57:03.000Z"
     }
   ]
 }
