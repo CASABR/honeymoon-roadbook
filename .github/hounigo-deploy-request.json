@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-27T13:51:00Z",
+  "requestedAt": "2026-11-27T14:23:30Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.43-compatto-operativo-docx-20261127",
+  "requestId": "release-1.7.44-docx-word-fix-20261127",
   "requestedBy": "CASABR",
-  "ref": "12b0e9449adb94d12d824ffd55c3e7e864845220",
+  "ref": "4f6ccb11dce3e2eaa67ba6f51c80916864dd1854",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.43: esportazione Compatto operativo e Word (.docx) modificabile con supporto offline e permessi."
+  "note": "HOUNIGO 1.7.44: esportazione Word (.docx) tramite libreria ufficiale docx, pienamente compatibile con Microsoft Word."
 }
