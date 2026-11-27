@@ -420,6 +420,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
           value={titolo}
           onChange={setTitolo}
           onSelectPlace={handleSelectPlace}
+          biasDate={data}
           label="Nome / Punto di Interesse"
           placeholder="es. Lake Pukaki Viewpoint, Cape Reinga..."
           required
@@ -438,6 +439,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
             value={indirizzo}
             onChange={(e) => {
               const extracted = extractMapsUrlFromText(e.target.value);
+              setCoordinate(undefined);
               if (extracted.mapsUrl) {
                 setIndirizzo(extracted.cleanText);
                 setMapsUrl(extracted.mapsUrl);

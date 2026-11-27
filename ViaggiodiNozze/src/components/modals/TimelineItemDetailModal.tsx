@@ -3,7 +3,7 @@ import { useState } from 'react';
 import type { TimelineItem, TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
 import { Handshake, Copy, Check, ExternalLink } from 'lucide-react';
-import { resolveMapUrl, openMapLink, hasReliableGeoDestination } from '../../utils/mapsHelper';
+import { resolveEntityMapUrl, openMapLink, hasReliableGeoDestination } from '../../utils/mapsHelper';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { openAttachmentInNewTab } from '../../utils/fileAttachment';
@@ -273,7 +273,16 @@ export default function TimelineItemDetailModal({
             <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
               <button
                 type="button"
-                onClick={() => openMapLink(resolveMapUrl(data?.mapsUrl || mapTarget))}
+                onClick={() => openMapLink(resolveEntityMapUrl({
+                  coordinate: data?.coordinate,
+                  mapsUrl: data?.mapsUrl,
+                  googleMapsUrl: data?.googleMapsUrl,
+                  link: data?.link,
+                  address: data?.address,
+                  indirizzo: data?.indirizzo,
+                  location: data?.location || mapTarget,
+                  title: item.title,
+                }))}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 transition-colors cursor-pointer shadow-2xs"
               >
                 <GoogleMapsIcon className="w-3.5 h-3.5" />

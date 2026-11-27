@@ -117,7 +117,7 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
     
     const dayId = `day_${data}`;
     setIsGeocoding(true);
-    let finalCoord = coordinate || initialData?.coordinate;
+    let finalCoord = coordinate;
 
     if (indirizzo && indirizzo.trim()) {
       try {
@@ -216,6 +216,7 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
         value={nome}
         onChange={setNome}
         onSelectPlace={handleSelectPlace}
+        biasDate={data}
         label="Nome Locale / Ristorante"
         placeholder="es. Da Mario, Pizzeria, Cafè..."
         required
@@ -298,7 +299,10 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
           type="text"
           placeholder="Via Roma 1, Milano"
           value={indirizzo}
-          onChange={(e) => setIndirizzo(e.target.value)}
+          onChange={(e) => {
+            setIndirizzo(e.target.value);
+            setCoordinate(undefined);
+          }}
           className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors placeholder:text-slate-400"
         />
       </div>

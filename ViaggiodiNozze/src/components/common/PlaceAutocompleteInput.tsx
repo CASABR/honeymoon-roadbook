@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { searchPlacesCombined, preloadLocalPlaces, type PlaceSuggestion } from '../../services/photonService';
+import { searchPlacesCombined, preloadLocalPlaces, getTripDateBiasCoordinate, type PlaceSuggestion } from '../../services/photonService';
 
 interface PlaceAutocompleteInputProps {
   value: string;
   onChange: (value: string) => void;
   onSelectPlace: (place: PlaceSuggestion) => void;
+  biasDate?: string;
   placeholder?: string;
   label?: string;
   required?: boolean;
@@ -19,6 +20,7 @@ export default function PlaceAutocompleteInput({
   value,
   onChange,
   onSelectPlace,
+  biasDate,
   placeholder = 'Cerca un luogo o digita...',
   label,
   required = false,
@@ -89,7 +91,8 @@ export default function PlaceAutocompleteInput({
       setIsLoading(true);
 
       try {
-        const results = await searchPlacesCombined(q, 5, controller.signal);
+        const biasCoord = biasDate ? await getTripDateBiasCoordinate(biasDate).catch(() => undefined) : undefined;
+        const results = await searchPlacesCombined(q, 5, controller.signal, biasCoord);
         console.log('[Photon Debug Input]', q, results);
         if (!controller.signal.aborted) {
           setSuggestions(results);
@@ -106,7 +109,7 @@ export default function PlaceAutocompleteInput({
         }
       }
     }, 300);
-  }, []);
+  }, [biasDate]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;

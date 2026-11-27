@@ -573,6 +573,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
         value={title}
         onChange={setTitle}
         onSelectPlace={handleSelectPlace}
+        biasDate={customDate}
         label={isTrekking ? 'Titolo del trekking' : isPhotoSpot ? 'Titolo dello spot' : 'Titolo Attività'}
         placeholder={isTrekking ? 'es. Tongariro Alpine Crossing' : isPhotoSpot ? 'es. Belvedere sul lago' : 'es. Safari in Jeep, Hobbiton...'}
         required

@@ -139,7 +139,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
 
   const processSave = async () => {
     setIsGeocoding(true);
-    let finalCoord = initialData?.coordinate;
+    let finalCoord = coordinate;
 
     if (address && address.trim()) {
       try {
@@ -269,6 +269,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
           value={name}
           onChange={setName}
           onSelectPlace={handleSelectPlace}
+          biasDate={checkIn}
           label="Nome Struttura"
           placeholder="es. Grand Hotel, Hilton, Airbnb..."
           required
@@ -338,7 +339,10 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
           type="text"
           placeholder="Via Roma 1, Milano"
           value={address}
-          onChange={(e) => setAddress(e.target.value)}
+          onChange={(e) => {
+            setAddress(e.target.value);
+            setCoordinate(undefined);
+          }}
           className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] placeholder:text-slate-400"
         />
       </div>

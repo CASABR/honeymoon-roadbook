@@ -1,9 +1,12 @@
 import CurrencyAmountInput from '../common/CurrencyAmountInput';
 import React, { useState, useEffect, useRef, useMemo, useCallback, useImperativeHandle } from 'react';
 import { usePresence } from '../../hooks/usePresence';
-import type { Shopping } from '../../types';
+import type { Shopping, Coordinate } from '../../types';
 import { extractFromText } from '../../services/aiExtractor';
 import TimePickerInput from '../common/TimePickerInput';
+import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
+import type { PlaceSuggestion } from '../../services/photonService';
+import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
 import FormActionButtons from './FormActionButtons';
 import { auth } from '../../firebase';
 import { getActiveTripId } from '../../storage/indexedDB';
@@ -126,6 +129,7 @@ export default function ShoppingForm({
   const [link, setLink] = useState(initialRecovery.fields.link);
   const [noteCopilota, setNoteCopilota] = useState(initialRecovery.fields.noteCopilota);
   const [copilota, setCopilota] = useState(initialRecovery.fields.copilota);
+  const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
 
   const [pendingConflictDraft, setPendingConflictDraft] = useState<ShoppingDraftFields | null>(
     initialRecovery.conflictFields
@@ -409,10 +413,15 @@ export default function ShoppingForm({
         initialData: latestInitialDataRef.current,
         cachedMoney: cachedMoneyRef.current,
       });
+      let finalCoord = coordinate;
+      if (!finalCoord && (indirizzo.trim() || nome.trim())) {
+        finalCoord = (await getCoordinatesFromAddress(indirizzo.trim() || nome.trim()).catch(() => null)) || undefined;
+      }
+      const enrichedPayload = { ...payload, coordinate: finalCoord };
       cachedMoneyRef.current = moneyCache;
 
       if (isAutoSaveEnabled && onAutoSave) {
-        const saved = await onAutoSave(payload);
+        const saved = await onAutoSave(enrichedPayload);
         if (saved) {
           latestInitialDataRef.current = saved;
           lastSavedEntityIdRef.current = saved.id;
@@ -422,7 +431,7 @@ export default function ShoppingForm({
         await evaluateCloudProof(saved?.id || initialData?.id, startedAt);
         (onAutoSaveCompleteClose || onCancel)();
       } else {
-        await onSave(payload);
+        await onSave(enrichedPayload);
         savedBaselineRef.current = draftFingerprint;
         if (draftScope) clearShoppingDraft(draftScope);
         await evaluateCloudProof(initialData?.id, startedAt);
@@ -580,15 +589,20 @@ export default function ShoppingForm({
 
         {/* Nome Negozio / Luogo Shopping */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Negozio / Centro Commerciale / Mercato *
-          </label>
-          <input
-            type="text"
-            placeholder="es. Queenstown Mall, Harrods, Conad..."
+          <PlaceAutocompleteInput
             value={nome}
-            onChange={(e) => updateDraftFields({ nome: e.target.value })}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
+            onChange={(val) => updateDraftFields({ nome: val })}
+            biasDate={data || defaultDate}
+            onSelectPlace={(place: PlaceSuggestion) => {
+              const patch: Partial<ShoppingDraftFields> = { nome: place.title };
+              if (place.address && !indirizzo.trim()) {
+                patch.indirizzo = place.address;
+              }
+              updateDraftFields(patch);
+              setCoordinate(place.coordinate);
+            }}
+            label="Negozio / Centro Commerciale / Mercato *"
+            placeholder="es. Queenstown Mall, Harrods, Conad..."
             required
           />
         </div>
@@ -663,7 +677,10 @@ export default function ShoppingForm({
             type="text"
             placeholder="es. The Rocks, Sydney o link Google Maps"
             value={indirizzo}
-            onChange={(e) => updateDraftFields({ indirizzo: e.target.value })}
+            onChange={(e) => {
+              updateDraftFields({ indirizzo: e.target.value });
+              setCoordinate(undefined);
+            }}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
           />
         </div>

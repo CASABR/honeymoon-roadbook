@@ -4,7 +4,7 @@ import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import type { Alloggio } from '../../types';
-import { resolveMapUrl } from '../../utils/mapsHelper';
+import { resolveEntityMapUrl } from '../../utils/mapsHelper';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
@@ -155,7 +155,13 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  const mapTarget = accommodation.address || accommodation.location || accommodation.name;
+  const mapUrl = resolveEntityMapUrl({
+    coordinate: accommodation.coordinate,
+    address: accommodation.address,
+    location: accommodation.location,
+    name: accommodation.name,
+  });
+  const mapTarget = mapUrl;
   const displayAddress = accommodation.address || accommodation.location;
   const hasAttachments = Boolean(
     accommodation.attachments?.some((attachment) => Boolean(attachment.dataUrl?.trim()))
@@ -440,7 +446,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
 
           {mapTarget && (
             <a
-              href={resolveMapUrl(mapTarget)}
+              href={mapUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}

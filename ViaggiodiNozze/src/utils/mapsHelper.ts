@@ -109,6 +109,62 @@ export function getGoogleMapsUrl(query: string): string {
   return resolveMapUrl(query);
 }
 
+export function isValidCoordinate(coord?: Coordinate | null): coord is Coordinate {
+  return Boolean(
+    coord &&
+    typeof coord.lat === 'number' &&
+    typeof coord.lng === 'number' &&
+    Number.isFinite(coord.lat) &&
+    Number.isFinite(coord.lng) &&
+    (coord.lat !== 0 || coord.lng !== 0)
+  );
+}
+
+export interface EntityMapTargetInput {
+  coordinate?: Coordinate | null;
+  mapsUrl?: string;
+  googleMapsUrl?: string;
+  link?: string;
+  address?: string;
+  indirizzo?: string;
+  location?: string;
+  name?: string;
+  title?: string;
+  titolo?: string;
+  nome?: string;
+  travelmode?: 'driving' | 'walking' | 'bicycling' | 'transit';
+}
+
+/**
+ * Resolver geografico condiviso per tutte le categorie (fronte card e modale dettaglio).
+ * Priorità:
+ * 1) Link Google Maps esplicito (preserva percorsi /dir/ e query manuali)
+ * 2) Coordinate verificate (lat,lng)
+ * 3) Indirizzo testuale / località
+ * 4) Nome / titolo
+ */
+export function resolveEntityMapUrl(input?: EntityMapTargetInput | null): string {
+  if (!input) return '';
+  const explicitUrl = [input.mapsUrl, input.googleMapsUrl, input.link].find((u) => isGoogleMapsUrl(u));
+  if (explicitUrl) {
+    return resolveMapUrl(explicitUrl, input.travelmode);
+  }
+  if (isValidCoordinate(input.coordinate)) {
+    const modeParam = input.travelmode ? `&travelmode=${input.travelmode}` : '';
+    return `https://www.google.com/maps/search/?api=1&query=${input.coordinate.lat},${input.coordinate.lng}${modeParam}`;
+  }
+  const textTarget =
+    input.address?.trim() ||
+    input.indirizzo?.trim() ||
+    input.location?.trim() ||
+    input.name?.trim() ||
+    input.title?.trim() ||
+    input.titolo?.trim() ||
+    input.nome?.trim() ||
+    '';
+  return textTarget ? resolveMapUrl(textTarget, input.travelmode) : '';
+}
+
 /**
  * Apre in sicurezza un link a Google Maps in una nuova scheda.
  */
@@ -194,8 +250,16 @@ export function getTransportMapTargets(transport: Trasporto): TransportMapTarget
       }
     }
 
-    const pickupUrl = resolveMapUrl(pickupQuery);
-    const dropoffUrl = resolveMapUrl(dropoffQuery);
+    const pickupUrl = resolveEntityMapUrl({
+      coordinate: isGoogleMapsUrl(pickupQuery) ? undefined : transport.coordinate,
+      mapsUrl: isGoogleMapsUrl(pickupQuery) ? pickupQuery : undefined,
+      address: pickupQuery,
+    });
+    const dropoffUrl = resolveEntityMapUrl({
+      coordinate: isGoogleMapsUrl(dropoffQuery) ? undefined : transport.dropoffCoordinate,
+      mapsUrl: isGoogleMapsUrl(dropoffQuery) ? dropoffQuery : undefined,
+      address: dropoffQuery,
+    });
 
     return {
       primaryUrl: pickupUrl,
@@ -211,15 +275,27 @@ export function getTransportMapTargets(transport: Trasporto): TransportMapTarget
   if (type === 'volo') {
     const cleanDep = mapAirportTerminal(departureLocation);
     const cleanArr = mapAirportTerminal(arrivalLocation);
-    const depUrl = resolveMapUrl(cleanDep);
-    const arrUrl = resolveMapUrl(cleanArr);
+    const depUrl = resolveEntityMapUrl({
+      coordinate: isGoogleMapsUrl(departureLocation) ? undefined : transport.coordinate,
+      mapsUrl: isGoogleMapsUrl(departureLocation) ? departureLocation : undefined,
+      address: cleanDep,
+    });
+    const arrUrl = resolveEntityMapUrl({
+      coordinate: isGoogleMapsUrl(arrivalLocation) ? undefined : transport.dropoffCoordinate,
+      mapsUrl: isGoogleMapsUrl(arrivalLocation) ? arrivalLocation : undefined,
+      address: cleanArr,
+    });
 
     let layoverUrl: string | undefined;
     let layoverLabel: string | undefined;
 
     if (layover?.airport) {
       const cleanLay = mapAirportTerminal(layover.airport);
-      layoverUrl = resolveMapUrl(cleanLay);
+      layoverUrl = resolveEntityMapUrl({
+        coordinate: isGoogleMapsUrl(layover.airport) ? undefined : (layover as { coordinate?: Coordinate }).coordinate,
+        mapsUrl: isGoogleMapsUrl(layover.airport) ? layover.airport : undefined,
+        address: cleanLay,
+      });
       layoverLabel = `Scalo ${layover.airport}`;
     }
 
@@ -264,8 +340,16 @@ export function getTransportMapTargets(transport: Trasporto): TransportMapTarget
       }
     }
 
-    const depUrl = resolveMapUrl(depQuery);
-    const arrUrl = resolveMapUrl(arrQuery);
+    const depUrl = resolveEntityMapUrl({
+      coordinate: isGoogleMapsUrl(depQuery) ? undefined : transport.coordinate,
+      mapsUrl: isGoogleMapsUrl(depQuery) ? depQuery : undefined,
+      address: depQuery,
+    });
+    const arrUrl = resolveEntityMapUrl({
+      coordinate: isGoogleMapsUrl(arrQuery) ? undefined : transport.dropoffCoordinate,
+      mapsUrl: isGoogleMapsUrl(arrQuery) ? arrQuery : undefined,
+      address: arrQuery,
+    });
 
     return {
       primaryUrl: depUrl,
@@ -277,21 +361,28 @@ export function getTransportMapTargets(transport: Trasporto): TransportMapTarget
     };
   }
 
-  // 4. TRANSFER / TAXI
+  // 4. TRANSFER / TAXI / TRENO / METRO
   let transferQuery = arrivalLocation;
   if (!/^https?:\/\//i.test(transferQuery)) {
-    if ((arrivalLocation || '').toLowerCase().includes('hotel noa') || (arrivalLocation || '').toLowerCase().includes('queen st')) {
-      transferQuery = 'Noa Hotel Auckland, Queen Street, Auckland CBD, New Zealand';
-    } else if ((arrivalLocation || '').toLowerCase().includes('auckland apt') || (arrivalLocation || '').toLowerCase().includes('akl')) {
+    if ((arrivalLocation || '').toLowerCase().includes('auckland apt') || (arrivalLocation || '').toLowerCase().includes('akl')) {
       transferQuery = 'Auckland Airport International Terminal';
     }
   }
 
-  const primaryUrl = resolveMapUrl(transferQuery);
+  const primaryUrl = resolveEntityMapUrl({
+    coordinate: isGoogleMapsUrl(transferQuery) ? undefined : transport.dropoffCoordinate,
+    mapsUrl: isGoogleMapsUrl(transferQuery) ? transferQuery : undefined,
+    address: transferQuery,
+  });
+  const depUrl = resolveEntityMapUrl({
+    coordinate: isGoogleMapsUrl(departureLocation) ? undefined : transport.coordinate,
+    mapsUrl: isGoogleMapsUrl(departureLocation) ? departureLocation : undefined,
+    address: departureLocation,
+  });
   return {
     primaryUrl,
     primaryLabel: 'Destinazione',
-    departureUrl: resolveMapUrl(departureLocation),
+    departureUrl: depUrl,
     departureLabel: 'Pick-up',
     arrivalUrl: primaryUrl,
     arrivalLabel: 'Arrivo'

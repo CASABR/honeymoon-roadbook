@@ -3,9 +3,11 @@ import CurrencyAmountInput from '../common/CurrencyAmountInput';
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp, Plus, Trash2, Check, Copy, Route, Wallet, List, Settings, MessageSquare, PlaneTakeoff, PlaneLanding, Luggage, Ticket } from 'lucide-react';
 import { usePresence } from '../../hooks/usePresence';
-import type { Trasporto, TipoTrasporto, StatoTrasporto, TransportAttachment } from '../../types';
+import type { Trasporto, TipoTrasporto, StatoTrasporto, TransportAttachment, Coordinate } from '../../types';
 import TimeZoneInput from '../common/TimeZoneInput';
 import { DateTimePickerInput } from '../common/TimePickerInput';
+import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
+import type { PlaceSuggestion } from '../../services/photonService';
 import FormActionButtons from './FormActionButtons';
 import Modal from '../common/Modal';
 import TrasportoBagagliModal from '../modals/TrasportoBagagliModal';
@@ -291,12 +293,14 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   const [departureIata, setDepartureIata] = useState('');
   const [departureDate, setDepartureDate] = useState('');
   const [departureTimeZone, setDepartureTimeZone] = useState('');
+  const [depCoordinate, setDepCoordinate] = useState<Coordinate | undefined>(undefined);
 
   // Arrivo / Riconsegna
   const [arrivalLocation, setArrivalLocation] = useState('');
   const [arrivalIata, setArrivalIata] = useState('');
   const [arrivalDate, setArrivalDate] = useState('');
   const [dropoffTimeZone, setDropoffTimeZone] = useState('');
+  const [arrCoordinate, setArrCoordinate] = useState<Coordinate | undefined>(undefined);
 
   // Dettagli operativi specifici & compatibilità
   const [posti, setPosti] = useState('');
@@ -380,6 +384,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setDepartureIata(initialData.departureIata || '');
       setDepartureDate(formatForInput(initialData.date, initialData.departureTime));
       setDepartureTimeZone(initialData.departureTimeZone || '');
+      setDepCoordinate(initialData.coordinate);
+      setArrCoordinate(initialData.dropoffCoordinate);
 
       const isRentalType = initialData.type === 'auto' || initialData.type === 'camper';
       if (isRentalType) {
@@ -462,10 +468,12 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setDepartureIata('');
       setDepartureDate(defaultDate && defaultTime ? `${defaultDate}T${defaultTime}` : '');
       setDepartureTimeZone('');
+      setDepCoordinate(undefined);
       setArrivalLocation('');
       setArrivalIata('');
       setArrivalDate('');
       setDropoffTimeZone('');
+      setArrCoordinate(undefined);
       setPosti('');
       setBagagli('');
       setTerminalGate('');
@@ -572,6 +580,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       departureLocation: departureLocation.trim(),
       departureIata: departureIata.trim() || (isFlight ? resolveAirportIataAndTimeZone(departureLocation).iata : undefined),
       arrivalIata: arrivalIata.trim() || (isFlight ? resolveAirportIataAndTimeZone(arrivalLocation).iata : undefined),
+      coordinate: depCoordinate,
+      dropoffCoordinate: arrCoordinate,
 
       ...normMeta,
       cost: packageIncluded ? 'Incluso nel pacchetto' : (normCost ?? (cost.trim() || undefined)),
@@ -1584,20 +1594,41 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               <h3 className="flight-section-title"><Route aria-hidden="true" className="flight-section-icon" /> Itinerario</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5"><div className="p-1.5 rounded-xl space-y-1 flight-airport-block">
                   <label className={labelClass}>Partenza</label>
-                  <input type="text" aria-label="Stazione di partenza" placeholder="Stazione di partenza" value={departureLocation} onFocus={() => { departureAirportBeforeEdit.current = departureLocation; }} onChange={e => setDepartureLocation(e.target.value)} onBlur={() => {
-                    const previous = resolveUnambiguousPlaceTimeZone(departureAirportBeforeEdit.current);
-                    const next = resolveUnambiguousPlaceTimeZone(departureLocation);
-                    if (!departureTimeZone.trim() || (departureTimeZone === previous && departureAirportBeforeEdit.current !== departureLocation)) setDepartureTimeZone(next || '');
-                  }} className={whiteInputClass} required />
+                  <PlaceAutocompleteInput
+                    value={departureLocation}
+                    onChange={(val) => {
+                      setDepartureLocation(val);
+                      setDepCoordinate(undefined);
+                    }}
+                    biasDate={departureDate.slice(0, 10) || defaultDate}
+                    onSelectPlace={(place: PlaceSuggestion) => {
+                      const nextLoc = place.address && place.address !== place.title ? `${place.title}, ${place.address}` : place.title;
+                      setDepartureLocation(nextLoc);
+                      setDepCoordinate(place.coordinate);
+                    }}
+                    placeholder="Stazione di partenza"
+                    inputClassName={whiteInputClass}
+                    required
+                  />
                   <DateTimePickerInput value={departureDate} onChange={setDepartureDate} required dateLabel="Data partenza" timeLabel="Orario" />
                 </div>
 <div className="p-1.5 rounded-xl space-y-1 flight-airport-block">
                   <label className={labelClass}>Arrivo</label>
-                  <input type="text" aria-label="Stazione di arrivo" placeholder="Stazione di arrivo" value={arrivalLocation} onFocus={() => { arrivalAirportBeforeEdit.current = arrivalLocation; }} onChange={e => setArrivalLocation(e.target.value)} onBlur={() => {
-                    const previous = resolveUnambiguousPlaceTimeZone(arrivalAirportBeforeEdit.current);
-                    const next = resolveUnambiguousPlaceTimeZone(arrivalLocation);
-                    if (!dropoffTimeZone.trim() || (dropoffTimeZone === previous && arrivalAirportBeforeEdit.current !== arrivalLocation)) setDropoffTimeZone(next || '');
-                  }} className={whiteInputClass}  />
+                  <PlaceAutocompleteInput
+                    value={arrivalLocation}
+                    onChange={(val) => {
+                      setArrivalLocation(val);
+                      setArrCoordinate(undefined);
+                    }}
+                    biasDate={arrivalDate.slice(0, 10) || departureDate.slice(0, 10) || defaultDate}
+                    onSelectPlace={(place: PlaceSuggestion) => {
+                      const nextLoc = place.address && place.address !== place.title ? `${place.title}, ${place.address}` : place.title;
+                      setArrivalLocation(nextLoc);
+                      setArrCoordinate(place.coordinate);
+                    }}
+                    placeholder="Stazione di arrivo"
+                    inputClassName={whiteInputClass}
+                  />
                   <DateTimePickerInput value={arrivalDate} onChange={setArrivalDate}  dateLabel="Data arrivo" timeLabel="Orario" />
                 </div></div>
               <div className="grid grid-cols-[minmax(0,0.7fr)_minmax(0,0.85fr)_minmax(0,1.45fr)] gap-1.5 train-seat-grid">
@@ -1906,20 +1937,41 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               <h3 className="flight-section-title"><Route aria-hidden="true" className="flight-section-icon" /> {isRental ? 'Ritiro e riconsegna' : 'Itinerario'}</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5"><div className="p-1.5 rounded-xl space-y-1 flight-airport-block">
                   <label className={labelClass}>{cfg.departureLabel}</label>
-                  <input type="text" aria-label={cfg.departureLabel} placeholder={cfg.departurePlaceholder} value={departureLocation} onFocus={() => { departureAirportBeforeEdit.current = departureLocation; }} onChange={e => setDepartureLocation(e.target.value)} onBlur={() => {
-                    const previous = resolveUnambiguousPlaceTimeZone(departureAirportBeforeEdit.current);
-                    const next = resolveUnambiguousPlaceTimeZone(departureLocation);
-                    if (!departureTimeZone.trim() || (departureTimeZone === previous && departureAirportBeforeEdit.current !== departureLocation)) setDepartureTimeZone(next || '');
-                  }} className={whiteInputClass} required />
+                  <PlaceAutocompleteInput
+                    value={departureLocation}
+                    onChange={(val) => {
+                      setDepartureLocation(val);
+                      setDepCoordinate(undefined);
+                    }}
+                    biasDate={departureDate.slice(0, 10) || defaultDate}
+                    onSelectPlace={(place: PlaceSuggestion) => {
+                      const nextLoc = place.address && place.address !== place.title ? `${place.title}, ${place.address}` : place.title;
+                      setDepartureLocation(nextLoc);
+                      setDepCoordinate(place.coordinate);
+                    }}
+                    placeholder={cfg.departurePlaceholder}
+                    inputClassName={whiteInputClass}
+                    required
+                  />
                   <DateTimePickerInput value={departureDate} onChange={setDepartureDate} required dateLabel={isRental ? 'Data ritiro' : 'Data partenza'} timeLabel="Orario" />
                 </div>
 <div className="p-1.5 rounded-xl space-y-1 flight-airport-block">
                   <label className={labelClass}>{cfg.arrivalLabel}</label>
-                  <input type="text" aria-label={cfg.arrivalLabel} placeholder={cfg.arrivalPlaceholder} value={arrivalLocation} onFocus={() => { arrivalAirportBeforeEdit.current = arrivalLocation; }} onChange={e => setArrivalLocation(e.target.value)} onBlur={() => {
-                    const previous = resolveUnambiguousPlaceTimeZone(arrivalAirportBeforeEdit.current);
-                    const next = resolveUnambiguousPlaceTimeZone(arrivalLocation);
-                    if (!dropoffTimeZone.trim() || (dropoffTimeZone === previous && arrivalAirportBeforeEdit.current !== arrivalLocation)) setDropoffTimeZone(next || '');
-                  }} className={whiteInputClass}  />
+                  <PlaceAutocompleteInput
+                    value={arrivalLocation}
+                    onChange={(val) => {
+                      setArrivalLocation(val);
+                      setArrCoordinate(undefined);
+                    }}
+                    biasDate={arrivalDate.slice(0, 10) || departureDate.slice(0, 10) || defaultDate}
+                    onSelectPlace={(place: PlaceSuggestion) => {
+                      const nextLoc = place.address && place.address !== place.title ? `${place.title}, ${place.address}` : place.title;
+                      setArrivalLocation(nextLoc);
+                      setArrCoordinate(place.coordinate);
+                    }}
+                    placeholder={cfg.arrivalPlaceholder}
+                    inputClassName={whiteInputClass}
+                  />
                   <DateTimePickerInput value={arrivalDate} onChange={setArrivalDate}  dateLabel={isRental ? 'Data riconsegna' : 'Data arrivo'} timeLabel="Orario" />
                 </div></div>
               {genericMainFields.length > 0 && (

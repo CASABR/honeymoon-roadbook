@@ -5,7 +5,7 @@ import { useState } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
-import { resolveMapUrl } from '../../utils/mapsHelper';
+import { resolveEntityMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
@@ -68,7 +68,12 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
     }
   };
 
-  const mapTarget = shopping.indirizzo || shopping.nome;
+  const mapUrl = resolveEntityMapUrl({
+    coordinate: shopping.coordinate,
+    indirizzo: shopping.indirizzo,
+    nome: shopping.nome,
+  });
+  const mapTarget = mapUrl;
   const displayAddress = shopping.indirizzo?.trim() || '';
   const hasQrOrAttachment = Boolean(
     (shopping as any).qrCode?.trim() ||
@@ -235,7 +240,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
           )}
           {mapTarget && (
             <a
-              href={resolveMapUrl(mapTarget)}
+              href={mapUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}

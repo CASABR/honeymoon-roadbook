@@ -5,7 +5,7 @@ import { useState } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService } from '../../storage/storageService';
-import { resolveMapUrl } from '../../utils/mapsHelper';
+import { resolveEntityMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
@@ -64,7 +64,12 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
     }
   };
 
-  const mapTarget = ristorante.indirizzo || ristorante.nome;
+  const mapUrl = resolveEntityMapUrl({
+    coordinate: ristorante.coordinate,
+    indirizzo: ristorante.indirizzo,
+    nome: ristorante.nome,
+  });
+  const mapTarget = mapUrl;
   const displayAddress = ristorante.indirizzo?.trim() || '';
   const time = ristorante.orario || (ristorante as any).time;
   const hasQrOrAttachment = Boolean(
@@ -231,7 +236,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
           )}
           {mapTarget && (
             <a
-              href={resolveMapUrl(mapTarget)}
+              href={mapUrl}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}

@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import type { Attivita, Tappa } from '../../types';
-import { resolveMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
+import { resolveEntityMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
@@ -178,11 +178,14 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
 
-  const mapLink = activity.googleMapsUrl
-    ? resolveMapUrl(activity.googleMapsUrl)
-    : (activity.address || activity.location)
-    ? resolveMapUrl(activity.address || activity.location)
-    : '';
+  const mapLink = resolveEntityMapUrl({
+    coordinate: activity.coordinate,
+    googleMapsUrl: activity.googleMapsUrl,
+    link: activity.link,
+    address: activity.address,
+    location: activity.location,
+    title: activity.title,
+  });
   const startTime = activity.orarioInizio || activity.time;
   const meetingTime = activity.orarioRitrovo;
   const hasDistinctMeetingTime = Boolean(meetingTime && startTime && meetingTime.trim() !== startTime.trim());
@@ -500,12 +503,17 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
                         </span>
                         <span className="font-bold text-slate-900 dark:text-slate-100">{tappa.titolo}</span>
                       </div>
-                      {(tappa.mapsUrl || tappa.indirizzo || tappa.titolo) && (
+                      {(tappa.coordinate || tappa.mapsUrl || tappa.indirizzo || tappa.titolo) && (
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const url = resolveMapUrl(tappa.mapsUrl || tappa.indirizzo || tappa.titolo);
+                            const url = resolveEntityMapUrl({
+                              coordinate: tappa.coordinate,
+                              mapsUrl: tappa.mapsUrl,
+                              indirizzo: tappa.indirizzo,
+                              titolo: tappa.titolo,
+                            });
                             if (url) window.open(url, '_blank', 'noopener,noreferrer');
                           }}
                           className="text-xs font-bold text-slate-700 dark:text-slate-200 hover:underline shrink-0 cursor-pointer"

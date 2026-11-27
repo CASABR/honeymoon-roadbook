@@ -5,7 +5,7 @@ import type { Tappa } from '../../types';
 import { useState, useEffect, useRef } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
-import { resolveMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
+import { resolveEntityMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { formatDateIT } from '../../utils/tripDates';
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
@@ -87,11 +87,19 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
   const orario = tappa.orario || (tappa as any).time;
   const isCompact = variant === 'compact';
 
-  const mapTarget = isTask ? undefined : (tappa.mapsUrl || tappa.indirizzo || tappa.titolo);
   const hasSubcategory = Boolean(tappa.sottocategoria && tappa.sottocategoria.trim() && tappa.sottocategoria !== 'Tappa');
   const isConfirmed = Boolean(orario) && tappa.timeStatus === 'confermato';
   const isWalking = (tappa.sottocategoria || '').toLowerCase() === 'passeggiata' || Boolean(sequenceInfo?.inSequence);
   const travelMode = isWalking ? 'walking' : undefined;
+  const mapTarget = isTask
+    ? undefined
+    : resolveEntityMapUrl({
+        coordinate: tappa.coordinate,
+        mapsUrl: tappa.mapsUrl,
+        indirizzo: tappa.indirizzo,
+        titolo: tappa.titolo,
+        travelmode: travelMode,
+      });
 
   const headerTimeSummary = orario
     ? `Ore ${orario}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
@@ -283,7 +291,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
           )}
           {mapTarget && (
             <a
-              href={resolveMapUrl(mapTarget, travelMode)}
+              href={mapTarget}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}

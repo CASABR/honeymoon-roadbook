@@ -216,18 +216,65 @@ export async function searchLocalPlaces(query: string, maxResults = 4): Promise<
 }
 
 /**
+ * Ricava una coordinata di contesto dalla data della card (mai dal GPS corrente dell'utente)
+ * per ordinare i suggerimenti Photon verso l'area geografica prevista quel giorno,
+ * senza impedire ricerche in altri Paesi.
+ */
+export async function getTripDateBiasCoordinate(dateStr?: string): Promise<Coordinate | undefined> {
+  const target = (dateStr || '').trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) return undefined;
+  try {
+    const [accs, acts, tps, rists] = await Promise.all([
+      storageService.getAccommodations().catch(() => [] as Alloggio[]),
+      storageService.getActivities().catch(() => [] as Attivita[]),
+      storageService.getTappe().catch(() => [] as Tappa[]),
+      storageService.getRistoranti ? storageService.getRistoranti().catch(() => [] as Ristorante[]) : Promise.resolve([] as Ristorante[]),
+    ]);
+
+    const valid = (c?: Coordinate | null): c is Coordinate =>
+      Boolean(c && typeof c.lat === 'number' && typeof c.lng === 'number' && Number.isFinite(c.lat) && Number.isFinite(c.lng) && (c.lat !== 0 || c.lng !== 0));
+
+    // 1. Alloggio attivo nella data target
+    const acc = accs.find((a) => valid(a.coordinate) && a.checkIn <= target && (!a.checkOut || target <= a.checkOut));
+    if (acc && valid(acc.coordinate)) return acc.coordinate;
+
+    // 2. Attività, tappa o ristorante nella stessa data
+    const sameDayAct = acts.find((a) => valid(a.coordinate) && a.date === target);
+    if (sameDayAct && valid(sameDayAct.coordinate)) return sameDayAct.coordinate;
+    const sameDayTappa = tps.find((t) => valid(t.coordinate) && t.data === target);
+    if (sameDayTappa && valid(sameDayTappa.coordinate)) return sameDayTappa.coordinate;
+    const sameDayRist = rists.find((r) => valid(r.coordinate) && (r.data || r.date) === target);
+    if (sameDayRist && valid(sameDayRist.coordinate)) return sameDayRist.coordinate;
+
+    // 3. Alloggio/tappa più vicina temporalmente
+    const targetMs = Date.parse(target);
+    let best: { diff: number; coord: Coordinate } | null = null;
+    for (const a of accs) {
+      if (!valid(a.coordinate) || !a.checkIn) continue;
+      const diff = Math.abs(Date.parse(a.checkIn) - targetMs);
+      if (!best || diff < best.diff) best = { diff, coord: a.coordinate };
+    }
+    return best?.coord;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Cerca luoghi globali tramite Photon API (Komoot / OpenStreetMap).
- * Supporta AbortSignal esterno per cancellare le chiamate obsolete durante la digitazione.
+ * Supporta AbortSignal esterno e bias geografico opzionale basato sulla data della card.
  */
 export async function searchPhotonPlaces(
   query: string,
   limit = 5,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  biasCoord?: Coordinate
 ): Promise<PlaceSuggestion[]> {
   const qClean = query.trim();
   if (qClean.length < 3) return [];
 
-  const cacheKey = qClean.toLowerCase();
+  const biasKey = biasCoord ? `${biasCoord.lat.toFixed(1)},${biasCoord.lng.toFixed(1)}` : 'global';
+  const cacheKey = `${qClean.toLowerCase()}|${biasKey}`;
   const cached = remoteCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.results;
@@ -251,7 +298,10 @@ export async function searchPhotonPlaces(
 
   try {
     // NOTA FONDAMENTALE: Photon supporta solo 'default, de, en, fr'. NON passare 'lang=it' altrimenti risponde con HTTP 400 Bad Request!
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(qClean)}&limit=${limit}`;
+    const biasParams = biasCoord
+      ? `&lat=${encodeURIComponent(biasCoord.lat.toFixed(4))}&lon=${encodeURIComponent(biasCoord.lng.toFixed(4))}`
+      : '';
+    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(qClean)}&limit=${limit}${biasParams}`;
     
     const res = await fetch(url, {
       signal: internalController.signal,
@@ -344,22 +394,36 @@ export async function searchPhotonPlaces(
 export async function searchPlacesCombined(
   query: string,
   maxRemote = 5,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  biasCoord?: Coordinate
 ): Promise<PlaceSuggestion[]> {
   const qClean = query.trim();
   if (qClean.length < 3) return [];
 
   const [localResults, photonResults] = await Promise.all([
     searchLocalPlaces(qClean, 3),
-    searchPhotonPlaces(qClean, maxRemote, signal)
+    searchPhotonPlaces(qClean, maxRemote, signal, biasCoord)
   ]);
 
   // Se la ricerca è stata annullata nel frattempo, esci
   if (signal?.aborted) return [];
 
-  // Filtra risultati remoti che hanno lo stesso nome esatto di una voce locale
-  const localNormNames = new Set(localResults.map(l => normalize(l.title)));
-  const filteredPhoton = photonResults.filter(p => !localNormNames.has(normalize(p.title)));
+  const isValidCoord = (c?: Coordinate | null): c is Coordinate =>
+    Boolean(c && typeof c.lat === 'number' && typeof c.lng === 'number' && Number.isFinite(c.lat) && Number.isFinite(c.lng) && (c.lat !== 0 || c.lng !== 0));
 
-  return [...localResults, ...filteredPhoton];
+  const isSamePlace = (a: PlaceSuggestion, b: PlaceSuggestion): boolean => {
+    if (normalize(a.title) !== normalize(b.title)) return false;
+    if (!isValidCoord(a.coordinate) || !isValidCoord(b.coordinate)) return false;
+    return (
+      Math.abs(a.coordinate.lat - b.coordinate.lat) < 0.01 &&
+      Math.abs(a.coordinate.lng - b.coordinate.lng) < 0.01
+    );
+  };
+
+  // Deduplica solo se titolo E coordinate coincidono (~1 km): un omonimo locale errato o privo di coordinate non deve mai nascondere il risultato Photon corretto.
+  const filteredPhoton = photonResults.filter(p => !localResults.some(l => isSamePlace(l, p)));
+  const localWithCoords = localResults.filter(l => isValidCoord(l.coordinate));
+  const localWithoutCoords = localResults.filter(l => !isValidCoord(l.coordinate));
+
+  return [...localWithCoords, ...filteredPhoton, ...localWithoutCoords];
 }
