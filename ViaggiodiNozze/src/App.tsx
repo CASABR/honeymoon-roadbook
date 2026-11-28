@@ -36,6 +36,7 @@ import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { recordUserAccess, recordUserActivity } from './services/userAccessService';
 import { blocksMainNavigationSwipe, getAdjacentMainSection } from './utils/mainNavigation';
+import { decodeRoadbookDraft, mayOpenRoadbookDraft, ROADBOOK_DRAFT_PREFIX } from './utils/roadbookDraftHandoff';
 
 const LiveView = lazyWithRetry(() => import('./views/altro/LiveView'), 'LiveView');
 const AdminDashboardView = lazyWithRetry(() => import('./views/altro/AdminDashboardView'), 'AdminDashboardView');
@@ -495,6 +496,28 @@ export default function App() {
 
   const [isSmartInsertOpen, setIsSmartInsertOpen] = useState(false);
   const [smartInsertMode, setSmartInsertMode] = useState<'gmail' | 'manual'>('manual');
+  const [roadbookDraftText, setRoadbookDraftText] = useState('');
+  useEffect(() => {
+    const openDraft = () => {
+      if (isSmartInsertOpen || !window.location.hash.startsWith(ROADBOOK_DRAFT_PREFIX)) return;
+      const draft = decodeRoadbookDraft(window.location.hash);
+      if (!draft || !mayOpenRoadbookDraft(draft, {
+        authenticated: isAuthenticated, external: isExternalLive, admin: isAdminRoute,
+        simulated: Boolean(isSimulated), tripId: tripConfig?.id, role: cloudRole,
+        uid: currentUid, authUid: auth.currentUser?.uid || null,
+        anonymous: Boolean(auth.currentUser?.isAnonymous),
+      })) return;
+      // Remove the local fragment before opening the prefilled input. No network request or mutation.
+      window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+      setRoadbookDraftText(draft.text);
+      setSmartInsertMode('manual');
+      setIsSmartInsertOpen(true);
+    };
+    openDraft();
+    window.addEventListener('hashchange', openDraft);
+    return () => window.removeEventListener('hashchange', openDraft);
+  }, [isSmartInsertOpen, isAuthenticated, isExternalLive, isAdminRoute, isSimulated, tripConfig?.id, cloudRole, currentUid]);
+
   
 
   useEffect(() => {
@@ -1083,8 +1106,9 @@ export default function App() {
       {/* Inserimento Smart AI */}
       <SmartInsertModal
         isOpen={isSmartInsertOpen}
-        onClose={() => setIsSmartInsertOpen(false)}
+        onClose={() => { setIsSmartInsertOpen(false); setRoadbookDraftText(''); }}
         mode={smartInsertMode}
+        initialDraftText={roadbookDraftText}
       />
 
       {/* Ricerca Globale */}
