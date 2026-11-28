@@ -58,10 +58,28 @@ test('Condivisione LIVE solo di foto esplicite e previa conferma',
   photoShare.includes("attachment.type === 'image'") &&
   photoShare.includes('window.confirm(') && photoShare.includes('!navigator.onLine') &&
   photoShare.includes('verifyPrivilegedLivePublisher(tripId, user.uid)') &&
-  photoShare.includes('uploadLivePhoto(tripId, photo.dataUrl, undefined, user.uid)') &&
+  photoShare.includes('publishLivePhotoOnce(tripId, normalized') &&
   !photoShare.includes('useEffect('));
 test('Condivisione foto integrata in tappe, attività e dettagli',
   ['src/components/cards/TappaCard.tsx','src/components/cards/AttivitaCard.tsx','src/components/modals/TimelineItemDetailModal.tsx']
     .every(p => read(p).includes('<TripPhotoShareActions attachments=')));
 
+const archive = read('src/services/predeparturePhotoArchive.ts');
+const publication = read('src/services/livePhotoPublication.ts');
+const live = read('src/views/altro/LiveView.tsx');
+const liveService = read('src/services/liveService.ts');
+test('Foto ricordo: archivio privato separato, anteprima e stato pubblicato', 
+  archive.includes("hounigo-private-photo-journal") && archive.includes('JSON.stringify([tripId, userId])') &&
+  photoJournal.includes('savePredeparturePhotoDurably') && predeparture.includes('data-testid="predeparture-photo-preview"') &&
+  predeparture.includes('data-testid="predeparture-published"') && predeparture.includes('photo.liveUpdateId ? ('));
+test('Foto: stesso identificativo per contenuto e transazione che non sovrascrive un post esistente',
+  publication.includes("crypto.subtle.digest('SHA-256'") && publication.includes('getStableLivePhoto(tripId, postId)') &&
+  liveService.includes('runTransaction(db') && liveService.includes('if (snap.exists()) return snap.data()') &&
+  [live, predeparture, photoShare].every(source => source.includes('publishLivePhotoOnce(')));
+test('Foto: una sola rappresentazione nella galleria per post collegato',
+  live.includes('p.liveUpdateId && publicIds.has(p.liveUpdateId)') && live.includes('archivedPhoto') && live.includes('stillQueued'));
+test('Card attiva: cornice corallo e indicatore integrato, senza secondo anello',
+  read('src/index.css').includes('background: #ff6b5f;') &&
+  read('src/views/OggiView.tsx').includes('className="hounigo-card-active-label"') &&
+  read('src/index.css').includes('[data-active-card="true"].hounigo-card-highlighted'));
 console.log(`\n${passed}/${passed} verifiche UI mirate superate.`);
