@@ -929,10 +929,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 )}
               </div>
 
-              {props.tileGrid && !props.tileLoadFailed && (hasRealLocation || hasPlannedLocation) ? (
-                <div className="relative min-h-[300px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[420px] lg:min-h-[340px] lg:h-[calc(100dvh-16rem)] lg:max-h-[430px] xl:h-auto xl:min-h-[460px] xl:max-h-none">
-                  {(hasRealLocation || hasPlannedLocation) && (
-                    <div className="absolute left-3 right-3 top-3 z-20 grid grid-cols-3 gap-1 rounded-full bg-[#172033]/90 p-1 text-[10px] font-bold text-white backdrop-blur" role="group" aria-label="Centra mappa">
+                    <div className="relative mb-2 grid grid-cols-3 gap-1 rounded-full bg-[#172033]/90 p-1 text-[10px] font-bold text-white backdrop-blur" role="group" aria-label="Centra mappa">
                       {(['both', 'real', 'planned'] as const).map(mode => (
                         <button
                           key={mode}
@@ -946,8 +943,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                         </button>
                       ))}
                     </div>
-                  )}
 
+              {props.tileGrid && !props.tileLoadFailed && (hasRealLocation || hasPlannedLocation) ? (
+                <div className="relative min-h-[300px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[420px] lg:min-h-[340px] lg:h-[calc(100dvh-16rem)] lg:max-h-[430px] xl:h-auto xl:min-h-[460px] xl:max-h-none">
                   <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
                     <div
                       className="absolute left-1/2 top-1/2 grid h-[768px] w-[768px] -translate-x-1/2 -translate-y-1/2 grid-cols-3 grid-rows-3 opacity-95 dark:opacity-60"
