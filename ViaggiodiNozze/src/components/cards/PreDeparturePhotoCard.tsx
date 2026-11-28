@@ -7,6 +7,7 @@ import {
   isPredeparturePromptDismissed,
   isPredeparturePromptDismissedAsync,
   savePredeparturePhoto,
+  restorePredeparturePrompt,
   setPredepartureLiveUpdate,
   type JournalPhotoRecord
 } from '../../services/photoJournalService';
@@ -28,6 +29,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
   const journalUserId = getJournalUserId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [canRestore, setCanRestore] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
   const [shareOnLiveToggle, setShareOnLiveToggle] = useState(false);
   const [photo, setPhoto] = useState<JournalPhotoRecord | null>(null);
@@ -37,6 +39,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
 
   useEffect(() => {
     setIsVisible(false);
+    setCanRestore(false);
     setIsFlipped(false);
     setPhoto(null);
     setMessage('');
@@ -48,7 +51,10 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     if (!isDayOneSelected || !isFutureOrDepartureDay) return;
 
     const userId = journalUserId;
-    if (isPredeparturePromptDismissed(tripId, userId)) return;
+    if (isPredeparturePromptDismissed(tripId, userId)) {
+      setCanRestore(localDate() === startDate);
+      return;
+    }
 
     const existingPhoto = getPredeparturePhoto(tripId, userId);
     setPhoto(existingPhoto);
@@ -59,6 +65,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     isPredeparturePromptDismissedAsync(tripId, userId).then((dismissed) => {
       if (!cancelled && dismissed) {
         setIsVisible(false);
+        setCanRestore(localDate() === startDate);
       }
     });
     return () => {
@@ -66,11 +73,24 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     };
   }, [canEdit, startDate, selectedDate, tripId, journalUserId]);
 
-  if (!isVisible) return null;
+  if (!isVisible) {
+    if (!canRestore || !canEdit || localDate() !== startDate || (selectedDate && selectedDate !== startDate)) return null;
+    return <button type="button" data-testid="restore-predeparture-photo" className="min-h-10 w-full rounded-xl border border-[#FF6B5F]/30 px-3 py-2 text-xs font-bold text-[#B83F36] dark:text-[#FF9A90]" onClick={() => {
+      try {
+        restorePredeparturePrompt(tripId, journalUserId);
+        const existingPhoto = getPredeparturePhoto(tripId, journalUserId);
+        setPhoto(existingPhoto);
+        setShareOnLiveToggle(Boolean(existingPhoto?.liveUpdateId));
+        setCanRestore(false);
+        setIsVisible(true);
+      } catch { setMessage('Impossibile ripristinare la foto su questo dispositivo.'); }
+    }}>📸 Mostra di nuovo la foto ricordo{message && <span role="status"> · {message}</span>}</button>;
+  }
 
   const handleDismiss = () => {
     dismissPredeparturePrompt(tripId);
     setIsVisible(false);
+    setCanRestore(localDate() === startDate);
   };
 
   const publishPhotoToLive = async (currentPhoto: JournalPhotoRecord) => {
