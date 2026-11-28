@@ -114,6 +114,20 @@ async function run() {
   });
   assert.equal(inTrip.tripStatus, 'in_trip');
 
+  const chronology = deriveLiveIntelligence({
+    giorni: [], attivita: [], alloggi: [], trasporti: [],
+    tappe: [
+      { id: 'evening', titolo: 'Tappa serale', data: '2026-11-28', orario: '19:00', coordinate: { lat: 45.45, lng: 9.17 } },
+      { id: 'morning', titolo: 'Tappa mattutina', data: '2026-11-28', orario: '09:00', coordinate: { lat: 45.46, lng: 9.19 } },
+      { id: 'noon', titolo: 'Tappa successiva', data: '2026-11-28', orario: '12:00', coordinate: { lat: 45.48, lng: 9.2 } }
+    ],
+    currentDateTime: new Date('2026-11-28T10:00:00+01:00'),
+    tripStartDate: '2026-11-28', tripEndDate: '2027-01-10', timeZone: 'Europe/Rome'
+  });
+  assert.equal(chronology.plannedLocation.title, 'Tappa mattutina');
+  assert.equal(chronology.nextEvent.title, 'Tappa successiva');
+  console.log('✓ [PASS] Planned location follows local time, not database order');
+
   const postTrip = deriveLiveIntelligence({
     giorni: [],
     attivita: [],
@@ -383,7 +397,9 @@ async function run() {
   }
 }
 
-run().catch((err) => {
+run().then(() => {
+  require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_live_replies_and_push.cjs')], { stdio: 'inherit' });
+}).catch((err) => {
   console.error(err);
   process.exit(1);
 });
