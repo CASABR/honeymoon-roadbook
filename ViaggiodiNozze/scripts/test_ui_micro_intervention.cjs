@@ -77,7 +77,7 @@ test('Foto: stesso identificativo per contenuto e transazione che non sovrascriv
   liveService.includes('runTransaction(db') && liveService.includes('if (snap.exists()) return snap.data()') &&
   [live, predeparture, photoShare].every(source => source.includes('publishLivePhotoOnce(')));
 test('Foto: una sola rappresentazione nella galleria per post collegato',
-  live.includes('p.liveUpdateId && publicIds.has(p.liveUpdateId)') && live.includes('archivedPhoto') && live.includes('stillQueued'));
+  live.includes('p.liveUpdateId || hiddenPhotoIds.has(p.id)') && live.includes('archivedPhoto') && live.includes('stillQueued'));
 test('Card attiva: cornice corallo e indicatore integrato, senza secondo anello',
   read('src/index.css').includes('background: #ff6b5f;') &&
   read('src/views/OggiView.tsx').includes('className="hounigo-card-active-label"') &&
@@ -89,3 +89,17 @@ require('node:child_process').execFileSync(process.execPath, [path.join(__dirnam
 require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_roadbook_draft_handoff.cjs')], { stdio: 'inherit' });
 
 require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_card_payment_badge.cjs')], { stdio: 'inherit' });
+
+const photoOrigin = read('src/utils/livePhotoOrigin.ts');
+test('Rimozione LIVE confermata dal server e non distruttiva per foto originali',
+  liveService.includes('if (isManagedLivePhoto(photoUrl)) await deleteLivePhoto') &&
+  liveService.includes('const existing = await getDocFromServer(updateRef)') &&
+  liveService.includes('publicSchemaVersion: 2, timestamp: typeof data.timestamp') &&
+  live.includes('hideLocalPhotos(activeTripId, currentUid, localIds)') &&
+  !live.includes('deleteArchivedPredeparturePhoto('));
+test('Provenienza foto esplicita, senza classificare la didascalia ambigua',
+  photoOrigin.includes("TRIP_PHOTO_TITLE = 'Foto dalla tappa'") &&
+  !photoOrigin.includes("=== 'Foto dal viaggio'") &&
+  photoShare.includes('title: TRIP_PHOTO_TITLE') &&
+  read('src/views/altro/LiveEditorialExperience.tsx').includes('data-testid="live-trip-photo-origin"') &&
+  read('src/views/altro/LiveEditorialExperience.tsx').includes('await props.onDeletePhoto(photo.id)'));

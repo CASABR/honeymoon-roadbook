@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { TRIP_PHOTO_TITLE } from '../../utils/livePhotoOrigin';
 import type { TransportAttachment } from '../../types';
 import { getTripConfig } from '../../utils/tripConfig';
 import { useDeviceRole } from '../../utils/useDeviceRole';
@@ -45,7 +46,7 @@ export default function ShareTripPhotoButton({ photo }: { photo: TransportAttach
               throw new Error('Sessione o viaggio non autorizzato. La foto resta nella tappa.');
             }
             const normalized = await compressLivePhotoToDataUrl(photo.dataUrl);
-            await publishLivePhotoOnce(tripId, normalized, { title: 'Foto dal viaggio', text: '' }, user.uid);
+            await publishLivePhotoOnce(tripId, normalized, { title: TRIP_PHOTO_TITLE, text: '' }, user.uid);
             setShared(true);
             setMessage('Foto pubblicata nel LIVE.');
           } catch (error) {
