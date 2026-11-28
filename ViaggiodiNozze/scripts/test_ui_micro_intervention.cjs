@@ -107,3 +107,5 @@ test('Provenienza foto esplicita, senza classificare la didascalia ambigua',
 require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_day_plan_import.cjs')], { stdio: 'inherit' });
 
 require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_typed_day_plan.cjs')], { stdio: 'inherit' });
+
+require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_view_mode.cjs')], { stdio: 'inherit' });
