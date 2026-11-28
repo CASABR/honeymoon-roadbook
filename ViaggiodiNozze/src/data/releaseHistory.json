@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.51",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "8d52492c4ccd780c3d71696d46a6fd8356f29d83",
+      "changes": [
+        "Rimozione delle foto LIVE confermata dal server, senza far ricomparire copie locali collegate.",
+        "Indicatore della provenienza dalle tappe del viaggio per le foto riconoscibili, senza eliminare gli originali."
+      ],
+      "publishedAtIso": "2026-11-28T10:29:49Z"
+    },
+    {
       "version": "1.7.50",
       "publishedAt": "2026-11-28",
       "sourceCommit": "e0768a2b9ccd8970f2bff1e3561f1b7d10fcd9e9",
@@ -87,16 +97,6 @@
         "Card attiva: aggiornamento dell'orario locale anche dopo mezzanotte, al ritorno in primo piano e alla riapertura.",
         "La timeline segue la nuova giornata solo quando si sta consultando oggi, rispettando la navigazione manuale e le finestre di modifica."
       ]
-    },
-    {
-      "version": "1.7.41",
-      "publishedAt": "2026-11-27",
-      "sourceCommit": "6cfdf85797e7a4cc791660539f1ce8f1d3bc5c50",
-      "changes": [
-        "Download diretto PDF su desktop, salvataggio e condivisione nativa su mobile",
-        "Anteprima PDF integrata, nome file standardizzato e filtro permessi per ruolo"
-      ],
-      "publishedAtIso": "2026-11-27T11:04:37.821Z"
     }
   ]
 }
