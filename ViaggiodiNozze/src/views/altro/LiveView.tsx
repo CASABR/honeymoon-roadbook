@@ -21,6 +21,7 @@ import { generateTripDays, getTripDateRange, formatDateTimeIT, formatDateIT } fr
 import { lookupKnownCoordinate } from '../../services/routingService';
 import { useAuthIdentity, getAuthorizedLocalEditorRole, isTripAuthRevoked } from '../../utils/useAuthIdentity';
 import { canReadLocalLivePhoto } from '../../utils/livePhotoPrivacy';
+import { isTripPhotoOrigin, readHiddenLocalPhotos, hideLocalPhotos } from '../../utils/livePhotoOrigin';
 import { persistDeviceSession } from '../../utils/deviceSession';
 import {
   updateRealLocation,
@@ -863,6 +864,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   const [activeViewerIndex, setActiveViewerIndex] = useState<number | null>(null);
 
+  const [hiddenPhotoRevision, setHiddenPhotoRevision] = useState(0);
+  const hiddenPhotoIds = useMemo(() => new Set(activeTripId && currentUid
+    ? readHiddenLocalPhotos(activeTripId, currentUid) : []), [activeTripId, currentUid, hiddenPhotoRevision]);
+
   // Unione e sincronizzazione di tutte le foto live (aggiornamenti pubblici + foto caricate)
   const allLiveGalleryPhotos = useMemo<LiveGalleryPhotoItem[]>(() => {
     const map = new Map<string, LiveGalleryPhotoItem>();
@@ -876,23 +881,24 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
           caption: update.title || update.text || 'Scatto dal diario',
           location: update.locationName,
           timestamp: update.timestamp || Date.now(),
-          isCustom: false
+          isCustom: false,
+          inheritedFromTrip: isTripPhotoOrigin(update)
         });
       }
     });
 
     // Local copies are private; a linked public post is represented only by its public card.
-    const publicIds = new Set(liveUpdates.map(update => update.id));
     const localGallery = [...galleryCustomPhotos.filter(p => !(archivedPhoto && p.id === archivedPhoto.id)), ...(archivedPhoto ? [archivedPhoto] : [])];
     localGallery.forEach(p => {
-      if (p.liveUpdateId && publicIds.has(p.liveUpdateId)) return;
-      if (canReadLocalLivePhoto(p, activeTripId, currentUid, localGalleryRole, isStandaloneExternal) && !map.has(p.url)) map.set(p.url, p);
+      // A previously linked local copy must never reappear after its LIVE post is removed.
+      if (p.liveUpdateId || hiddenPhotoIds.has(p.id) || !p.isCustom && !p.pendingSync) return;
+      if (canReadLocalLivePhoto(p, activeTripId, currentUid, localGalleryRole, isStandaloneExternal) && !map.has(p.url)) map.set(p.url, { ...p, inheritedFromTrip: isTripPhotoOrigin(p) });
     });
 
     // Legacy single-photo cache: never show a second copy of an archived/linked photo.
     const represented = localGallery.some(p => p.tripId === customPhoto?.tripId && p.userId === customPhoto?.userId &&
       (p.url === customPhoto?.dataUrl || (p.caption === customPhoto?.caption && p.timestamp === Date.parse(customPhoto?.timestamp || ''))));
-    if (customPhoto && !represented && !(archivedPhoto && customPhoto.caption === 'Foto pre-partenza'
+    if (customPhoto && !hiddenPhotoIds.has('sposi_custom_photo') && !represented && !(archivedPhoto && customPhoto.caption === 'Foto pre-partenza'
         && archivedPhoto.tripId === customPhoto.tripId && archivedPhoto.userId === customPhoto.userId)
       && canReadLocalLivePhoto(customPhoto, activeTripId, currentUid, localGalleryRole, isStandaloneExternal)
       && customPhoto.dataUrl && !map.has(customPhoto.dataUrl)) {
@@ -904,7 +910,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
 
     return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
-  }, [liveUpdates, galleryCustomPhotos, archivedPhoto, customPhoto, activeTripId, currentUid, cloudRole, localGalleryRole, isStandaloneExternal, isOnline]);
+  }, [liveUpdates, galleryCustomPhotos, archivedPhoto, customPhoto, activeTripId, currentUid, cloudRole, localGalleryRole, isStandaloneExternal, isOnline, hiddenPhotoIds]);
 
   // Backward compatibility per vecchio portal viewer
   const publishedLivePhotos = useMemo(() => {
@@ -1034,7 +1040,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     if (isTripAuthRevoked(activeTripId)) return;
 
     const pendingPhotos = galleryCustomPhotos.filter(p =>
-      p.pendingSync === true &&
+      p.pendingSync === true && !hiddenPhotoIds.has(p.id) &&
       typeof p.url === 'string' &&
       p.url.startsWith('data:image/') &&
       canReadLocalLivePhoto(p, activeTripId, currentUid, localGalleryRole, isStandaloneExternal) &&
@@ -1076,28 +1082,49 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     })();
 
     return () => { cancelled = true; };
-  }, [isOnline, isStandaloneExternal, activeTripId, currentUid, cloudRole, localGalleryRole, galleryCustomPhotos]);
+  }, [isOnline, isStandaloneExternal, activeTripId, currentUid, cloudRole, localGalleryRole, galleryCustomPhotos, hiddenPhotoIds]);
 
   // Eliminazione foto dalla galleria (FASE 1)
-  const handleDeletePhoto = async (photoId: string) => {
+  const deletingPhotoIds = useRef(new Set<string>());
+  const handleDeletePhoto = async (photoId: string): Promise<boolean> => {
+    if (!activeTripId || !currentUid || !hasPrivateGalleryAccess || deletingPhotoIds.current.has(photoId)) return false;
     const photo = allLiveGalleryPhotos.find(p => p.id === photoId);
-    const matchingUpdate = liveUpdates.find(u => u.id === photoId || (photo && u.photoUrl === photo.url));
+    if (!photo) return false;
+    const matchingUpdate = liveUpdates.find(u => u.id === photoId || u.id === photo.liveUpdateId || u.photoUrl === photo.url);
+    const scoped = (p: LiveGalleryPhotoItem) => p.tripId === activeTripId && p.userId === currentUid;
+    const matches = (p: LiveGalleryPhotoItem) => scoped(p) && (p.id === photoId || p.url === photo.url || Boolean(matchingUpdate && (p.liveUpdateId === matchingUpdate.id || p.id === matchingUpdate.id)));
+    deletingPhotoIds.current.add(photoId);
     try {
-      if (matchingUpdate && activeTripId) {
+      if (matchingUpdate) {
+        if (!isOnline) throw new Error('Collegati a Internet per rimuovere la foto dal LIVE.');
         await liveService.deleteLiveUpdate(activeTripId, matchingUpdate.id);
         setLiveUpdates(prev => prev.filter(u => u.id !== matchingUpdate.id));
-      } else if (photo && !photo.isCustom && activeTripId) {
-        const { deleteLivePhoto } = await import('../../services/liveStorageService');
-        await deleteLivePhoto(activeTripId, photo.url);
+      } else if (!photo.isCustom && !photo.pendingSync) {
+        throw new Error('Pubblicazione non disponibile. Aggiorna il LIVE e riprova.');
       }
-      setGalleryCustomPhotos(prev => {
-        const updated = prev.filter(p => p.id !== photoId && p.url !== photo?.url);
+      const localIds = [photoId, ...galleryCustomPhotos.filter(matches).map(p => p.id)];
+      if (archivedPhoto && matches(archivedPhoto)) localIds.push(archivedPhoto.id);
+      // Keep the original first-day archive and all trip attachments intact.
+      hideLocalPhotos(activeTripId, currentUid, localIds);
+      setHiddenPhotoRevision(n => n + 1);
+      const stored = JSON.parse(localStorage.getItem('hounigo_live_gallery') || '[]');
+      if (Array.isArray(stored)) {
+        const updated = stored.filter((p: LiveGalleryPhotoItem) => !matches(p));
         localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated));
-        if (!updated.length) localStorage.removeItem(LAST_PHOTO_KEY);
-        return updated;
-      });
+        setGalleryCustomPhotos(updated);
+      }
+      if (customPhoto?.tripId === activeTripId && customPhoto.userId === currentUid &&
+        (customPhoto.dataUrl === photo.url || photoId === 'sposi_custom_photo' ||
+          galleryCustomPhotos.some(p => matches(p) && p.url === customPhoto.dataUrl))) {
+        localStorage.removeItem(LAST_PHOTO_KEY);
+        setCustomPhoto(null);
+      }
+      return true;
     } catch (err: any) {
       alert(err?.message || 'Rimozione della foto non confermata. Riprova online.');
+      return false;
+    } finally {
+      deletingPhotoIds.current.delete(photoId);
     }
   };
 
