@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.54 — 2026-11-28
+
+- Importazione di ristoranti e metro in categorie corrette, con conversione facoltativa delle tappe semplici.
+- Rotte senza coordinate indicate come da verificare, senza distanze fittizie; modifiche manuali conservate.
+
 ## 1.7.53 — 2026-11-28
 
 - Card foto ricordo più compatta, miniatura espandibile e azioni su una riga.
@@ -45,7 +50,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Ripristino della foto ricordo nel primo giorno del viaggio.
 - Condivisione volontaria delle fotografie di tappe e attività nel LIVE.
-
-## 1.7.44 — 2026-11-27
-
-- Esportazione Word (.docx) compatibile con Microsoft Word senza errori di contenuto
