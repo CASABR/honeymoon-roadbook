@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.54",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "317e0237c910be0d1553b94e0438a85e90c6a4f3",
+      "changes": [
+        "Importazione di ristoranti e metro in categorie corrette, con conversione facoltativa delle tappe semplici.",
+        "Rotte senza coordinate indicate come da verificare, senza distanze fittizie; modifiche manuali conservate."
+      ],
+      "publishedAtIso": "2026-11-28T11:07:24Z"
+    },
+    {
       "version": "1.7.53",
       "publishedAt": "2026-11-28",
       "sourceCommit": "cd7050bfdc27cfed661248fc3ccce64b2924b6cb",
@@ -89,15 +99,6 @@
         "Condivisione volontaria delle fotografie di tappe e attività nel LIVE."
       ],
       "publishedAtIso": "2026-11-28T09:21:29Z"
-    },
-    {
-      "version": "1.7.44",
-      "publishedAt": "2026-11-27",
-      "sourceCommit": "97e8dffa1ac98295bc9d55c3a70a06ea132ca991",
-      "changes": [
-        "Esportazione Word (.docx) compatibile con Microsoft Word senza errori di contenuto"
-      ],
-      "publishedAtIso": "2026-11-27T14:23:23.319Z"
     }
   ]
 }
