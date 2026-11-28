@@ -1,0 +1,8 @@
+{
+  "version": "1.7.55",
+  "preparedAt": "2026-11-28",
+  "changes": [
+    "Visualizzazione tablet automatica o selezionabile, con navigazione touch e spazio utilizzabile a schermo intero.",
+    "Timeline a due colonne in orizzontale e una in verticale; modalità smartphone e desktop disponibili."
+  ]
+}
