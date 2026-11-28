@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-28T10:28:29Z",
+  "requestedAt": "2026-11-28T10:37:58Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.51-photos-20261128",
+  "requestId": "release-1.7.52-day-import-20261128",
   "requestedBy": "CASABR",
-  "ref": "8d52492c4ccd780c3d71696d46a6fd8356f29d83",
+  "ref": "ba468200a05765a292eeeb96e4a82bec64c6c7a2",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "Verified PR #22 LIVE photo removal and provenance."
+  "note": "Verified PR #23 structured itinerary import."
 }
