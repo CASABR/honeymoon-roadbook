@@ -1090,6 +1090,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     if (!activeTripId || !currentUid || !hasPrivateGalleryAccess || deletingPhotoIds.current.has(photoId)) return false;
     const photo = allLiveGalleryPhotos.find(p => p.id === photoId);
     if (!photo) return false;
+    if (syncingOfflinePhotoIdsRef.current.has(photoId)) {
+      alert('La foto è in pubblicazione. Riprova appena termina l’invio.');
+      return false;
+    }
     const matchingUpdate = liveUpdates.find(u => u.id === photoId || u.id === photo.liveUpdateId || u.photoUrl === photo.url);
     const scoped = (p: LiveGalleryPhotoItem) => p.tripId === activeTripId && p.userId === currentUid;
     const matches = (p: LiveGalleryPhotoItem) => scoped(p) && (p.id === photoId || p.url === photo.url || Boolean(matchingUpdate && (p.liveUpdateId === matchingUpdate.id || p.id === matchingUpdate.id)));
