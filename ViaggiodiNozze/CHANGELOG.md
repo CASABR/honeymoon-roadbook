@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.52 — 2026-11-28
+
+- Importazione strutturata di una giornata dagli appunti direttamente in PWA, con anteprima e conferma.
+- Aggiornamento sicuro degli orari delle tappe corrispondenti e aggiunta delle nuove, senza cancellare prenotazioni o documenti.
+
 ## 1.7.51 — 2026-11-28
 
 - Rimozione delle foto LIVE confermata dal server, senza far ricomparire copie locali collegate.
@@ -44,8 +49,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Livello Compatto operativo ottimizzato per la stampa (15-20 pag.)
 - Esportazione Word (.docx) modificabile con tabelle editabili e numerazione pagine
-
-## 1.7.42 — 2026-11-27
-
-- Card attiva: aggiornamento dell'orario locale anche dopo mezzanotte, al ritorno in primo piano e alla riapertura.
-- La timeline segue la nuova giornata solo quando si sta consultando oggi, rispettando la navigazione manuale e le finestre di modifica.
