@@ -5,7 +5,7 @@ import { storageService } from '../../storage/storageService';
 import type { Attivita, Tappa } from '../../types';
 import { resolveEntityMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
-import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
+import { resolvePaymentInfo, resolveCardPaymentBadge, formatCompactEuro } from '../../utils/priceHelper';
 import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
 import QRCodeModal from '../modals/QRCodeModal';
 import { formatDateIT } from '../../utils/tripDates';
@@ -153,7 +153,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
     exchangeRateSource: (activity as any).exchangeRateSource
   });
 
-  const { isFree, isPaid, costNum, paidNum, remainingNum, displayText, compactPaymentText } = paymentInfo;
+  const { isFree, isPaid, costNum, paidNum } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -544,21 +544,15 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
                 <button
                   type="button"
                   onClick={handleTogglePayment}
-                  className={`hounigo-ds-pay-badge font-mono ${
-                    isPaid
-                      ? 'hounigo-ds-pay-saldato'
-                      : (paidNum > 0 && remainingNum > 0)
-                      ? 'hounigo-ds-pay-acconto'
-                      : 'hounigo-ds-pay-dasaldare'
-                  }`}
+                  className={`hounigo-ds-pay-badge font-mono ${resolveCardPaymentBadge(paymentInfo).className}`}
                   title="Tocca per invertire stato: Saldato / Da saldare"
-                  aria-label="Stato pagamento attività"
+                  aria-label={resolveCardPaymentBadge(paymentInfo).accessibleLabel}
                 >
-                  {compactPaymentText}
+                  {resolveCardPaymentBadge(paymentInfo).text}
                 </button>
               ) : (
-                <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
-                  {displayText}
+                <span className={`hounigo-ds-pay-badge font-mono ${resolveCardPaymentBadge(paymentInfo).className}`} aria-label={resolveCardPaymentBadge(paymentInfo).accessibleLabel}>
+                  {resolveCardPaymentBadge(paymentInfo).text}
                 </span>
               )
             ) : null}

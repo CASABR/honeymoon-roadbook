@@ -8,7 +8,7 @@ import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import TrasportoBagagliModal from '../modals/TrasportoBagagliModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { getTransportMapTargets } from '../../utils/mapsHelper';
-import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
+import { resolvePaymentInfo, resolveCardPaymentBadge, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import CardHeaderTimeBadge from './CardHeaderTimeBadge';
@@ -243,7 +243,7 @@ export default function TrasportoCard({
     exchangeRateSource: (transport as any).exchangeRateSource
   });
 
-  const { isFree, isPackageIncluded, isPaid, costNum, paidNum, remainingNum, compactPaymentText } = paymentInfo;
+  const { isFree, isPackageIncluded, isPaid, costNum, paidNum } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -682,17 +682,11 @@ export default function TrasportoCard({
               <button
                 type="button"
                 onClick={handleTogglePayment}
-                className={`hounigo-ds-pay-badge font-mono ${
-                  isPaid
-                    ? 'hounigo-ds-pay-saldato'
-                    : (paidNum > 0 && remainingNum > 0)
-                    ? 'hounigo-ds-pay-acconto'
-                    : 'hounigo-ds-pay-dasaldare'
-                }`}
+                className={`hounigo-ds-pay-badge font-mono ${resolveCardPaymentBadge(paymentInfo).className}`}
                 title="Tocca per invertire stato: Saldato / Da saldare"
-                aria-label="Stato pagamento trasporto"
+                aria-label={resolveCardPaymentBadge(paymentInfo).accessibleLabel}
               >
-                {compactPaymentText}
+                {resolveCardPaymentBadge(paymentInfo).text}
               </button>
             ) : null}
           </div>

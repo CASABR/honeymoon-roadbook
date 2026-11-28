@@ -6,7 +6,7 @@ import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { resolveEntityMapUrl } from '../../utils/mapsHelper';
-import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
+import { resolvePaymentInfo, resolveCardPaymentBadge, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import CardHeaderTimeBadge from './CardHeaderTimeBadge';
@@ -163,17 +163,11 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
             <button
               type="button"
               onClick={handleTogglePayment}
-              className={`hounigo-ds-pay-badge font-mono ${
-                isSaldato
-                  ? 'hounigo-ds-pay-saldato'
-                  : (paymentInfo.paidNum > 0 && paymentInfo.remainingNum > 0)
-                  ? 'hounigo-ds-pay-acconto'
-                  : 'hounigo-ds-pay-dasaldare'
-              }`}
+              className={`hounigo-ds-pay-badge font-mono ${resolveCardPaymentBadge(paymentInfo).className}`}
               title="Tocca per invertire stato: Saldato / Da saldare"
-              aria-label="Stato pagamento shopping"
+              aria-label={resolveCardPaymentBadge(paymentInfo).accessibleLabel}
             >
-              {paymentInfo.compactPaymentText}
+              {resolveCardPaymentBadge(paymentInfo).text}
             </button>
           ) : null}
         </div>

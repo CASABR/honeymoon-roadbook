@@ -6,7 +6,7 @@ import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService } from '../../storage/storageService';
 import { resolveEntityMapUrl } from '../../utils/mapsHelper';
-import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { resolvePaymentInfo, resolveCardPaymentBadge } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import CardHeaderTimeBadge from './CardHeaderTimeBadge';
@@ -43,7 +43,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
     exchangeRateSource: (ristorante as any).exchangeRateSource
   });
 
-  const { isFree, isPaid, costNum, paidNum, remainingNum, compactPaymentText } = paymentInfo;
+  const { isFree, isPaid, costNum } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -146,17 +146,11 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
             <button
               type="button"
               onClick={handleTogglePayment}
-              className={`hounigo-ds-pay-badge font-mono ${
-                isPaid
-                  ? 'hounigo-ds-pay-saldato'
-                  : (paidNum > 0 && remainingNum > 0)
-                  ? 'hounigo-ds-pay-acconto'
-                  : 'hounigo-ds-pay-dasaldare'
-              }`}
+              className={`hounigo-ds-pay-badge font-mono ${resolveCardPaymentBadge(paymentInfo).className}`}
               title="Clicca per invertire stato: Saldato / Da saldare"
-              aria-label="Stato pagamento ristorante"
+              aria-label={resolveCardPaymentBadge(paymentInfo).accessibleLabel}
             >
-              {compactPaymentText}
+              {resolveCardPaymentBadge(paymentInfo).text}
             </button>
           ) : null}
         </div>
