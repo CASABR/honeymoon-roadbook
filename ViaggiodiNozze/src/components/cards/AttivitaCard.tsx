@@ -14,6 +14,7 @@ import { formatHikingDuration, isPhotoSpotActivity, isTrekkingActivity, isPasseg
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import CardHeaderTimeBadge from './CardHeaderTimeBadge';
+import { TripPhotoShareActions } from '../common/ShareTripPhotoButton';
 
 interface AttivitaCardProps {
   activity: Attivita;
@@ -423,6 +424,8 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
               )}
             </div>
           )}
+
+          {canEdit && <TripPhotoShareActions attachments={activity.attachments} />}
 
           {!isTrekking && !isPhotoSpot && (hasDistinctMeetingTime || activity.duration || activity.endDate) && (
             <div className="flex items-center gap-2 flex-wrap text-xs text-slate-700 dark:text-slate-300 py-0.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 font-mono">
