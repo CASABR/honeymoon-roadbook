@@ -1,8 +1,12 @@
 /** Existing public title/text fields provide a deliberately non-sensitive origin marker. */
 export const TRIP_PHOTO_TITLE = 'Foto dalla tappa';
+export const PREDEPARTURE_PHOTO_TITLE = 'Foto ricordo pre-partenza';
+export function publicPhotoCaption(update: { title?: string; text?: string }, fallback: string): string {
+  return (update.title === PREDEPARTURE_PHOTO_TITLE ? update.text || update.title : update.title || update.text) || fallback;
+}
 export function isTripPhotoOrigin(photo: { caption?: string; title?: string; text?: string; kind?: string }): boolean {
   return photo.kind === 'predeparture' || photo.caption === 'Foto pre-partenza'
-    || photo.title === TRIP_PHOTO_TITLE || photo.caption === TRIP_PHOTO_TITLE
+    || photo.title === PREDEPARTURE_PHOTO_TITLE || photo.title === TRIP_PHOTO_TITLE || photo.caption === TRIP_PHOTO_TITLE
     || photo.title === 'Si parte! 📸' && photo.text === 'La foto ricordo pre-partenza è stata aggiunta al diario di viaggio.';
 }
 export function localPhotoHiddenKey(tripId: string, userId: string): string {

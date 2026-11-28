@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Pencil, Camera, ArrowUpRight, Share2 } from 'lucide-react';
 import { IMAGE_FILE_ACCEPT } from '../../utils/fileAttachment';
 import { compressLivePhotoToDataUrl } from '../../utils/livePhotoImage';
 import { publishLivePhotoOnce } from '../../services/livePhotoPublication';
@@ -12,6 +13,7 @@ import {
   savePredeparturePhotoDurably,
   restorePredeparturePrompt,
   linkPredeparturePhotoToLive,
+  updatePredepartureCaption,
   type JournalPhotoRecord
 } from '../../services/photoJournalService';
 
@@ -40,12 +42,18 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
   const [isSaving, setIsSaving] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   const [message, setMessage] = useState('');
+  const [editingCaption, setEditingCaption] = useState(false);
+  const [captionDraft, setCaptionDraft] = useState('');
+  const [expandedPhoto, setExpandedPhoto] = useState(false);
 
   useEffect(() => {
     setIsVisible(false);
     setCanRestore(false);
     setIsFlipped(false);
     setPhoto(null);
+    setEditingCaption(false);
+    setCaptionDraft('');
+    setExpandedPhoto(false);
     setPhotoLoading(true);
     setMessage('');
     if (!canEdit || !tripId || !startDate) return;
@@ -112,7 +120,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     try {
       if (currentPhoto.userId !== getJournalUserId()) throw new Error('Sessione cambiata: riapri la tua foto prima di condividerla.');
       const result = await publishLivePhotoOnce(tripId, currentPhoto.url, {
-        title: 'Si parte! 📸', text: 'La foto ricordo pre-partenza è stata aggiunta al diario di viaggio.'
+        title: 'Foto ricordo pre-partenza', text: currentPhoto.caption || 'Foto pre-partenza'
       }, currentPhoto.userId);
       const updated = await linkPredeparturePhotoToLive(currentPhoto, result.postId);
       if (getJournalUserId() === currentPhoto.userId) setPhoto(updated);
@@ -147,6 +155,26 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     }
   };
 
+  const saveCaption = async () => {
+    if (!photo || busy.current || !canEdit) return;
+    busy.current = true;
+    setIsSaving(true);
+    setMessage('');
+    try {
+      const updated = await updatePredepartureCaption(photo, captionDraft);
+      if (getJournalUserId() === updated.userId) {
+        setPhoto(updated);
+        setEditingCaption(false);
+        setMessage(updated.liveUpdateId ? 'Didascalia salvata nella foto ricordo. Il post LIVE già pubblicato resta invariato.' : 'Didascalia salvata.');
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Didascalia non salvata.');
+    } finally {
+      busy.current = false;
+      setIsSaving(false);
+    }
+  };
+
   const dismissButton = (
     <button
       type="button"
@@ -165,11 +193,11 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
   return (
     <section
       data-testid="predeparture-photo-card"
-      className="relative overflow-hidden rounded-2xl border border-[#FF6B5F]/25 bg-[#FFF0ED]/75 p-3.5 sm:p-4 shadow-xs dark:bg-rose-950/20 dark:border-[#FF6B5F]/30 transition-all"
+      className="relative overflow-hidden rounded-2xl border border-[#FF6B5F]/25 bg-[#FFF0ED]/75 p-2.5 sm:p-3 shadow-xs dark:bg-rose-950/20 dark:border-[#FF6B5F]/30 transition-all"
     >
-      <div className="mb-2.5 flex items-center justify-between gap-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <span className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-[#E11D48] dark:text-[#FF6B5F] bg-white/85 dark:bg-slate-900/60 px-2.5 py-1 rounded-full border border-[#FF6B5F]/20 whitespace-nowrap">
-          📸 Giorno 1 · Ricordo Pre-Partenza
+          📸 Giorno 1 · Foto ricordo
         </span>
       </div>
 
@@ -217,9 +245,29 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
             <p className="py-3 text-xs text-slate-500" role="status">Caricamento foto ricordo…</p>
           ) : photo ? (
             <div className="space-y-2">
-              <img data-testid="predeparture-photo-preview" src={photo.url} alt="Foto ricordo pre-partenza" className="w-full max-h-64 rounded-xl bg-white/70 object-contain dark:bg-slate-900/60" />
-              <p className="text-sm font-extrabold text-[#172033] dark:text-white">La nostra foto ricordo</p>
-              <p className="text-xs text-slate-600 dark:text-slate-300">Salvata sul dispositivo, disponibile anche offline.</p>
+              <div className="flex items-start gap-2.5">
+                <button type="button" onClick={() => setExpandedPhoto(v => !v)} aria-label="Ingrandisci o riduci foto ricordo" aria-expanded={expandedPhoto} className="shrink-0 rounded-lg overflow-hidden w-28 h-24 bg-white/70 dark:bg-slate-900/60">
+                  <img data-testid="predeparture-photo-preview" src={photo.url} alt="Foto ricordo pre-partenza" className="h-full w-full object-cover" />
+                </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start gap-1">
+                    <p className="flex-1 text-sm font-bold break-words text-[#172033] dark:text-white">{photo.caption === 'Foto pre-partenza' ? 'La nostra foto ricordo' : photo.caption || 'La nostra foto ricordo'}</p>
+                    <button data-testid="edit-predeparture-caption" type="button" disabled={isSaving || isSharing} onClick={() => { setCaptionDraft(photo.caption === 'Foto pre-partenza' ? '' : photo.caption || ''); setEditingCaption(true); }} aria-label="Modifica didascalia" className="shrink-0 flex items-center justify-center h-10 w-10 rounded-lg text-[#B83F36] dark:text-[#FF9A90] hover:bg-white/80"><Pencil size={16} /></button>
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-300">Disponibile offline</p>
+                </div>
+              </div>
+              {expandedPhoto && <img src={photo.url} alt="Foto ricordo ingrandita" className="w-full max-h-72 rounded-lg object-contain" />}
+              {editingCaption && (
+                <div className="rounded-lg bg-white/80 dark:bg-slate-900/60 p-2 space-y-2">
+                  <label className="block text-xs font-bold" htmlFor="predeparture-caption">Didascalia</label>
+                  <textarea id="predeparture-caption" data-testid="predeparture-caption-input" maxLength={300} rows={2} value={captionDraft} onChange={event => setCaptionDraft(event.target.value)} className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent p-2 text-base" />
+                  <div className="flex gap-2 justify-end">
+                    <button type="button" disabled={isSaving} onClick={() => setEditingCaption(false)} className="min-h-9 px-2 text-xs font-bold">Annulla</button>
+                    <button data-testid="save-predeparture-caption" type="button" disabled={isSaving} onClick={() => void saveCaption()} className="min-h-9 rounded-lg bg-[#FF6B5F] text-white px-3 text-xs font-bold">Salva</button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex gap-3 items-start">
@@ -233,41 +281,26 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
 
           <input ref={inputRef} type="file" accept={IMAGE_FILE_ACCEPT} onChange={handleFileChange} className="hidden" />
 
-          <div className="mt-3 flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2">
-            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
-              <button
-                type="button"
-                onClick={() => inputRef.current?.click()}
-                disabled={isSaving || isSharing || photoLoading}
-                className="w-full sm:w-auto min-h-10 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6B5F] hover:bg-[#e05b50] px-3.5 py-2 text-xs font-bold text-white shadow-xs disabled:opacity-60 cursor-pointer transition-colors whitespace-nowrap"
-              >
-                {isSaving ? 'Salvataggio…' : photo ? '📷 Sostituisci foto' : '📷 Scatta o carica foto'}
-              </button>
-
-              {photo && onOpenLive && (
-                <button
-                  type="button"
-                  onClick={onOpenLive}
-                  className="w-full sm:w-auto min-h-10 inline-flex items-center justify-center px-3 py-2 rounded-xl bg-white/85 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white cursor-pointer whitespace-nowrap"
-                >
-                  Apri diario LIVE →
-                </button>
-              )}
-            </div>
-
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={isSaving || isSharing || photoLoading || editingCaption}
+              aria-label={photo ? 'Sostituisci foto' : 'Scatta o carica foto'} title={photo ? 'Sostituisci foto' : 'Scatta o carica foto'}
+              className="min-h-10 inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#FF6B5F] px-2.5 text-xs font-bold text-white disabled:opacity-50">
+              <Camera size={16} /> {isSaving ? 'Salvataggio…' : photo ? 'Sostituisci' : 'Scatta o carica'}
+            </button>
             {photo && (photo.liveUpdateId ? (
-              <span data-testid="predeparture-published" className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">✓ Pubblicata nel LIVE</span>
+              <span data-testid="predeparture-published" className="rounded-lg bg-emerald-50 px-2 py-1.5 text-[11px] font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">✓ Pubblicata nel LIVE</span>
             ) : (
-              <button type="button" disabled={isSharing || isSaving || photoLoading} onClick={() => void publishPhotoToLive(photo)}
-                className="w-full min-h-10 rounded-xl border border-[#FF6B5F]/40 bg-white px-3 py-2 text-xs font-bold text-[#B83F36] dark:bg-slate-900 dark:text-[#FF9A90] disabled:opacity-60">
-                {isSharing ? 'Pubblicazione…' : 'Condividi nel LIVE'}
+              <button type="button" disabled={isSharing || isSaving || photoLoading || editingCaption} onClick={() => void publishPhotoToLive(photo)}
+                className="min-h-10 inline-flex items-center gap-1 rounded-lg border border-[#FF6B5F]/40 bg-white px-2.5 text-xs font-bold text-[#B83F36] dark:bg-slate-900 dark:text-[#FF9A90] disabled:opacity-50">
+                <Share2 size={14} /> {isSharing ? 'Pubblicazione…' : 'Condividi'}
               </button>
             ))}
+            {photo && onOpenLive && <button type="button" onClick={onOpenLive} aria-label="Apri diario LIVE" title="Apri diario LIVE" className="min-h-10 inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white/85 dark:bg-slate-800 dark:border-slate-700 px-2.5 text-xs font-bold"><ArrowUpRight size={15} /> LIVE</button>}
           </div>
 
           {message && <p className="mt-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200" role="status">{message}</p>}
 
-          <div className="mt-3 pt-2 border-t border-[#FF6B5F]/15 flex items-center justify-between gap-2">
+          <div className="mt-2 pt-1 border-t border-[#FF6B5F]/15 flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setIsFlipped(true)}

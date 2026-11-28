@@ -75,6 +75,14 @@ function load(file, dependencies, globals = {}) {
   const linked = await journal.linkPredeparturePhotoToLive(saved,first.postId);
   assert.equal(linked.liveUpdateId,first.postId);
   assert.equal((await journal.savePredeparturePhotoDurably('trip-a',image,'owner-test')).liveUpdateId,first.postId);
+  const edited = await journal.updatePredepartureCaption(linked, '  Ricordo di viaggio  ');
+  assert.equal(edited.caption,'Ricordo di viaggio'); assert.equal(edited.id,linked.id);
+  assert.equal(edited.url,linked.url); assert.equal(edited.liveUpdateId,first.postId);
+  store.delete('hounigo_live_gallery');
+  assert.equal((await journal.loadPredeparturePhoto('trip-a','owner-test')).caption,'Ricordo di viaggio');
+  auth.currentUser.uid = 'other-user';
+  await assert.rejects(() => journal.updatePredepartureCaption(edited,'no'), /Sessione/);
+  auth.currentUser.uid = 'owner-test';
   const replaced = await journal.savePredeparturePhotoDurably('trip-a',image+'2','owner-test');
   assert.notEqual(replaced.id,saved.id); assert.equal(replaced.liveUpdateId,undefined);
   await assert.rejects(() => journal.linkPredeparturePhotoToLive(saved,'obsolete'), /cambiata/);

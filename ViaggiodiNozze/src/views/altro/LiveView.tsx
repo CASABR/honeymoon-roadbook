@@ -21,7 +21,7 @@ import { generateTripDays, getTripDateRange, formatDateTimeIT, formatDateIT } fr
 import { lookupKnownCoordinate } from '../../services/routingService';
 import { useAuthIdentity, getAuthorizedLocalEditorRole, isTripAuthRevoked } from '../../utils/useAuthIdentity';
 import { canReadLocalLivePhoto } from '../../utils/livePhotoPrivacy';
-import { isTripPhotoOrigin, readHiddenLocalPhotos, hideLocalPhotos } from '../../utils/livePhotoOrigin';
+import { publicPhotoCaption, isTripPhotoOrigin, readHiddenLocalPhotos, hideLocalPhotos } from '../../utils/livePhotoOrigin';
 import { persistDeviceSession } from '../../utils/deviceSession';
 import {
   updateRealLocation,
@@ -878,7 +878,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         map.set(update.photoUrl, {
           id: update.id,
           url: update.photoUrl,
-          caption: update.title || update.text || 'Scatto dal diario',
+          caption: publicPhotoCaption(update, 'Scatto dal diario'),
           location: update.locationName,
           timestamp: update.timestamp || Date.now(),
           isCustom: false,
