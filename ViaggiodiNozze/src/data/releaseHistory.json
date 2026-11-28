@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.47",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "37e7541828d577fd5cf8a4939e086ec4a60b9a52",
+      "changes": [
+        "Posizione programmata indicativa disponibile anche agli ospiti nel LIVE, senza accesso al programma privato."
+      ],
+      "publishedAtIso": "2026-11-28T09:47:36Z"
+    },
+    {
       "version": "1.7.46",
       "publishedAt": "2026-11-28",
       "sourceCommit": "b7c40ae469a3a788ff5f4259333065be7253302f",
@@ -85,15 +94,6 @@
       "changes": [
         "Retro Aereo: campo facoltativo Piattaforma di acquisto, conservato tra i dati privati.",
         "Fronte Aereo più compatto su mobile, avvisi senza ripetizioni, terminal e posti proporzionati e pulsanti accessibili."
-      ]
-    },
-    {
-      "version": "1.7.37",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "2c8f521ada02682968f35a42bf9a3ef1f2b536f8",
-      "changes": [
-        "Retro Trasporti uniforme per tutte le sottocategorie, con campi specifici e dati precedenti preservati.",
-        "Aereo: retro e fronte ridisegnati per mobile, campi editabili, avvisi leggibili, terminal e posti adattivi e azioni accessibili."
       ]
     }
   ]
