@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.49",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "b357be0f6bece4fd323feb8dea9519d0205132fa",
+      "changes": [
+        "Apertura di una proposta itinerario da un collegamento ChatGPT, nel viaggio autorizzato, senza copia-incolla o salvataggi automatici."
+      ],
+      "publishedAtIso": "2026-11-28T10:12:36Z"
+    },
+    {
       "version": "1.7.48",
       "publishedAt": "2026-11-28",
       "sourceCommit": "4fb4a1e9819908bd674c56eccc29337b9a6e25e3",
@@ -89,14 +98,6 @@
         "Autocompletamento Photon contestualizzato sulla data della card anche su Shopping e Trasporti"
       ],
       "publishedAtIso": "2026-11-27T10:45:19.287Z"
-    },
-    {
-      "version": "1.7.39",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "6a927c61dced4765cfa57eb920c6127b362e6c9d",
-      "changes": [
-        "Clona sul fronte di tutte le categorie: solo icona in modalità desktop, nascosta su smartphone e in modalità mobile forzata; duplicazione dal dettaglio preservata."
-      ]
     }
   ]
 }
