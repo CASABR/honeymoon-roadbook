@@ -13,6 +13,7 @@ import { PHOTO_LIGHT_LABELS } from '../../utils/activityType';
 import { processFileForAttachment } from '../../utils/fileAttachment';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import CardHeaderTimeBadge from './CardHeaderTimeBadge';
+import { TripPhotoShareActions } from '../common/ShareTripPhotoButton';
 
 interface TappaCardProps {
   tappa: Tappa;
@@ -225,6 +226,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
                 </div>
               );
             })()}
+            {canEdit && <TripPhotoShareActions attachments={tappa.attachments} />}
             {tappa.lightWindow && tappa.lightWindow !== 'qualsiasi' && (
               <div className="hounigo-ds-spec-grid">
                 <div className="hounigo-ds-spec-cell">
