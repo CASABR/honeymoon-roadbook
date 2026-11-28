@@ -33,6 +33,7 @@ interface SmartInsertModalProps {
   onClose: () => void;
   onSaved?: (entityType: 'alloggio' | 'tappa' | 'trasporto') => void;
   mode?: 'gmail' | 'manual';
+  initialDraftText?: string;
 }
 
 export interface ChatMessage {
@@ -137,7 +138,7 @@ function defaultSuggestionDate(): string {
 }
 
 // ─── Modal principale ─────────────────────────────────────────────────────────
-export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'manual' }: SmartInsertModalProps) {
+export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'manual', initialDraftText = '' }: SmartInsertModalProps) {
   const viewportBox = useVisualViewportBox(isOpen);
   const [step, setStep] = useState<Step>('input');
   const [text, setText] = useState('');
@@ -336,7 +337,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         handleGmailImport();
       } else {
         setStep('input');
-        setText('');
+        setText(initialDraftText);
+        if (initialDraftText) setInputMode('import');
         setErrorMsg('');
                 setEditData({});
         setAttachedFile(null);
@@ -345,7 +347,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         setTimeout(() => textAreaRef.current?.focus(), 100);
       }
     }
-  }, [isOpen, mode]);
+  }, [isOpen, mode, initialDraftText]);
 
   if (!isOpen) return null;
 

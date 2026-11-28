@@ -85,3 +85,5 @@ test('Card attiva: cornice corallo e indicatore integrato, senza secondo anello'
 console.log(`\n${passed}/${passed} verifiche UI mirate superate.`);
 
 require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_live_photo_reliability.cjs')], { stdio: 'inherit' });
+
+require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_roadbook_draft_handoff.cjs')], { stdio: 'inherit' });
