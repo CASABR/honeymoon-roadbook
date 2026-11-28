@@ -236,10 +236,14 @@ export async function getRoute(
   // 1. Verifica cache persistente IndexedDB: route_[profile]_[from]_[to]
   const cleanFrom = String(from || '').trim().toLowerCase().replace(/\s+/g, '_');
   const cleanTo = String(to || '').trim().toLowerCase().replace(/\s+/g, '_');
-  const cacheKey = `route_${profile}_${cleanFrom}_${cleanTo}`;
+  const legacyKey = `route_${profile}_${cleanFrom}_${cleanTo}`;
+  const coordKey = (coord?: Coordinate) => coord ? `${coord.lat.toFixed(5)},${coord.lng.toFixed(5)}` : '';
+  const cacheKey = fromCoord || toCoord ? `${legacyKey}_coords_${coordKey(fromCoord)}_${coordKey(toCoord)}` : legacyKey;
 
   try {
-    const cached = await storageService.getRouteCache(cacheKey);
+    const manual = await storageService.getRouteCache(legacyKey);
+    if (manual?.route?.manualOverride) return manual.route;
+    const cached = cacheKey === legacyKey ? manual : await storageService.getRouteCache(cacheKey);
     // Se la cache ha una distanza 0 o un vecchio calcolo errato tra punti urbani distinti (es. Duomo e Starita), scartala e ricalcola
     const isMilanRoute = (cleanFrom.includes('duomo') || cleanFrom.includes('novecento')) && (cleanTo.includes('gherardini') || cleanTo.includes('starita'));
     const isReverseMilanRoute = (cleanTo.includes('duomo') || cleanTo.includes('novecento')) && (cleanFrom.includes('gherardini') || cleanFrom.includes('starita'));
