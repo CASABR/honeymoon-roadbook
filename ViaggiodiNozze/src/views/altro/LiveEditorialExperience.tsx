@@ -15,6 +15,7 @@ import {
 } from '../../utils/liveTimeClock';
 import LiveNextTransportCard from './LiveNextTransportCard';
 import { getTripConfig } from '../../utils/tripConfig';
+import { groupLiveThreads } from '../../utils/liveThreads';
 import { IMAGE_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
 
 export interface LiveGalleryPhotoItem {
@@ -245,7 +246,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     [effectiveNowMs, effectiveClockResolution]
   );
   const plannedLocation = props.liveIntelligence?.plannedLocation || null;
-  const hasPlannedLocation = Boolean(!props.isExternal && plannedLocation?.coords);
+  const hasPlannedLocation = Boolean(plannedLocation?.coords);
   const showRealMarker = hasRealLocation && props.mapCenterMode !== 'planned';
   const showPlannedMarker = hasPlannedMarkerCheck(hasPlannedLocation, props.mapCenterMode);
   const permissionDenied = Boolean(props.gpsError && /permess|denied|negat|autorizzat/i.test(props.gpsError));
@@ -350,10 +351,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   });
   const [guestMessageInput, setGuestMessageInput] = useState('');
   const [isSendingGuestMsg, setIsSendingGuestMsg] = useState(false);
+  const guestSubmitBusy = useRef(false);
   const [guestMsgError, setGuestMsgError] = useState<string | null>(null);
   const [guestMsgSuccess, setGuestMsgSuccess] = useState<string | null>(null);
   const [photoCommentInput, setPhotoCommentInput] = useState('');
   const [isSendingPhotoComment, setIsSendingPhotoComment] = useState(false);
+  const photoCommentSubmitBusy = useRef(false);
   const [photoCommentError, setPhotoCommentError] = useState<string | null>(null);
   const [replyingToGuestMsg, setReplyingToGuestMsg] = useState<LiveReplyTarget | null>(null);
   const [replyingToPhotoComment, setReplyingToPhotoComment] = useState<LiveReplyTarget | null>(null);
@@ -375,7 +378,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
   const handleGuestMessageSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!props.onSendGuestMessage || isSendingGuestMsg) return;
+    if (!props.onSendGuestMessage || guestSubmitBusy.current) return;
+    guestSubmitBusy.current = true;
     setGuestMsgError(null);
     setGuestMsgSuccess(null);
     setIsSendingGuestMsg(true);
@@ -398,6 +402,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     } catch (err: any) {
       setGuestMsgError(err?.message || 'Impossibile inviare il messaggio. Riprova.');
     } finally {
+      guestSubmitBusy.current = false;
       setIsSendingGuestMsg(false);
     }
   };
@@ -510,7 +515,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
   const handlePhotoCommentSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!activeLightboxPhotoId || !activeLightboxIsPublic || !props.onAddPhotoComment || isSendingPhotoComment) return;
+    if (!activeLightboxPhotoId || !activeLightboxIsPublic || !props.onAddPhotoComment || photoCommentSubmitBusy.current) return;
     const cleanAuthor = guestAuthorInput.trim();
     const cleanText = photoCommentInput.trim();
     if (!cleanAuthor || !cleanText) {
@@ -518,6 +523,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       return;
     }
     setPhotoCommentError(null);
+    photoCommentSubmitBusy.current = true;
     setIsSendingPhotoComment(true);
     try {
       await props.onAddPhotoComment(activeLightboxPhotoId, cleanAuthor, cleanText, replyingToPhotoComment);
@@ -529,6 +535,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     } catch (err: any) {
       setPhotoCommentError(err?.message || 'Impossibile inviare il commento.');
     } finally {
+      photoCommentSubmitBusy.current = false;
       setIsSendingPhotoComment(false);
     }
   };
@@ -923,25 +930,23 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 )}
               </div>
 
-              {props.tileGrid && !props.tileLoadFailed && (hasRealLocation || hasPlannedLocation) ? (
-                <div className="relative min-h-[300px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[420px] lg:min-h-[340px] lg:h-[calc(100dvh-16rem)] lg:max-h-[430px] xl:h-auto xl:min-h-[460px] xl:max-h-none">
-                  {!props.isExternal && (hasRealLocation || hasPlannedLocation) && (
-                    <div className="absolute left-3 right-3 top-3 z-20 grid grid-cols-3 gap-1 rounded-full bg-[#172033]/90 p-1 text-[10px] font-bold text-white backdrop-blur" role="group" aria-label="Centra mappa">
+                    <div className="relative mb-2 grid grid-cols-3 gap-1 rounded-full bg-[#172033]/90 p-1 text-[10px] font-bold text-white backdrop-blur" role="group" aria-label="Centra mappa">
                       {(['both', 'real', 'planned'] as const).map(mode => (
                         <button
                           key={mode}
                           type="button"
                           onClick={() => props.onChangeMapCenterMode?.(mode)}
-                          disabled={(mode === 'real' && !hasRealLocation) || (mode === 'planned' && !hasPlannedLocation)}
+                          disabled={(mode === 'real' && !hasRealLocation) || (mode === 'planned' && !hasPlannedLocation) || (mode === 'both' && !(hasRealLocation && hasPlannedLocation))}
                           className={`min-h-9 rounded-full px-2 disabled:opacity-35 ${props.mapCenterMode === mode ? 'bg-[#FF6B5F] text-white' : 'text-white/75'}`}
                           aria-pressed={props.mapCenterMode === mode}
                         >
-                          {mode === 'both' ? 'Insieme' : mode === 'real' ? 'GPS' : 'Programma'}
+                          {mode === 'both' ? 'GPS + Programma' : mode === 'real' ? 'GPS' : 'Programma'}
                         </button>
                       ))}
                     </div>
-                  )}
 
+              {props.tileGrid && !props.tileLoadFailed && (hasRealLocation || hasPlannedLocation) ? (
+                <div className="relative min-h-[300px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[420px] lg:min-h-[340px] lg:h-[calc(100dvh-16rem)] lg:max-h-[430px] xl:h-auto xl:min-h-[460px] xl:max-h-none">
                   <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
                     <div
                       className="absolute left-1/2 top-1/2 grid h-[768px] w-[768px] -translate-x-1/2 -translate-y-1/2 grid-cols-3 grid-rows-3 opacity-95 dark:opacity-60"
@@ -1418,14 +1423,10 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             {/* Lista messaggi ospiti */}
             {(props.guestMessages && props.guestMessages.length > 0) ? (
               <div className="space-y-2">
-                {props.guestMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`rounded-2xl border p-3 transition ${msg.hidden
-                      ? 'border-amber-200 bg-amber-50/50 opacity-75 dark:border-amber-900/50 dark:bg-amber-950/20'
-                      : 'border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900'
-                      }`}
-                  >
+                {groupLiveThreads(props.guestMessages).map(thread => (
+                  <div key={thread[0].item.id} className="rounded-2xl border border-slate-200/80 bg-white p-3 dark:border-slate-800 dark:bg-slate-900" data-testid="live-message-thread">
+                  {thread.map(({ item: msg, depth }) => (
+                  <div key={msg.id} className={`${depth ? 'mt-2 border-l-2 border-[#FF6B5F]/40 pl-2 pt-1' : ''} ${depth === 2 ? 'ml-3' : ''} ${msg.hidden ? 'opacity-60' : ''}`}>
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div className="min-w-0 flex-1 basis-40">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -1437,12 +1438,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                             </span>
                           )}
                         </div>
-                        {msg.replyToAuthor && (
-                          <div className="mt-1.5 rounded-lg border-l-2 border-[#FF6B5F] bg-slate-100/80 px-2.5 py-1 text-[11px] dark:bg-slate-800/70">
-                            <p className="font-bold text-[#FF6B5F]">{msg.replyToAuthor}</p>
-                            <p className="truncate text-slate-600 dark:text-slate-300">{msg.replyToPreview}</p>
-                          </div>
-                        )}
+                        {depth === 0 && msg.replyToId && <p className="mt-1 text-[10px] text-slate-500">Risposta a un messaggio non disponibile</p>}
                         <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-700 dark:text-slate-200">
                           {msg.message}
                         </p>
@@ -1487,6 +1483,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                         </div>
                       )}
                     </div>
+                  </div>
+                  ))}
                   </div>
                 ))}
               </div>
@@ -1881,15 +1879,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   (props.offlineQueueItems || []).filter(q => q.kind === 'photo_comment' && q.photoId === displayPhotos[activeLightboxIndex].id).length === 0 ? (
                     <p className="text-[11px] text-white/60">Nessun commento ancora su questa foto.</p>
                   ) : (
-                    (props.photoComments?.[displayPhotos[activeLightboxIndex].id] || []).map(comment => (
-                      <div key={comment.id} className="flex items-start justify-between gap-2 rounded-xl bg-black/30 px-2.5 py-1.5 text-xs">
+                    groupLiveThreads(props.photoComments?.[displayPhotos[activeLightboxIndex].id] || [], false).map(thread => (
+                      <div key={thread[0].item.id} className="rounded-xl bg-black/30 px-2.5 py-1.5 text-xs" data-testid="live-photo-comment-thread">
+                      {thread.map(({ item: comment, depth }) => (
+                      <div key={comment.id} className={`flex items-start justify-between gap-2 ${depth ? 'mt-1.5 border-l-2 border-[#FF6B5F]/40 pl-2' : ''} ${depth === 2 ? 'ml-2' : ''}`}>
                         <div className="min-w-0 flex-1">
-                          {comment.replyToAuthor && (
-                            <div className="mb-1 rounded-md border-l-2 border-[#FF6B5F] bg-white/10 px-2 py-0.5 text-[10px]">
-                              <span className="font-bold text-[#FF8C82]">{comment.replyToAuthor}: </span>
-                              <span className="truncate text-white/75">{comment.replyToPreview}</span>
-                            </div>
-                          )}
+                          {depth === 0 && comment.replyToId && <p className="text-[10px] text-white/60">Risposta a un commento non disponibile</p>}
                           <div>
                             <span className="font-bold text-white">{comment.authorName}: </span>
                             <span className="break-words text-white/90">{comment.text}</span>
@@ -1920,6 +1915,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                             Elimina
                           </button>
                         )}
+                      </div>
+                      ))}
                       </div>
                     ))
                   )}

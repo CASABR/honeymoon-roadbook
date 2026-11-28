@@ -37,11 +37,28 @@ async function run() {
     logLevel: 'silent',
   });
   let deriveLiveIntelligence;
+  let groupLiveThreads;
   try {
     ({ deriveLiveIntelligence } = await vite.ssrLoadModule('/src/utils/liveIntelligenceHelper.ts'));
+    ({ groupLiveThreads } = await vite.ssrLoadModule('/src/utils/liveThreads.ts'));
   } finally {
     await vite.close();
   }
+
+  const messages = [
+    { id: 'reply2', replyToId: 'root', createdAt: 5 },
+    { id: 'other', createdAt: 3 },
+    { id: 'nested', replyToId: 'reply1', createdAt: 4 },
+    { id: 'root', createdAt: 1 },
+    { id: 'reply1', replyToId: 'root', createdAt: 2 },
+    { id: 'deleted', createdAt: 6, deleted: true },
+  ];
+  assert.deepEqual(groupLiveThreads(messages).map(g => g.map(r => [r.item.id, r.depth])),
+    [[['other', 0]], [['root', 0], ['reply1', 1], ['nested', 2], ['reply2', 1]]]);
+  assert.deepEqual(groupLiveThreads(messages.filter(m => m.id !== 'root'), false).flat().map(r => r.item.id).sort(),
+    ['nested', 'other', 'reply1', 'reply2']);
+  assert.equal(groupLiveThreads([{id:'a',replyToId:'b',createdAt:1},{id:'b',replyToId:'a',createdAt:2}]).flat().length, 2);
+  console.log('✓ [PASS] Compact LIVE threads, orphan replies, cycle safety and chronological children');
 
   const nov25 = new Date('2026-11-25T10:30:00+01:00');
   const preTripInternal = deriveLiveIntelligence({
@@ -113,6 +130,20 @@ async function run() {
     timeZone: 'Europe/Rome',
   });
   assert.equal(inTrip.tripStatus, 'in_trip');
+
+  const chronology = deriveLiveIntelligence({
+    giorni: [], attivita: [], alloggi: [], trasporti: [],
+    tappe: [
+      { id: 'evening', titolo: 'Tappa serale', data: '2026-11-28', orario: '19:00', coordinate: { lat: 45.45, lng: 9.17 } },
+      { id: 'morning', titolo: 'Tappa mattutina', data: '2026-11-28', orario: '09:00', coordinate: { lat: 45.46, lng: 9.19 } },
+      { id: 'noon', titolo: 'Tappa successiva', data: '2026-11-28', orario: '12:00', coordinate: { lat: 45.48, lng: 9.2 } }
+    ],
+    currentDateTime: new Date('2026-11-28T10:00:00+01:00'),
+    tripStartDate: '2026-11-28', tripEndDate: '2027-01-10', timeZone: 'Europe/Rome'
+  });
+  assert.equal(chronology.plannedLocation.title, 'Tappa mattutina');
+  assert.equal(chronology.nextEvent.title, 'Tappa successiva');
+  console.log('✓ [PASS] Planned location follows local time, not database order');
 
   const postTrip = deriveLiveIntelligence({
     giorni: [],
@@ -383,7 +414,9 @@ async function run() {
   }
 }
 
-run().catch((err) => {
+run().then(() => {
+  require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_live_replies_and_push.cjs')], { stdio: 'inherit' });
+}).catch((err) => {
   console.error(err);
   process.exit(1);
 });
