@@ -1,5 +1,6 @@
 import { isTaskTappa } from '../../utils/taskTappa';
 import { useLiveMapInitialCenter } from '../../hooks/useLiveMapInitialCenter';
+import { useLivePublicPlannedLocation } from '../../hooks/useLivePublicPlannedLocation';
 import { compressLivePhotoToDataUrl } from '../../utils/livePhotoImage';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -1490,6 +1491,15 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     });
   }, [days, activities, tappe, accommodations, transports, now, tripRange, activeTripId, liveFeedTransports, remoteGpsLocation, liveGpsState, isStandaloneExternal, plannedTimeZone]);
 
+  const publicPlannedLocation = useLivePublicPlannedLocation(
+    activeTripId, isStandaloneExternal, cloudRole === 'owner' && !loading,
+    liveIntelligence?.tripStatus === 'in_trip' ? liveIntelligence.plannedLocation?.coords : undefined,
+    now.getTime()
+  );
+  const mapPlannedLocation = isStandaloneExternal ? publicPlannedLocation : liveIntelligence?.plannedLocation;
+  const visibleIntelligence = isStandaloneExternal && liveIntelligence
+    ? { ...liveIntelligence, plannedLocation: publicPlannedLocation } : liveIntelligence;
+
   const upcomingImportantTransports = useMemo(
     () =>
       isStandaloneExternal
@@ -1557,8 +1567,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   }, [effectiveRealLocation]);
 
   const plannedCoords = useMemo(() => {
-    return liveIntelligence?.plannedLocation?.coords || null;
-  }, [liveIntelligence]);
+    return mapPlannedLocation?.coords || null;
+  }, [mapPlannedLocation]);
 
   const { mapCenterMode, setMapCenterMode, effectiveMapCenter } = useLiveMapInitialCenter(realCoords, plannedCoords);
 
@@ -2086,8 +2096,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       location={currentLocation}
       realLocation={remoteGpsLocation || lastKnownLocation}
       mapSearchUrl={
-        mapCenterMode === 'planned' && liveIntelligence?.plannedLocation?.coords
-          ? `https://www.google.com/maps/search/?api=1&query=${liveIntelligence.plannedLocation.coords.lat},${liveIntelligence.plannedLocation.coords.lng}`
+        mapCenterMode === 'planned' && mapPlannedLocation?.coords
+          ? `https://www.google.com/maps/search/?api=1&query=${mapPlannedLocation.coords.lat},${mapPlannedLocation.coords.lng}`
           : mapCenterMode === 'real' && realCoords
             ? `https://www.google.com/maps/search/?api=1&query=${realCoords.lat},${realCoords.lng}`
             : mapSearchUrl
@@ -2122,7 +2132,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       onRevokeGps={() => {
         if (currentUid) return handleTransferGps(currentUid, liveGpsService.getDeviceId());
       }}
-      liveIntelligence={liveIntelligence}
+      liveIntelligence={visibleIntelligence}
       nextImportantTransport={nextImportantTransport}
       upcomingTransports={upcomingImportantTransports}
       travelTimeZoneResolution={travelClockResolution}
