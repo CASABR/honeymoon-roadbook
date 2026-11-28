@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.45 — 2026-11-28
+
+- Ripristino della foto ricordo nel primo giorno del viaggio.
+- Condivisione volontaria delle fotografie di tappe e attività nel LIVE.
+
 ## 1.7.44 — 2026-11-27
 
 - Esportazione Word (.docx) compatibile con Microsoft Word senza errori di contenuto
@@ -43,7 +48,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 ## 1.7.36 — 2026-11-26
 
 - Retro Treno compatto: binario, carrozza e posti separati, cambio treno dedicato, fusi automatici per località riconosciute e note collassate, con compatibilità dei dati precedenti.
-
-## 1.7.35 — 2026-11-26
-
-- Retro Aereo: dati aeroportuali automatici con verifica solo in caso di anomalie, grafica dedicata allo scalo e card a larghezza intera nella modalità mobile su iPad.
