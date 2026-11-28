@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-28T09:26:36Z",
+  "requestedAt": "2026-11-28T09:45:48Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.46-live-20261128",
+  "requestId": "release-1.7.47-planned-location-20261128",
   "requestedBy": "CASABR",
-  "ref": "b7c40ae469a3a788ff5f4259333065be7253302f",
+  "ref": "37e7541828d577fd5cf8a4939e086ec4a60b9a52",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.46: risposte compatte, mappa e notifiche LIVE; CI e Worker verificati."
+  "note": "HOUNIGO 1.7.47: public planned position, CI and Worker verified."
 }
