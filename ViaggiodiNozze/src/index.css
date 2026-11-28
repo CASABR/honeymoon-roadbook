@@ -2185,3 +2185,7 @@ html.dark .flight-front-spec-icon { color:#7dd3fc; }
 .app-native-mobile .app-workspace { padding-bottom: calc(6rem + var(--app-safe-bottom)); }
 .app-native-mobile .app-sticky-subheader { top: calc(var(--app-safe-top) + 3.8125rem); }
 .app-safe-shell:has(.app-native-mobile) .app-fixed-bottom-floating { bottom: calc(max(0.75rem, var(--app-safe-bottom)) + 5.25rem); }
+
+/* Duplication is a desktop organization tool, never a touch-travel action. */
+.app-native-mobile .hounigo-ds-duplicate-icon, .app-forced-mobile .hounigo-ds-duplicate-icon, .app-tablet-view .hounigo-ds-duplicate-icon { display: none !important; }
+[data-testid="flight-onward-connection"] { white-space: normal; min-width: 0; overflow-wrap: anywhere; }
