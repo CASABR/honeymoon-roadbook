@@ -898,12 +898,12 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     // Legacy single-photo cache: never show a second copy of an archived/linked photo.
     const represented = localGallery.some(p => p.tripId === customPhoto?.tripId && p.userId === customPhoto?.userId &&
       (p.url === customPhoto?.dataUrl || (p.caption === customPhoto?.caption && p.timestamp === Date.parse(customPhoto?.timestamp || ''))));
-    if (customPhoto && !hiddenPhotoIds.has('sposi_custom_photo') && !represented && !(archivedPhoto && customPhoto.caption === 'Foto pre-partenza'
+    if (customPhoto && !hiddenPhotoIds.has('sposi_custom_photo_' + customPhoto.timestamp) && !represented && !(archivedPhoto && customPhoto.caption === 'Foto pre-partenza'
         && archivedPhoto.tripId === customPhoto.tripId && archivedPhoto.userId === customPhoto.userId)
       && canReadLocalLivePhoto(customPhoto, activeTripId, currentUid, localGalleryRole, isStandaloneExternal)
       && customPhoto.dataUrl && !map.has(customPhoto.dataUrl)) {
       map.set(customPhoto.dataUrl, {
-        id: 'sposi_custom_photo', url: customPhoto.dataUrl,
+        id: 'sposi_custom_photo_' + customPhoto.timestamp, url: customPhoto.dataUrl,
         caption: customPhoto.caption || 'Foto scattata dagli sposi ❤️',
         timestamp: new Date(customPhoto.timestamp || Date.now()).getTime(), isCustom: true
       });
@@ -1114,8 +1114,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         setGalleryCustomPhotos(updated);
       }
       if (customPhoto?.tripId === activeTripId && customPhoto.userId === currentUid &&
-        (customPhoto.dataUrl === photo.url || photoId === 'sposi_custom_photo' ||
-          galleryCustomPhotos.some(p => matches(p) && p.url === customPhoto.dataUrl))) {
+        (customPhoto.dataUrl === photo.url || photoId === 'sposi_custom_photo_' + customPhoto.timestamp ||
+          (customPhoto.dataUrl.startsWith('data:image/') && await stableLivePhotoId(customPhoto.dataUrl).catch(() => '') === matchingUpdate?.id) ||
+          galleryCustomPhotos.some(p => matches(p) && (p.url === customPhoto.dataUrl ||
+            (p.caption === customPhoto.caption && Math.abs(p.timestamp - Date.parse(customPhoto.timestamp)) <= 2000))))) {
         localStorage.removeItem(LAST_PHOTO_KEY);
         setCustomPhoto(null);
       }
