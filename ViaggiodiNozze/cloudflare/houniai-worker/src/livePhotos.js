@@ -288,9 +288,26 @@ export async function handleLivePhotoRequest(request, env, security) {
     const isGuestMessageGet = request.method === 'GET' && id === 'guest-messages' && !action;
     const isPublicEndpoint = ((id === 'comments' || id === 'reactions' || id === 'guest-messages' || id === 'last-location') && !action) || isGuestMessageModerationPath || isCommentModerationPath;
     const isLastLocationGet = request.method === 'GET' && id === 'last-location' && !action;
+    const resolveMutationId = async (prefix, actorUid, clientMutationId, scope) => {
+      if (clientMutationId == null) return prefix + crypto.randomUUID().replace(/-/g, '');
+      if (!actorUid) throw error(401, 'Sessione necessaria per inviare dalla coda.');
+      if (typeof clientMutationId !== 'string' || !/^[A-Za-z0-9_-]{1,48}$/.test(clientMutationId)) {
+        throw error(400, 'Identificativo invio non valido.');
+      }
+      return prefix + (await hashIdentity(JSON.stringify([tripId, actorUid, scope, clientMutationId]))).slice(0, 32);
+    };
     const isCommentPost = request.method === 'POST' && id === 'comments' && !action;
     const isReactionPost = request.method === 'POST' && id === 'reactions' && !action;
     const isGuestMessagePost = request.method === 'POST' && id === 'guest-messages' && !action;
+    // Verified identity is used only for push attribution; guest writes remain public.
+    const resolvePublicPushActor = async () => {
+      const token = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
+      if (!token || token.length > 8192) return null;
+      try {
+        const uid = await security.verifyFirebaseIdentity(token, env);
+        return uid && await security.assertEditor(uid, tripId, token, env) ? uid : null;
+      } catch { return null; }
+    };
     if (!tripId || (id && !isPublicEndpoint && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish' && !isGuestMessageModerationPath && !isCommentModerationPath)) throw error(404, 'Foto non disponibile.');
     if (request.method === 'OPTIONS') {
       if (origin !== env.ALLOWED_ORIGIN) throw error(403, 'Origine non autorizzata.');
@@ -414,10 +431,15 @@ export async function handleLivePhotoRequest(request, env, security) {
       }
       await requirePublicPhoto(security, env, tripId, postId);
       await ensurePhotoCommentSchema(database);
+      const actorUid = await resolvePublicPushActor();
+      const commentId = await resolveMutationId('d1pc_', actorUid, body?.clientMutationId, postId);
+      if (body?.clientMutationId != null) {
+        const existing = await database.prepare('SELECT created_at AS createdAt FROM live_photo_comments WHERE id=?1 AND trip_id=?2 AND post_id=?3').bind(commentId, tripId, postId).first();
+        if (existing) return reply(200, { id: commentId, createdAt: Number(existing.createdAt) });
+      }
       const replyRef = await resolvePhotoCommentReply(database, security, env, tripId, postId, body?.replyToId);
-      const commentId = `d1pc_${crypto.randomUUID().replace(/-/g, '')}`;
       await database.prepare(
-        'INSERT INTO live_photo_comments(id,trip_id,post_id,author_name,text,created_at,deleted,reply_to_id,reply_to_author,reply_to_preview) VALUES (?1,?2,?3,?4,?5,?6,0,?7,?8,?9)'
+        'INSERT OR IGNORE INTO live_photo_comments(id,trip_id,post_id,author_name,text,created_at,deleted,reply_to_id,reply_to_author,reply_to_preview) VALUES (?1,?2,?3,?4,?5,?6,0,?7,?8,?9)'
       ).bind(
         commentId, tripId, postId, cleanAuthor, cleanText, now,
         replyRef?.replyToId || null, replyRef?.replyToAuthor || null, replyRef?.replyToPreview || null
@@ -425,7 +447,7 @@ export async function handleLivePhotoRequest(request, env, security) {
       await security.enqueueLivePushEvent?.(env, {
         tripId,
         eventType: 'live_comment',
-        actorUid: null,
+        actorUid,
         dedupeKey: commentId,
         photoId: postId,
         authorName: cleanAuthor,
@@ -513,6 +535,13 @@ export async function handleLivePhotoRequest(request, env, security) {
       if (!cleanAuthor || !cleanMsg || /[<>]|javascript:|data:text\/html/i.test(`${cleanAuthor} ${cleanMsg}`)) {
         throw error(400, 'Nome o messaggio non validi.');
       }
+      const actorUid = await resolvePublicPushActor();
+      const messageId = await resolveMutationId('d1_', actorUid, body?.clientMutationId, 'guest-messages');
+      await ensureGuestSchema(database);
+      if (body?.clientMutationId != null) {
+        const existing = await database.prepare('SELECT created_at AS createdAt FROM live_guest_messages WHERE id=?1 AND trip_id=?2').bind(messageId, tripId).first();
+        if (existing) return reply(200, { id: messageId, createdAt: Number(existing.createdAt) });
+      }
       // Shared networks: many legitimate guests may have the same public IP.
       // Enforce both IP-wide guardrails and a per-visitor cooldown; no sign-in required.
       const visitorHash = await hashIdentity(`${tripId}|${rawVisitor}`);
@@ -535,11 +564,9 @@ export async function handleLivePhotoRequest(request, env, security) {
       }
       // Public guests never need Firestore write permissions. D1 is the authoritative
       // store for NEW guestbook messages; Firestore historical messages remain readable.
-      const messageId = `d1_${crypto.randomUUID().replace(/-/g, '')}`;
-      await ensureGuestSchema(database);
       const replyRef = await resolveGuestMessageReply(database, security, env, tripId, body?.replyToId, saToken);
       await database.prepare(
-        'INSERT INTO live_guest_messages(id,trip_id,visitor_id,author_name,message,created_at,hidden,deleted,ip_hash,reply_to_id,reply_to_author,reply_to_preview) VALUES (?1,?2,?3,?4,?5,?6,0,0,?7,?8,?9,?10)'
+        'INSERT OR IGNORE INTO live_guest_messages(id,trip_id,visitor_id,author_name,message,created_at,hidden,deleted,ip_hash,reply_to_id,reply_to_author,reply_to_preview) VALUES (?1,?2,?3,?4,?5,?6,0,0,?7,?8,?9,?10)'
       ).bind(
         messageId, tripId, rawVisitor, cleanAuthor, cleanMsg, now, ip,
         replyRef?.replyToId || null, replyRef?.replyToAuthor || null, replyRef?.replyToPreview || null
@@ -547,7 +574,7 @@ export async function handleLivePhotoRequest(request, env, security) {
       await security.enqueueLivePushEvent?.(env, {
         tripId,
         eventType: 'live_guest_msg',
-        actorUid: null,
+        actorUid,
         dedupeKey: messageId,
         authorName: cleanAuthor,
         isReply: Boolean(replyRef),

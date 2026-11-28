@@ -450,7 +450,9 @@ export async function enqueueLivePushEvent(env, {
     tag = `live-comment-${tripId}-${cleanPhotoId || 'all'}`;
   }
 
-  const jobId = (await sha256(`live_push|${groupKey}`)).slice(0, 56);
+  // Separate authors so coalescing can never turn a self-action into a guest alert.
+  const actorGroup = eventType === 'live_photo' ? '' : `|actor:${actorUid ? `uid:${actorUid}` : 'guest'}`;
+  const jobId = (await sha256(`live_push|${groupKey}${actorGroup}`)).slice(0, 56);
   const existing = await env.RATE_LIMITS.prepare(
     'SELECT meta_json FROM push_jobs WHERE job_id = ?1'
   ).bind(jobId).first().catch(() => null);

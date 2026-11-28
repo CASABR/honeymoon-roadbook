@@ -211,6 +211,33 @@ async function run() {
     assert.equal(photoJob.actor_uid, 'owner_1', 'actor_uid salvato per escludere le proprie azioni');
     assert.equal(JSON.parse(photoJob.meta_json).url, '/honeymoon-roadbook/?pushView=live&liveTab=foto&photoId=upd_1');
     console.log('✓ [PASS] Push LIVE: raggruppamento, deduplica, esclusione actor_uid e deep-link verificati');
+
+    // A queued authenticated reply retried after a lost response is the same mutation.
+    for (const [uid, visitor, ip] of [['owner_1','vis_owner_retry','6.6.6.6'], ['copilota_1','vis_copilot_retry','7.7.7.7']]) {
+      const headers = { Origin: origin, 'Content-Type': 'application/json', Authorization: `Bearer ${fakeJwt(uid)}`, 'CF-Connecting-IP': ip };
+      for (const [endpoint, payload] of [
+        ['guest-messages', { visitorId: visitor, authorName: 'Same name', message: 'Reply', replyToId: mReplyData.id, clientMutationId: 'off_test' }],
+        ['comments', { postId: 'upd_1', authorName: 'Same name', text: 'Reply', replyToId: cReplyData.id, clientMutationId: 'off_test' }]
+      ]) {
+        const url = `https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/trip_a/${endpoint}`;
+        const req = () => new Request(url, { method: 'POST', headers, body: JSON.stringify(payload) });
+        const first = await handleRequest(req(), env);
+        assert.equal(first.status, 201);
+        const firstBody = await first.json();
+        const second = await handleRequest(req(), env);
+        assert.equal(second.status, 200);
+        assert.equal((await second.json()).id, firstBody.id);
+      }
+    }
+    for (const key of ['live:live_guest_msg:trip_a', 'live:live_comment:upd_1']) {
+      const jobs = db.prepare('SELECT actor_uid, meta_json FROM push_jobs WHERE entity_key = ?').all(key);
+      assert.equal(jobs.length, 3);
+      assert.ok(jobs.some(j => j.actor_uid === 'owner_1' && JSON.parse(j.meta_json).count === 1));
+      assert.ok(jobs.some(j => j.actor_uid === 'copilota_1' && JSON.parse(j.meta_json).count === 1));
+      assert.ok(jobs.some(j => j.actor_uid === null && JSON.parse(j.meta_json).count === 2));
+    }
+    console.log('✓ [PASS] Verified author isolation and idempotent offline replies');
+
   } finally {
     globalThis.fetch = originalFetch;
   }

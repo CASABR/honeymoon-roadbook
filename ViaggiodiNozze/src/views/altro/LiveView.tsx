@@ -1,3 +1,4 @@
+import { isTaskTappa } from '../../utils/taskTappa';
 import { useLiveMapInitialCenter } from '../../hooks/useLiveMapInitialCenter';
 import { compressLivePhotoToDataUrl } from '../../utils/livePhotoImage';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -1315,8 +1316,17 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
 
   const currentTappa = useMemo(() => {
-    return tappe.find(tp => tp.data === activeDate);
-  }, [tappe, activeDate]);
+    const clock = now.getHours() * 60 + now.getMinutes();
+    const todayStops = tappe.filter(tp => (tp.data || tp.date) === activeDate && !isTaskTappa(tp));
+    const timed = todayStops.flatMap(tp => {
+      const value = tp.orario || tp.time || '';
+      if (!/^\d{1,2}:\d{2}$/.test(value)) return [];
+      const [h, m] = value.split(':').map(Number);
+      return [{ tp, minutes: h * 60 + m }];
+    }).sort((a,b) => a.minutes - b.minutes || (a.tp.order ?? 0) - (b.tp.order ?? 0));
+    return timed.filter(t => t.minutes <= clock).at(-1)?.tp || timed[0]?.tp
+      || [...todayStops].sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.id.localeCompare(b.id))[0];
+  }, [tappe, activeDate, now]);
 
   // Posizione GPS Reale
   const realLocation = useMemo(() => {
@@ -1480,6 +1490,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     });
   }, [days, activities, tappe, accommodations, transports, now, tripRange, activeTripId, liveFeedTransports, remoteGpsLocation, liveGpsState, isStandaloneExternal, plannedTimeZone]);
 
+  const mapPlannedLocation = isStandaloneExternal ? null : liveIntelligence?.plannedLocation;
+
   const upcomingImportantTransports = useMemo(
     () =>
       isStandaloneExternal
@@ -1547,8 +1559,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   }, [effectiveRealLocation]);
 
   const plannedCoords = useMemo(() => {
-    return liveIntelligence?.plannedLocation?.coords || null;
-  }, [liveIntelligence]);
+    return mapPlannedLocation?.coords || null;
+  }, [mapPlannedLocation]);
 
   const { mapCenterMode, setMapCenterMode, effectiveMapCenter } = useLiveMapInitialCenter(realCoords, plannedCoords);
 
@@ -2076,8 +2088,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       location={currentLocation}
       realLocation={remoteGpsLocation || lastKnownLocation}
       mapSearchUrl={
-        mapCenterMode === 'planned' && liveIntelligence?.plannedLocation?.coords
-          ? `https://www.google.com/maps/search/?api=1&query=${liveIntelligence.plannedLocation.coords.lat},${liveIntelligence.plannedLocation.coords.lng}`
+        mapCenterMode === 'planned' && mapPlannedLocation?.coords
+          ? `https://www.google.com/maps/search/?api=1&query=${mapPlannedLocation.coords.lat},${mapPlannedLocation.coords.lng}`
           : mapCenterMode === 'real' && realCoords
             ? `https://www.google.com/maps/search/?api=1&query=${realCoords.lat},${realCoords.lng}`
             : mapSearchUrl

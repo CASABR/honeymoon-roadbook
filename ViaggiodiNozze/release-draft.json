@@ -1,0 +1,9 @@
+{
+  "version": "1.7.46",
+  "preparedAt": "2026-11-28",
+  "changes": [
+    "Risposte LIVE compatte sotto il messaggio o commento originale.",
+    "Mappa LIVE con selettori visibili agli ospiti e tappe ordinate per orario locale.",
+    "Notifiche senza auto-avvisi e protezione contro i doppi invii."
+  ]
+}
