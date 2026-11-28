@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.51 — 2026-11-28
+
+- Rimozione delle foto LIVE confermata dal server, senza far ricomparire copie locali collegate.
+- Indicatore della provenienza dalle tappe del viaggio per le foto riconoscibili, senza eliminare gli originali.
+
 ## 1.7.50 — 2026-11-28
 
 - Importi compatti sulle card: verde per saldato e giallo per il residuo da pagare, senza diciture ripetitive.
@@ -44,8 +49,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Card attiva: aggiornamento dell'orario locale anche dopo mezzanotte, al ritorno in primo piano e alla riapertura.
 - La timeline segue la nuova giornata solo quando si sta consultando oggi, rispettando la navigazione manuale e le finestre di modifica.
-
-## 1.7.41 — 2026-11-27
-
-- Download diretto PDF su desktop, salvataggio e condivisione nativa su mobile
-- Anteprima PDF integrata, nome file standardizzato e filtro permessi per ruolo
