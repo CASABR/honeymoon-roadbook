@@ -985,7 +985,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       throw new Error('Foto troppo grande per la cache locale del dispositivo. Conserva l’originale nel rullino del telefono.');
     }
     const photoId = await stableLivePhotoId(compressedDataUrl);
-    if (syncingOfflinePhotoIdsRef.current.has(photoId)) return;
+    if (syncingOfflinePhotoIdsRef.current.has(photoId)) throw new Error('Questa foto è già in pubblicazione.');
     const localPhoto: LiveGalleryPhotoItem = {
       id: photoId, tripId: activeTripId, userId: currentUid, url: compressedDataUrl,
       caption: caption || 'Foto dal viaggio',
@@ -1019,7 +1019,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       }, currentUid, stillQueued);
       if (!stillQueued()) throw new Error('Sessione o foto locale cambiata.');
       setGalleryCustomPhotos(prev => {
-        const updated = prev.map(p => p.id === photoId ? { ...p, url: uploadRes.downloadUrl, liveUpdateId: uploadRes.postId, isCustom: false, pendingSync: false } : p);
+        const updated = prev.map(p => p.id === photoId && p.tripId === activeTripId && p.userId === currentUid ? { ...p, url: uploadRes.downloadUrl, liveUpdateId: uploadRes.postId, isCustom: false, pendingSync: false } : p);
         localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated.slice(0, 30)));
         return updated;
       });
@@ -1058,7 +1058,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
           if (!stillQueued()) continue;
           setGalleryCustomPhotos(prev => {
             const updated = prev.map(item =>
-              item.id === p.id
+              item.id === p.id && item.tripId === activeTripId && item.userId === currentUid
                 ? { ...item, url: uploadRes.downloadUrl, liveUpdateId: uploadRes.postId, isCustom: false, pendingSync: false }
                 : item
             );
