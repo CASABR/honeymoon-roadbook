@@ -1,6 +1,7 @@
 import { auth } from '../firebase';
 import { getOrCreateDeviceId } from '../utils/deviceSession';
 import { storageService } from '../storage/storageService';
+import { readArchivedPredeparturePhoto, writeArchivedPredeparturePhoto } from './predeparturePhotoArchive';
 
 const GALLERY_KEY = 'hounigo_live_gallery';
 const LAST_PHOTO_KEY = 'live_last_photo';
@@ -48,6 +49,62 @@ export function getJournalUserId(): string {
 
 export function getPredeparturePhoto(tripId: string, userId = getJournalUserId()): JournalPhotoRecord | null {
   return readGallery().find((photo) => photo.tripId === tripId && photo.userId === userId && photo.kind === 'predeparture') || null;
+}
+
+/** Prefer the independent private archive; migrate only an exactly scoped legacy record. */
+export async function loadPredeparturePhoto(tripId: string, userId = getJournalUserId()): Promise<JournalPhotoRecord | null> {
+  const archived = await readArchivedPredeparturePhoto(tripId, userId).catch(() => null);
+  const gallery = getPredeparturePhoto(tripId, userId);
+  const existing = gallery && (!archived || gallery.timestamp > archived.timestamp) ? gallery : archived || gallery;
+  if (existing) {
+    if (existing !== archived) await writeArchivedPredeparturePhoto(existing).catch(() => {});
+    return existing;
+  }
+  try {
+    const legacy = JSON.parse(localStorage.getItem(LAST_PHOTO_KEY) || 'null');
+    if (legacy?.tripId === tripId && legacy.userId === userId && legacy.caption === 'Foto pre-partenza'
+      && typeof legacy.dataUrl === 'string' && legacy.dataUrl.startsWith('data:image/')) {
+      const recovered: JournalPhotoRecord = {
+        id: 'predeparture_recovered', tripId, userId, url: legacy.dataUrl, caption: legacy.caption,
+        timestamp: Date.parse(legacy.timestamp) || Date.now(), isCustom: true, kind: 'predeparture', exifStripped: true
+      };
+      await writeArchivedPredeparturePhoto(recovered).catch(() => {});
+      return recovered;
+    }
+  } catch {}
+  return null;
+}
+
+async function persistPredepartureRecord(photo: JournalPhotoRecord): Promise<void> {
+  // Success requires at least one durable device-local copy. Do not duplicate large images in LAST_PHOTO_KEY.
+  let archived = false;
+  try { await writeArchivedPredeparturePhoto(photo); archived = true; } catch {}
+  try {
+    writeGallery([photo, ...readGallery().filter(item => !(item.kind === 'predeparture' && item.tripId === photo.tripId && item.userId === photo.userId))]);
+  } catch (error) {
+    if (!archived) throw error;
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('hounigo_journal_photos_changed'));
+  }
+}
+
+export async function savePredeparturePhotoDurably(tripId: string, dataUrl: string, userId = getJournalUserId()): Promise<JournalPhotoRecord> {
+  const existing = await loadPredeparturePhoto(tripId, userId);
+  if (existing?.url === dataUrl) return existing;
+  const photo: JournalPhotoRecord = {
+    id: `predeparture_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    url: dataUrl, caption: 'Foto pre-partenza', timestamp: Date.now(), isCustom: true,
+    tripId, userId, kind: 'predeparture', exifStripped: true
+  };
+  await persistPredepartureRecord(photo);
+  return photo;
+}
+
+export async function linkPredeparturePhotoToLive(photo: JournalPhotoRecord, liveUpdateId: string): Promise<JournalPhotoRecord> {
+  const current = await loadPredeparturePhoto(photo.tripId, photo.userId);
+  if (!current || current.id !== photo.id || current.url !== photo.url) throw new Error('Foto ricordo cambiata: controlla il diario LIVE.');
+  const updated = { ...current, liveUpdateId };
+  await persistPredepartureRecord(updated);
+  return updated;
 }
 
 export function savePredeparturePhoto(tripId: string, dataUrl: string, userId = getJournalUserId()): JournalPhotoRecord {

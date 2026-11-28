@@ -34,8 +34,9 @@ export default function ShareTripPhotoButton({ photo }: { photo: TransportAttach
           setMessage('');
           try {
             const { auth } = await import('../../firebase');
-            const { liveService, verifyPrivilegedLivePublisher } = await import('../../services/liveService');
-            const { uploadLivePhoto } = await import('../../services/liveStorageService');
+            const { verifyPrivilegedLivePublisher } = await import('../../services/liveService');
+            const { publishLivePhotoOnce } = await import('../../services/livePhotoPublication');
+            const { compressLivePhotoToDataUrl } = await import('../../utils/livePhotoImage');
             await auth.authStateReady?.();
             const user = auth.currentUser;
             if (!user || user.isAnonymous) throw new Error('Accedi come Owner o Copilota per condividere foto.');
@@ -43,11 +44,8 @@ export default function ShareTripPhotoButton({ photo }: { photo: TransportAttach
             if (!isMember || auth.currentUser?.uid !== user.uid || getTripConfig()?.id !== tripId) {
               throw new Error('Sessione o viaggio non autorizzato. La foto resta nella tappa.');
             }
-            const uploaded = await uploadLivePhoto(tripId, photo.dataUrl, undefined, user.uid);
-            if (auth.currentUser?.uid !== user.uid || getTripConfig()?.id !== tripId) {
-              throw new Error('Sessione o viaggio cambiato. La foto non è stata pubblicata.');
-            }
-            await liveService.publishToLive(tripId, { title: 'Foto dal viaggio', text: '', photoUrl: uploaded.downloadUrl });
+            const normalized = await compressLivePhotoToDataUrl(photo.dataUrl);
+            await publishLivePhotoOnce(tripId, normalized, { title: 'Foto dal viaggio', text: '' }, user.uid);
             setShared(true);
             setMessage('Foto pubblicata nel LIVE.');
           } catch (error) {

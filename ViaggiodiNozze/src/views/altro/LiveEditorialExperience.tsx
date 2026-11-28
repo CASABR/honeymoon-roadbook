@@ -26,6 +26,7 @@ export interface LiveGalleryPhotoItem {
   timestamp: number;
   isCustom?: boolean;
   pendingSync?: boolean;
+  liveUpdateId?: string;
   tripId?: string;
   userId?: string;
 }

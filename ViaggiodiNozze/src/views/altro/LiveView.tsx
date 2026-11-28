@@ -2,6 +2,8 @@ import { isTaskTappa } from '../../utils/taskTappa';
 import { useLiveMapInitialCenter } from '../../hooks/useLiveMapInitialCenter';
 import { useLivePublicPlannedLocation } from '../../hooks/useLivePublicPlannedLocation';
 import { compressLivePhotoToDataUrl } from '../../utils/livePhotoImage';
+import { publishLivePhotoOnce, stableLivePhotoId } from '../../services/livePhotoPublication';
+import { loadPredeparturePhoto, type JournalPhotoRecord } from '../../services/photoJournalService';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { storageService } from '../../storage/storageService';
@@ -840,6 +842,19 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     return [];
   });
 
+  const [archivedPhoto, setArchivedPhoto] = useState<JournalPhotoRecord | null>(null);
+  useEffect(() => {
+    setArchivedPhoto(null);
+    if (!hasPrivateGalleryAccess || !activeTripId || !currentUid) return;
+    let cancelled = false;
+    const refresh = () => void loadPredeparturePhoto(activeTripId, currentUid).then(photo => {
+      if (!cancelled) setArchivedPhoto(photo);
+    });
+    refresh();
+    window.addEventListener('hounigo_journal_photos_changed', refresh);
+    return () => { cancelled = true; window.removeEventListener('hounigo_journal_photos_changed', refresh); };
+  }, [activeTripId, currentUid, hasPrivateGalleryAccess]);
+
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [photoCaptionInput, setPhotoCaptionInput] = useState('');
   const [showCaptionModal, setShowCaptionModal] = useState(false);
@@ -866,26 +881,30 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       }
     });
 
-    // 2. Dalla galleria personalizzata del dispositivo
-    galleryCustomPhotos.forEach(p => {
-      if (canReadLocalLivePhoto(p, activeTripId, currentUid, localGalleryRole, isStandaloneExternal) && !map.has(p.url)) {
-        map.set(p.url, p);
-      }
+    // Local copies are private; a linked public post is represented only by its public card.
+    const publicIds = new Set(liveUpdates.map(update => update.id));
+    const localGallery = [...galleryCustomPhotos.filter(p => !(archivedPhoto && p.id === archivedPhoto.id)), ...(archivedPhoto ? [archivedPhoto] : [])];
+    localGallery.forEach(p => {
+      if (p.liveUpdateId && publicIds.has(p.liveUpdateId)) return;
+      if (canReadLocalLivePhoto(p, activeTripId, currentUid, localGalleryRole, isStandaloneExternal) && !map.has(p.url)) map.set(p.url, p);
     });
 
-    // 3. Fallback foto singola custom legacy se non ancora inclusa
-    if (customPhoto && canReadLocalLivePhoto(customPhoto, activeTripId, currentUid, localGalleryRole, isStandaloneExternal) && customPhoto.dataUrl && !map.has(customPhoto.dataUrl)) {
+    // Legacy single-photo cache: never show a second copy of an archived/linked photo.
+    const represented = localGallery.some(p => p.tripId === customPhoto?.tripId && p.userId === customPhoto?.userId &&
+      (p.url === customPhoto?.dataUrl || (p.caption === customPhoto?.caption && p.timestamp === Date.parse(customPhoto?.timestamp || ''))));
+    if (customPhoto && !represented && !(archivedPhoto && customPhoto.caption === 'Foto pre-partenza'
+        && archivedPhoto.tripId === customPhoto.tripId && archivedPhoto.userId === customPhoto.userId)
+      && canReadLocalLivePhoto(customPhoto, activeTripId, currentUid, localGalleryRole, isStandaloneExternal)
+      && customPhoto.dataUrl && !map.has(customPhoto.dataUrl)) {
       map.set(customPhoto.dataUrl, {
-        id: 'sposi_custom_photo',
-        url: customPhoto.dataUrl,
+        id: 'sposi_custom_photo', url: customPhoto.dataUrl,
         caption: customPhoto.caption || 'Foto scattata dagli sposi ❤️',
-        timestamp: new Date(customPhoto.timestamp || Date.now()).getTime(),
-        isCustom: true
+        timestamp: new Date(customPhoto.timestamp || Date.now()).getTime(), isCustom: true
       });
     }
 
     return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
-  }, [liveUpdates, galleryCustomPhotos, customPhoto, activeTripId, currentUid, cloudRole, localGalleryRole, isStandaloneExternal, isOnline]);
+  }, [liveUpdates, galleryCustomPhotos, archivedPhoto, customPhoto, activeTripId, currentUid, cloudRole, localGalleryRole, isStandaloneExternal, isOnline]);
 
   // Backward compatibility per vecchio portal viewer
   const publishedLivePhotos = useMemo(() => {
@@ -965,7 +984,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     if (compressedDataUrl.length > 700_000) {
       throw new Error('Foto troppo grande per la cache locale del dispositivo. Conserva l’originale nel rullino del telefono.');
     }
-    const photoId = crypto.randomUUID();
+    const photoId = await stableLivePhotoId(compressedDataUrl);
+    if (syncingOfflinePhotoIdsRef.current.has(photoId)) throw new Error('Questa foto è già in pubblicazione.');
     const localPhoto: LiveGalleryPhotoItem = {
       id: photoId, tripId: activeTripId, userId: currentUid, url: compressedDataUrl,
       caption: caption || 'Foto dal viaggio',
@@ -975,7 +995,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     try {
       const stored = JSON.parse(localStorage.getItem('hounigo_live_gallery') || '[]');
       const MAX_GALLERY_CHARS = 1_800_000;
-      const candidateList = [localPhoto, ...(Array.isArray(stored) ? stored : [])].slice(0, 12);
+      const candidateList = [localPhoto, ...(Array.isArray(stored) ? stored.filter(p => !(p.id === photoId && p.tripId === activeTripId && p.userId === currentUid)) : [])].slice(0, 12);
       const saved: LiveGalleryPhotoItem[] = [];
       let totalChars = 2;
       for (const item of candidateList) {
@@ -986,30 +1006,20 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       }
       try {
         localStorage.setItem('hounigo_live_gallery', JSON.stringify(saved));
-        localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify({ tripId: activeTripId, userId: currentUid,
-          dataUrl: compressedDataUrl, caption: localPhoto.caption, timestamp: new Date().toISOString() }));
+
       } catch { throw new Error('Foto non pubblicata: spazio sul dispositivo esaurito. Conserva l’originale nel rullino e libera spazio.'); }
       setGalleryCustomPhotos(saved);
       if (!isOnline || (cloudRole !== 'owner' && cloudRole !== 'copilota')) {
         throw new Error('Foto salvata sul dispositivo. Sarà pubblicata al ritorno online con una sessione autorizzata.');
       }
-      const { uploadLivePhoto } = await import('../../services/liveStorageService');
-      const uploadRes = await uploadLivePhoto(activeTripId, compressedDataUrl, undefined, currentUid);
       const stillQueued = () => auth.currentUser?.uid === currentUid && !isTripAuthRevoked(activeTripId)
-        && JSON.parse(localStorage.getItem('hounigo_live_gallery') || '[]').some((p: LiveGalleryPhotoItem) => p.id === photoId);
-      if (!stillQueued()) {
-        const { deleteLivePhoto } = await import('../../services/liveStorageService');
-        await deleteLivePhoto(activeTripId, uploadRes.downloadUrl);
-        throw new Error('Pubblicazione annullata o sessione cambiata.');
-      }
-      const postId = await liveService.publishToLive(activeTripId, { title: localPhoto.caption || 'Nuovo scatto', text: '',
-        photoUrl: uploadRes.downloadUrl, locationName: currentLocation?.city || undefined });
-      if (!stillQueued()) {
-        await liveService.deleteLiveUpdate(activeTripId, postId);
-        throw new Error('Pubblicazione annullata o sessione cambiata.');
-      }
+        && JSON.parse(localStorage.getItem('hounigo_live_gallery') || '[]').some((p: LiveGalleryPhotoItem) => p.id === photoId && p.tripId === activeTripId && p.userId === currentUid);
+      const uploadRes = await publishLivePhotoOnce(activeTripId, compressedDataUrl, {
+        title: localPhoto.caption || 'Nuovo scatto', text: '', locationName: currentLocation?.city || undefined
+      }, currentUid, stillQueued);
+      if (!stillQueued()) throw new Error('Sessione o foto locale cambiata.');
       setGalleryCustomPhotos(prev => {
-        const updated = prev.map(p => p.id === photoId ? { ...p, url: uploadRes.downloadUrl, isCustom: false, pendingSync: false } : p);
+        const updated = prev.map(p => p.id === photoId && p.tripId === activeTripId && p.userId === currentUid ? { ...p, url: uploadRes.downloadUrl, liveUpdateId: uploadRes.postId, isCustom: false, pendingSync: false } : p);
         localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated.slice(0, 30)));
         return updated;
       });
@@ -1034,22 +1044,22 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
     let cancelled = false;
     (async () => {
-      const { uploadLivePhoto } = await import('../../services/liveStorageService');
       for (const p of pendingPhotos) {
         if (cancelled || isTripAuthRevoked(activeTripId)) break;
+        if (syncingOfflinePhotoIdsRef.current.has(p.id)) continue;
         syncingOfflinePhotoIdsRef.current.add(p.id);
         try {
-          const uploadRes = await uploadLivePhoto(activeTripId, p.url, p.id, p.userId);
-          await liveService.publishToLive(activeTripId, {
-            title: p.caption || 'Nuovo scatto dal vivo 📸',
-            text: '',
-            photoUrl: uploadRes.downloadUrl,
-            locationName: p.location || undefined
-          });
+          const stillQueued = () => auth.currentUser?.uid === currentUid && !isTripAuthRevoked(activeTripId)
+            && JSON.parse(localStorage.getItem('hounigo_live_gallery') || '[]').some((item: LiveGalleryPhotoItem) =>
+              item.id === p.id && item.tripId === activeTripId && item.userId === currentUid && item.pendingSync === true);
+          const uploadRes = await publishLivePhotoOnce(activeTripId, p.url, {
+            title: p.caption || 'Nuovo scatto dal vivo 📸', text: '', locationName: p.location || undefined
+          }, currentUid, stillQueued);
+          if (!stillQueued()) continue;
           setGalleryCustomPhotos(prev => {
             const updated = prev.map(item =>
-              item.id === p.id
-                ? { ...item, url: uploadRes.downloadUrl, isCustom: false, pendingSync: false }
+              item.id === p.id && item.tripId === activeTripId && item.userId === currentUid
+                ? { ...item, url: uploadRes.downloadUrl, liveUpdateId: uploadRes.postId, isCustom: false, pendingSync: false }
                 : item
             );
             try {
