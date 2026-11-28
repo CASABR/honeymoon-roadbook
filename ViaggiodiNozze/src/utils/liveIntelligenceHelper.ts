@@ -364,7 +364,15 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
   }
 
   // 2.C Controllo Tappa del giorno come fallback di contesto
-  const currentDayTappa = tappe.find(t => !isTaskTappa(t) && (t.data || t.date) === todayStr);
+  // A database's insertion order is not the itinerary's chronological order.
+  const todayStops = tappe.filter(t => !isTaskTappa(t) && (t.data || t.date) === todayStr);
+  const timedStops = todayStops
+    .filter(t => /^\d{1,2}:\d{2}$/.test(t.orario || t.time || ''))
+    .map(t => ({ t, ms: parseDateTime(todayStr, t.orario || t.time)?.getTime() ?? Infinity }))
+    .sort((a, b) => a.ms - b.ms || (a.t.order ?? 0) - (b.t.order ?? 0));
+  const currentDayTappa = timedStops.filter(t => t.ms <= nowMs).at(-1)?.t
+    || timedStops[0]?.t
+    || [...todayStops].sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.id.localeCompare(b.id))[0];
 
   // L'alloggio non viene usato automaticamente come posizione attuale.
   const currentEvent: LiveTimelineEvent | null =
@@ -374,7 +382,7 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
       ? {
           type: 'tappa',
           title: currentDayTappa.titolo,
-          subtitle: currentDayTappa.nota || undefined,
+          subtitle: undefined,
           locationName: currentDayTappa.titolo,
           coords: currentDayTappa.coordinate || lookupKnownCoordinate(currentDayTappa.titolo) || undefined,
           confidence: 'approximate',
@@ -453,21 +461,18 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
     }
   }
 
-  // Tappe future se non ci sono attività future
-  if (futureCandidates.length === 0) {
-    for (const tp of tappe) {
-      if (isTaskTappa(tp)) continue;
-      const tpDate = tp.data || tp.date;
-      if (tpDate && tpDate > todayStr) {
-        futureCandidates.push({
-          date: tpDate,
-          time: tp.orario || tp.time || 'Tappa prevista',
-          title: tp.titolo,
-          location: tp.titolo,
-          coords: tp.coordinate || lookupKnownCoordinate(tp.titolo) || undefined,
-          ms: parseDateTime(tpDate, '09:00')?.getTime() || 0
-        });
-      }
+  // Timed stops compete chronologically with activities and transfers, including today.
+  for (const tp of tappe) {
+    if (isTaskTappa(tp)) continue;
+    const tpDate = tp.data || tp.date;
+    const tpTime = tp.orario || tp.time;
+    if (!tpDate || !tpTime || !/^\d{1,2}:\d{2}$/.test(tpTime)) continue;
+    const dt = parseDateTime(tpDate, tpTime);
+    if (dt && dt.getTime() > nowMs) {
+      futureCandidates.push({
+        date: tpDate, time: tpTime, title: tp.titolo, location: tp.titolo,
+        coords: tp.coordinate || lookupKnownCoordinate(tp.titolo) || undefined, ms: dt.getTime()
+      });
     }
   }
 
