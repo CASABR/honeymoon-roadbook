@@ -2282,15 +2282,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         className={`hounigo-timeline-item transition-colors duration-200 ${(isCheckinCallout || (isTransport && item.id.endsWith('_arrival'))) ? 'hounigo-ipad-landscape-span-full' : ''} ${highlightedCardId === item.id ? 'hounigo-card-highlighted' : ''}`}
                         style={{ animationDelay: `${Math.min(idx * 28, 168)}ms` }}
                       >
+                        <div className={isActiveNow ? 'hounigo-card-active-now' : undefined}>
                         {isActiveNow && (
-                          <div className="mb-1 flex items-center gap-1.5 px-1">
-                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFF0ED] dark:bg-rose-950/60 border border-[#FF6B5F]/35 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#E11D48] dark:text-[#FF6B5F]">
-                              <span className="h-1.5 w-1.5 rounded-full bg-[#FF6B5F]" aria-hidden="true" />
-                              {activeTimelineFocus.reason === 'ongoing_or_imminent' ? 'Attiva adesso' : 'Prossima ora'}
-                            </span>
+                          <div className="hounigo-card-active-label">
+                            <span className="h-2 w-2 rounded-full bg-[#44201c]" aria-hidden="true" />
+                            {activeTimelineFocus.reason === 'ongoing_or_imminent' ? 'Attiva adesso' : 'Prossima ora'}
                           </div>
                         )}
-                        <div className={isActiveNow ? 'hounigo-card-active-now' : undefined}>
                         {isCheckinCallout ? (
                           /* Tappa informativa rapida per check-in */
                           <div
