@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-27T14:23:30Z",
+  "requestedAt": "2026-11-28T09:20:00Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.44-docx-word-fix-20261127",
+  "requestId": "release-1.7.45-trip-photo-20261128",
   "requestedBy": "CASABR",
-  "ref": "4f6ccb11dce3e2eaa67ba6f51c80916864dd1854",
+  "ref": "79e813dabd9d0721f9318fa5d7b4c3404081c311",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.44: esportazione Word (.docx) tramite libreria ufficiale docx, pienamente compatibile con Microsoft Word."
+  "note": "HOUNIGO 1.7.45: ripristino foto primo giorno e condivisione volontaria dalle tappe; PR #15 CI superata."
 }
