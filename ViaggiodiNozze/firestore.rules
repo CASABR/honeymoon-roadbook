@@ -1172,7 +1172,12 @@ service cloud.firestore {
 
       // Isolated public projection: only a coarse point and timestamp, never itinerary records.
       match /planned_location/{projectionId} {
-        allow get: if projectionId == 'current';
+        allow get: if projectionId == 'current' && (resource == null ||
+          (resource.data.keys().hasOnly(['lat', 'lng', 'updatedAt']) && resource.data.updatedAt is number
+            && ((!('lat' in resource.data) && !('lng' in resource.data))
+                || (resource.data.lat is number && resource.data.lng is number
+                    && resource.data.lat >= -90 && resource.data.lat <= 90
+                    && resource.data.lng >= -180 && resource.data.lng <= 180))));
         allow list: if false;
         allow create, update: if projectionId == 'current'
           && isTripOwner(tripId)
