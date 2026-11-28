@@ -351,7 +351,7 @@ export function resolveTripActiveCard(
   }
 
   const upcoming = actionable
-    .filter(entry => nowMs < entry.startMs - 15 * 60_000)
+    .filter(entry => nowMs < entry.startMs - 15 * 60_000 && entry.startMs - nowMs <= 60 * 60_000)
     .sort((a, b) => {
       if (a.startMs !== b.startMs) return a.startMs - b.startMs;
       return a.confirmed === b.confirmed ? 0 : (a.confirmed ? -1 : 1);

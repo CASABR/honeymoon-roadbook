@@ -422,6 +422,22 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
     }
   }
 
+  // A scheduled city is a coarse itinerary fallback, not a live fix or an exact venue.
+  // Never project a point during a transport, or use guest/private data outside this internal branch.
+  if (!plannedLocation?.coords && !currentEvent?.isTransportInProgress) {
+    const dayLocation = giorni.find(g => g.date === todayStr)?.location;
+    const dayCoords = dayLocation ? lookupKnownCoordinate(dayLocation) : null;
+    if (dayCoords && dayLocation) {
+      plannedLocation = {
+        title: dayLocation,
+        locationName: dayLocation,
+        coords: dayCoords,
+        confidence: 'approximate',
+        explanation: 'Posizione indicativa della località programmata per oggi; non è il GPS né la posizione esatta della tappa.'
+      };
+    }
+  }
+
   // 4. Calcolo Prossima Attività / Tappa (Next Event)
   let nextEvent: NextTimelineEvent | null = null;
 
