@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.46 — 2026-11-28
+
+- Risposte LIVE compatte sotto il messaggio o commento originale.
+- Mappa LIVE con selettori visibili agli ospiti e tappe ordinate per orario locale.
+- Notifiche senza auto-avvisi e protezione contro i doppi invii.
+
 ## 1.7.45 — 2026-11-28
 
 - Ripristino della foto ricordo nel primo giorno del viaggio.
@@ -44,7 +50,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Retro Trasporti uniforme per tutte le sottocategorie, con campi specifici e dati precedenti preservati.
 - Aereo: retro e fronte ridisegnati per mobile, campi editabili, avvisi leggibili, terminal e posti adattivi e azioni accessibili.
-
-## 1.7.36 — 2026-11-26
-
-- Retro Treno compatto: binario, carrozza e posti separati, cambio treno dedicato, fusi automatici per località riconosciute e note collassate, con compatibilità dei dati precedenti.
