@@ -5,12 +5,14 @@ import {
   idbGetAll,
   idbGet,
   idbPut,
+  idbApplyDayStopBatch,
   idbDelete,
   getActiveTripId,
   MASTER_TRIP_ID
 } from './indexedDB';
 import { formatDateIT, normalizeTimestamp } from '../utils/tripDates';
-import { assertCanMutate } from '../utils/useAuthIdentity';
+import { assertCanMutate, getAuthorizedLocalEditorRole } from '../utils/useAuthIdentity';
+import { isProtectedStop, matchingStops, type DayPlanRow } from '../utils/dayPlanImport';
 import { auth } from '../firebase';
 import { compareTimelineItems } from '../utils/timelineOrdering';
 import { sortDeadlines } from '../utils/deadlines';
@@ -917,6 +919,35 @@ class StorageService {
       console.error('[StorageService] Errore lettura tappe per data:', err);
       return [];
     }
+  }
+
+  async applyDayPlan(tripId: string, uid: string, date: string,
+    rows: { row: DayPlanRow; before?: Tappa }[], snapshot: Tappa[]): Promise<number> {
+    const mayContinue = () => Boolean(getActiveTripId() === tripId && auth.currentUser?.uid === uid &&
+      getAuthorizedLocalEditorRole(tripId, uid));
+    assertCanMutate('tappe');
+    if (!mayContinue() || !rows.length || rows.length > 30) throw new Error('Viaggio o sessione non autorizzati.');
+    const sameDay = (t: Tappa) => (t.data || t.date) === date;
+    const changes = rows.map(({row, before}) => {
+      if (before && (!sameDay(before) || isProtectedStop(before) || this.isTombstoneActiveSync('tappe',before.id))) throw new Error('Tappa protetta: nessuna modifica applicata.');
+      const now = Date.now();
+      const after: Tappa = before
+        ? { ...before, orario:row.time, time:row.time, ...computeMonotonicUpdatedAt(before) }
+        : { id: crypto.randomUUID(), titolo:row.title, sottocategoria:'Tappa', data:date, date, dayId:'day_'+date,
+            orario:row.time, time:row.time, nota:row.notes, notes:row.notes, createdAt:now, updatedAt:now };
+      return { before, after };
+    });
+    await idbApplyDayStopBatch(tripId, changes, mayContinue, current => {
+      const active = current.filter(t => sameDay(t) && !this.isTombstoneActiveSync('tappe',t.id));
+      const fingerprint = (list: Tappa[]) => JSON.stringify(list.map(t => [t.id,t.updatedAt]).sort((a,b)=>String(a[0]).localeCompare(String(b[0]))));
+      return fingerprint(active) === fingerprint(snapshot) && rows.every(({row,before}) => {
+        const matches = matchingStops(row,active);
+        return before ? matches.length === 1 && matches[0].id === before.id && !isProtectedStop(matches[0]) : matches.length === 0;
+      });
+    });
+    this.memoryCache.delete(STORES.TAPPE);
+    for (const item of changes) notifyDataChanged('tappe','save',item.after);
+    return changes.length;
   }
 
   async addTappa(tappa: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Tappa> {
