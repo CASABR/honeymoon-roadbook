@@ -87,6 +87,16 @@ export function formatCompactEuro(val: number): string {
   return `€${rounded.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+/** Presentation-only card badge. Preserve full accounting labels for details and exports. */
+export function resolveCardPaymentBadge(info: PricePaymentInfo): { text: string; className: string; accessibleLabel: string } {
+  const amount = info.isPaid ? info.costNum : info.remainingNum;
+  return {
+    text: `${info.isEstimatedConversion ? '~' : ''}${formatCompactEuro(amount)}`,
+    className: info.isPaid ? 'hounigo-ds-pay-saldato' : 'hounigo-ds-pay-dasaldare',
+    accessibleLabel: info.compactPaymentText
+  };
+}
+
 export function formatEuroExact(val: number): string {
   const rounded = roundEur(val);
   return `${rounded.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
