@@ -145,6 +145,23 @@ async function run() {
   assert.equal(chronology.nextEvent.title, 'Tappa successiva');
   console.log('✓ [PASS] Planned location follows local time, not database order');
 
+  const missingStopCoords = {
+    giorni: [{ id: 'milano', date: '2026-11-28', location: 'Milano' }],
+    tappe: [{ id: 'metro', titolo: 'Metro senza coordinate', data: '2026-11-28', orario: '13:00' }],
+    attivita: [], alloggi: [], trasporti: [],
+    currentDateTime: new Date('2026-11-28T14:21:00+01:00'),
+    tripStartDate: '2026-11-28', tripEndDate: '2027-01-10', timeZone: 'Europe/Rome'
+  };
+  const cityFallback = deriveLiveIntelligence(missingStopCoords);
+  assert.equal(cityFallback.plannedLocation.confidence, 'approximate');
+  assert.equal(cityFallback.plannedLocation.title, 'Milano');
+  assert.ok(cityFallback.plannedLocation.coords);
+  assert.equal(deriveLiveIntelligence({ ...missingStopCoords, isExternalGuest: true }).plannedLocation, null);
+  const duringTransport = deriveLiveIntelligence({ ...missingStopCoords, trasporti: [
+    { type: 'treno', date: '2026-11-28', departureTime: '13:00', arrivalTime: '15:00', departureLocation: 'Roma', arrivalLocation: 'Milano' }
+  ] });
+  assert.equal(duringTransport.plannedLocation.coords, undefined);
+
   const postTrip = deriveLiveIntelligence({
     giorni: [],
     attivita: [],
