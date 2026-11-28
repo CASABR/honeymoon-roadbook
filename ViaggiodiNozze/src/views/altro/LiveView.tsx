@@ -1492,7 +1492,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   }, [days, activities, tappe, accommodations, transports, now, tripRange, activeTripId, liveFeedTransports, remoteGpsLocation, liveGpsState, isStandaloneExternal, plannedTimeZone]);
 
   const publicPlannedLocation = useLivePublicPlannedLocation(
-    activeTripId, isStandaloneExternal, cloudRole === 'owner' && !loading,
+    activeTripId, isStandaloneExternal, cloudRole === 'owner' && !loading && isOnline && Boolean(tripRange),
     liveIntelligence?.tripStatus === 'in_trip' ? liveIntelligence.plannedLocation?.coords : undefined,
     now.getTime()
   );
