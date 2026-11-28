@@ -32,10 +32,10 @@ export function parseDayPlan(raw: string): DayPlan {
         row = { time, title, category, ...(value ? {notes:value} : {}) };
       } else if (category === 'ristorante' && parts.length >= 4 && parts.length <= 5 && ['Colazione','Pranzo','Cena','Aperitivo','Altro'].includes(value)) {
         row = { time, title, category, meal:value as DayPlanRow['meal'], ...(endOrNote ? {notes:endOrNote} : {}) };
-      } else if (category === 'metro' && parts.length >= 4 && parts.length <= 5) {
-        const [from,to,...rest] = title.split(' → ').map(v => v.trim());
-        if (!from || !to || rest.length || !validTime(value) || value < time || (endOrNote && endOrNote.length > 500) || notes) throw new Error('Metro: specifica partenza → arrivo e orario di arrivo.');
-        row = { time, title, category, from, to, endTime:value, ...(endOrNote ? {notes:endOrNote} : {}) };
+      } else if (category === 'metro' && parts.length >= 5 && parts.length <= 6) {
+        const [from,to,...rest] = (value || '').split(' → ').map(v => v.trim());
+        if (!from || !to || rest.length || !validTime(endOrNote) || endOrNote < time || (notes && notes.length > 500)) throw new Error('Metro: specifica partenza → arrivo e orario di arrivo.');
+        row = { time, title, category, from, to, endTime:endOrNote, ...(notes ? {notes} : {}) };
       } else throw new Error('Categoria o formato non valido: ' + line.slice(0,70));
     }
     if (!validTime(row.time) || !row.title || row.title.length > 120 || !norm(row.title) || (row.notes?.length || 0) > 500) throw new Error('Riga non valida: ' + line.slice(0,70));
