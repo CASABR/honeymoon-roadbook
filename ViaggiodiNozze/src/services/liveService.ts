@@ -548,20 +548,30 @@ export const liveService = {
       // Revoke the stored object BEFORE removing its reference. A failed revoke must
       // remain visible/retryable; a local tombstone must never hide an unsuccessful deletion.
       const updateRef = doc(db, 'live_feeds', tripId, 'updates', updateId);
-      const existing = await getDoc(updateRef);
-      const photoUrl = existing.exists() ? existing.data()?.photoUrl : null;
+      const existing = await getDocFromServer(updateRef);
+      if (!existing.exists()) {
+        this.recordLocalUpdateTombstone(tripId, updateId);
+        return;
+      }
+      const data = existing.data();
+      if (data.deleted === true) {
+        this.recordLocalUpdateTombstone(tripId, updateId);
+        return;
+      }
+      const photoUrl = data.photoUrl;
       if (photoUrl) {
-        const { deleteLivePhoto } = await import('./liveStorageService');
-        await deleteLivePhoto(tripId, photoUrl);
+        const { deleteLivePhoto, isManagedLivePhoto } = await import('./liveStorageService');
+        // Legacy or inherited URLs may point to an original outside LIVE. Never destroy that original.
+        if (isManagedLivePhoto(photoUrl)) await deleteLivePhoto(tripId, photoUrl);
       }
-      if (tripId === '0000') {
-        await updateDoc(updateRef, {
-          title: '[Eliminato]', text: '', photoUrl: '', deleted: true,
-          deletedAt: Date.now(), deletedBy: user.uid,
-        });
-      } else {
-        await deleteDoc(updateRef);
-      }
+      if (auth.currentUser?.uid !== user.uid) throw new Error('Sessione cambiata. Riapri il LIVE.');
+      // Replace legacy fields with a valid tombstone. Preserve a stable ID even on other trips
+      // so an interrupted upload cannot resurrect the photo. No original travel record is touched.
+      await setDoc(updateRef, {
+        title: '[Eliminato]', text: '', photoUrl: '', deleted: true,
+        publicSchemaVersion: 2, timestamp: typeof data.timestamp === 'number' ? data.timestamp : Date.now(),
+        deletedAt: Date.now(), deletedBy: user.uid,
+      });
       this.recordLocalUpdateTombstone(tripId, updateId);
     }
   },
