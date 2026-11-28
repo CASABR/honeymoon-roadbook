@@ -32,7 +32,7 @@ export function parseDayPlan(raw: string): DayPlan {
         row = { time, title, category, ...(value ? {notes:value} : {}) };
       } else if (category === 'ristorante' && parts.length >= 4 && parts.length <= 5 && ['Colazione','Pranzo','Cena','Aperitivo','Altro'].includes(value)) {
         row = { time, title, category, meal:value as DayPlanRow['meal'], ...(endOrNote ? {notes:endOrNote} : {}) };
-      } else if (category === 'metro' && parts.length >= 5 && parts.length <= 6) {
+      } else if (category === 'metro' && parts.length >= 4 && parts.length <= 5) {
         const [from,to,...rest] = title.split(' → ').map(v => v.trim());
         if (!from || !to || rest.length || !validTime(value) || value < time || (endOrNote && endOrNote.length > 500) || notes) throw new Error('Metro: specifica partenza → arrivo e orario di arrivo.');
         row = { time, title, category, from, to, endTime:value, ...(endOrNote ? {notes:endOrNote} : {}) };
@@ -54,7 +54,17 @@ export function matchingStops(row: DayPlanRow, existing: Tappa[]): Tappa[] {
 }
 
 export function dayPlanCategory(row: DayPlanRow): DayPlanCategory { return row.category || 'tappa'; }
+export function isUnstructuredMetro(row: DayPlanRow): boolean { return !row.category && /^metro\b/i.test(row.title); }
 export function dayPlanRestaurantName(row: DayPlanRow): string { return row.title.replace(/^(cena|pranzo|colazione|aperitivo)\s+/i,'').trim(); }
 export function dayPlanTitleMatches(a: string, b: string): boolean {
   return norm(a.replace(/^(cena|pranzo|colazione|aperitivo)\s+/i,'')) === norm(b.replace(/^(cena|pranzo|colazione|aperitivo)\s+/i,''));
+}
+
+/** Conversion is opt-in, and only for plain itinerary stops with no linked or enriched data. */
+export function canConvertPlainStop(stop: Tappa): boolean {
+  if (isProtectedStop(stop)) return false;
+  const allowed = new Set(['id','titolo','sottocategoria','data','date','dayId','orario','time','timeStatus','nota','notes','noteCopilota','mostraNoteInCard','copilota','completed','createdAt','updatedAt','baseUpdatedAt','publicSchemaVersion','lastSanitizedAt','_enriched']);
+  return Object.entries(stop).every(([key,value]) => allowed.has(key) || value === undefined || value === null || value === '' || value === false || (Array.isArray(value) && !value.length))
+    && (!stop.sottocategoria || stop.sottocategoria === 'Tappa')
+    && !(stop as Tappa & {_enriched?:boolean})._enriched;
 }
