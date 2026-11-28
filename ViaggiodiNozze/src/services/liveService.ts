@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, writeBatch, onSnapshot, query, orderBy, where, setDoc, limit, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
+import { collection, doc, getDoc, writeBatch, runTransaction, getDocFromServer, onSnapshot, query, orderBy, where, setDoc, limit, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import {
   toPublicUpcomingTransportsFeedProjection,
@@ -201,6 +201,30 @@ export async function verifyPrivilegedLivePublisher(
   };
 }
 
+// A stable image mutation never overwrites an existing public post or its reactions.
+export async function getStableLivePhoto(tripId: string, mutationId: string): Promise<{ photoUrl: string; deleted: boolean } | null> {
+  if (!/^photo_[a-f0-9]{64}$/.test(mutationId)) throw new Error('Identificativo foto non valido.');
+  const snap = await getDocFromServer(doc(db, 'live_feeds', tripId, 'updates', mutationId));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return { photoUrl: typeof data.photoUrl === 'string' ? data.photoUrl : '', deleted: data.deleted === true };
+}
+
+export async function ensureStablePhotoVisible(tripId: string, url: string, postId: string): Promise<void> {
+  const { isManagedLivePhoto, confirmLivePhotoPublication } = await import('./liveStorageService');
+  if (!isManagedLivePhoto(url)) throw new Error('Foto LIVE non valida.');
+  const visible = async () => {
+    try {
+      const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(15000) });
+      void response.body?.cancel().catch(() => {});
+      return response.ok;
+    } catch { return false; }
+  };
+  if (await visible()) return;
+  try { await confirmLivePhotoPublication(tripId, url, postId); }
+  catch (error) { if (!await visible()) throw error; }
+}
+
 export const liveService = {
   /**
    * Pubblica un aggiornamento nel feed pubblico del viaggio.
@@ -240,21 +264,48 @@ export const liveService = {
     }
     if (safe.locationName && !headerPatch.currentCity) headerPatch.currentCity = safe.locationName;
 
-    const batch = writeBatch(db);
-    batch.set(updateRef, {
+    const payload = {
       ...safe,
       publicSchemaVersion: 2,
       timestamp: now,
       reactionCounts: { '❤️': 0, '😍': 0, '😂': 0, '👋': 0 },
-    });
-    batch.set(feedRef, headerPatch, { merge: true });
-    await batch.commit();
+    };
+    const stablePhoto = Boolean(safe.photoUrl && clientMutationId && /^photo_[a-f0-9]{64}$/.test(clientMutationId));
+    if (stablePhoto) {
+      const existing = await runTransaction(db, async transaction => {
+        const snap = await transaction.get(updateRef);
+        if (snap.exists()) return snap.data();
+        transaction.set(updateRef, payload);
+        transaction.set(feedRef, headerPatch, { merge: true });
+        return null;
+      });
+      if (existing) {
+        if (existing.photoUrl !== safe.photoUrl) {
+          const { deleteLivePhoto } = await import('./liveStorageService');
+          await deleteLivePhoto(tripId, safe.photoUrl!).catch(() => {});
+        }
+        if (existing.deleted === true || typeof existing.photoUrl !== 'string' || !existing.photoUrl) {
+          throw new Error('Questa foto è stata rimossa dal LIVE; non viene ripubblicata automaticamente.');
+        }
+        await ensureStablePhotoVisible(tripId, existing.photoUrl, updateRef.id);
+        return updateRef.id;
+      }
+    } else {
+      const batch = writeBatch(db);
+      batch.set(updateRef, payload);
+      batch.set(feedRef, headerPatch, { merge: true });
+      await batch.commit();
+    }
 
     if (safe.photoUrl) {
       const { isManagedLivePhoto, confirmLivePhotoPublication, deleteLivePhoto } = await import('./liveStorageService');
       if (isManagedLivePhoto(safe.photoUrl)) {
-        try { await confirmLivePhotoPublication(tripId, safe.photoUrl, updateRef.id); }
+        try {
+          if (stablePhoto) await ensureStablePhotoVisible(tripId, safe.photoUrl, updateRef.id);
+          else await confirmLivePhotoPublication(tripId, safe.photoUrl, updateRef.id);
+        }
         catch (err) {
+          if (stablePhoto) throw err; // Preserve the same post for an idempotent retry.
           // Also handle a lost publish acknowledgement: revoke any possibly
           // activated URL before hiding the failed postcard reference.
           await deleteLivePhoto(tripId, safe.photoUrl).catch(() => {});
