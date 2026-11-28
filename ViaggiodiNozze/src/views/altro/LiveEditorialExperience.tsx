@@ -955,7 +955,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                           key={mode}
                           type="button"
                           onClick={() => props.onChangeMapCenterMode?.(mode)}
-                          disabled={(mode === 'real' && !hasRealLocation) || (mode === 'planned' && !hasPlannedLocation) || (mode === 'both' && !(hasRealLocation && hasPlannedLocation))}
+                          disabled={mode === 'real' && !hasRealLocation}
                           className={`min-h-9 rounded-full px-2 disabled:opacity-35 ${props.mapCenterMode === mode ? 'bg-[#FF6B5F] text-white' : 'text-white/75'}`}
                           aria-pressed={props.mapCenterMode === mode}
                         >
@@ -964,7 +964,15 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                       ))}
                     </div>
 
-              {props.tileGrid && !props.tileLoadFailed && (hasRealLocation || hasPlannedLocation) ? (
+              {props.mapCenterMode === 'both' && !hasPlannedLocation && (
+                <p role="status" className="mb-2 text-xs text-slate-500 dark:text-slate-400">Programma non ancora disponibile. Mostriamo il GPS, se condiviso.</p>
+              )}
+              {props.mapCenterMode === 'planned' && !hasPlannedLocation ? (
+                <div role="status" data-testid="live-planned-unavailable" className="rounded-2xl border border-slate-200 bg-white p-4 text-sm dark:border-slate-800 dark:bg-slate-900">
+                  <p className="font-bold">Posizione programmata non disponibile</p>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">In attesa di una posizione indicativa condivisa dall'organizzatore. Il GPS non sostituisce il programma.</p>
+                </div>
+              ) : props.tileGrid && !props.tileLoadFailed && (hasRealLocation || hasPlannedLocation) ? (
                 <div className="relative min-h-[300px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[420px] lg:min-h-[340px] lg:h-[calc(100dvh-16rem)] lg:max-h-[430px] xl:h-auto xl:min-h-[460px] xl:max-h-none">
                   <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
                     <div
