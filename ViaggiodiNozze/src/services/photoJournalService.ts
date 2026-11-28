@@ -11,6 +11,7 @@ export interface JournalPhotoRecord {
   id: string;
   url: string;
   caption?: string;
+  captionUpdatedAt?: number;
   location?: string;
   timestamp: number;
   isCustom: true;
@@ -55,7 +56,8 @@ export function getPredeparturePhoto(tripId: string, userId = getJournalUserId()
 export async function loadPredeparturePhoto(tripId: string, userId = getJournalUserId()): Promise<JournalPhotoRecord | null> {
   const archived = await readArchivedPredeparturePhoto(tripId, userId).catch(() => null);
   const gallery = getPredeparturePhoto(tripId, userId);
-  const existing = gallery && (!archived || gallery.timestamp > archived.timestamp) ? gallery : archived || gallery;
+  const existing = gallery && (!archived || gallery.timestamp > archived.timestamp ||
+    (gallery.id === archived.id && (gallery.captionUpdatedAt || 0) > (archived.captionUpdatedAt || 0))) ? gallery : archived || gallery;
   if (existing) {
     if (existing !== archived) await writeArchivedPredeparturePhoto(existing).catch(() => {});
     return existing;
@@ -97,6 +99,20 @@ export async function savePredeparturePhotoDurably(tripId: string, dataUrl: stri
   };
   await persistPredepartureRecord(photo);
   return photo;
+}
+
+/** Private caption edit: never upload or alter an existing public post implicitly. */
+export async function updatePredepartureCaption(photo: JournalPhotoRecord, caption: string): Promise<JournalPhotoRecord> {
+  if (photo.userId !== getJournalUserId()) throw new Error('Sessione cambiata.');
+  const current = await loadPredeparturePhoto(photo.tripId, photo.userId);
+  if (!current || current.id !== photo.id || current.url !== photo.url || current.userId !== getJournalUserId()) {
+    throw new Error('Foto ricordo cambiata: riaprila prima di modificare la didascalia.');
+  }
+  const clean = caption.trim().slice(0, 300);
+  const updated = { ...current, caption: clean || 'Foto pre-partenza',
+    captionUpdatedAt: Math.max(Date.now(), (current.captionUpdatedAt || 0) + 1) };
+  await persistPredepartureRecord(updated);
+  return updated;
 }
 
 export async function linkPredeparturePhotoToLive(photo: JournalPhotoRecord, liveUpdateId: string): Promise<JournalPhotoRecord> {
