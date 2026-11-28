@@ -30,6 +30,7 @@ interface DesktopNavigationProps {
   tripConfig: TripConfig | null;
   bookingsCount?: number;
   onToggleMobileView?: () => void;
+  onToggleTabletView?: () => void;
 }
 
 export default function DesktopNavigation({
@@ -38,7 +39,8 @@ export default function DesktopNavigation({
   onOpenSmartInsert,
   tripConfig,
   bookingsCount = 0,
-  onToggleMobileView
+  onToggleMobileView,
+  onToggleTabletView
 }: DesktopNavigationProps) {
   const { role, isCopilota } = useDeviceRole();
   const { cloudRole } = useAuthIdentity();
@@ -227,6 +229,12 @@ export default function DesktopNavigation({
             <span>Inserimento Smart AI</span>
           </button>
 
+          {onToggleTabletView && (
+            <button type="button" onClick={onToggleTabletView}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 cursor-pointer">
+              <span>▣</span><span>Visualizzazione tablet</span>
+            </button>
+          )}
           {onToggleMobileView && (
             <button
               type="button"
