@@ -1317,6 +1317,26 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       {/* Banner di Onboarding Notifiche al primo accesso */}
       <PushOnboardingBanner />
 
+      {/* Accesso rapido alle foto LIVE, disponibile per tutto il viaggio. */}
+      {canEdit && onNavigateTab && (
+        <button
+          type="button"
+          data-testid="trip-add-live-photo"
+          onClick={() => {
+            try {
+              sessionStorage.setItem('hounigo_live_deeplink', JSON.stringify({
+                liveTab: 'foto', ts: Date.now(),
+              }));
+            } catch {}
+            onNavigateTab('altro', undefined, 'live');
+          }}
+          className="w-full flex items-center justify-center gap-2 min-h-11 rounded-xl border border-[#FF6B5F]/30 bg-[#FFF0ED] px-3 py-2 text-sm font-bold text-[#B83F36] dark:bg-rose-950/30 dark:text-[#FF9A90]"
+        >
+          <span aria-hidden="true">📷</span>
+          Aggiungi foto al LIVE
+        </button>
+      )}
+
       {/* Avviso Persistente Scadenze Urgenti In-App: attivo solo in caso di promemoria attivo per non appesantire l'altezza su mobile */}
       {deadlineSummary.reminders > 0 && deadlineSummary.next && (
         <div className="mx-auto max-w-full rounded-xl border border-amber-300 dark:border-amber-700/80 bg-amber-50/95 dark:bg-amber-950/40 px-3 py-2 text-slate-900 dark:text-slate-100 animate-fade-in flex items-center justify-between gap-2.5">
