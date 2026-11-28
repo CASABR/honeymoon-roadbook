@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.55",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "5370b4f3d0971c14c707bad6468f6ba6b7fbd939",
+      "changes": [
+        "Selettori LIVE Programma e GPS + Programma disponibili, con indicazione esplicita se manca la posizione prevista.",
+        "Evidenziazione automatica delle tappe solo durante l'evento o nell'ora precedente."
+      ],
+      "publishedAtIso": "2026-11-28T13:43:23Z"
+    },
+    {
       "version": "1.7.54",
       "publishedAt": "2026-11-28",
       "sourceCommit": "317e0237c910be0d1553b94e0438a85e90c6a4f3",
@@ -89,16 +99,6 @@
         "Notifiche senza auto-avvisi e protezione contro i doppi invii."
       ],
       "publishedAtIso": "2026-11-28T09:27:45Z"
-    },
-    {
-      "version": "1.7.45",
-      "publishedAt": "2026-11-28",
-      "sourceCommit": "79e813dabd9d0721f9318fa5d7b4c3404081c311",
-      "changes": [
-        "Ripristino della foto ricordo nel primo giorno del viaggio.",
-        "Condivisione volontaria delle fotografie di tappe e attività nel LIVE."
-      ],
-      "publishedAtIso": "2026-11-28T09:21:29Z"
     }
   ]
 }
