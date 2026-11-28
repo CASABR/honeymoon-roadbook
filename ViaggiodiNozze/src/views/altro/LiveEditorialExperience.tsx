@@ -16,6 +16,7 @@ import {
 import LiveNextTransportCard from './LiveNextTransportCard';
 import { getTripConfig } from '../../utils/tripConfig';
 import { groupLiveThreads } from '../../utils/liveThreads';
+import { isTripPhotoOrigin } from '../../utils/livePhotoOrigin';
 import { IMAGE_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
 
 export interface LiveGalleryPhotoItem {
@@ -27,6 +28,7 @@ export interface LiveGalleryPhotoItem {
   isCustom?: boolean;
   pendingSync?: boolean;
   liveUpdateId?: string;
+  inheritedFromTrip?: boolean;
   tripId?: string;
   userId?: string;
 }
@@ -111,7 +113,7 @@ export interface LiveEditorialExperienceProps {
   onCancelOfflineItem?: (id: string) => void;
   galleryPhotos?: LiveGalleryPhotoItem[];
   onUploadPhoto?: (file: File, caption?: string) => Promise<void>;
-  onDeletePhoto?: (photoId: string) => void;
+  onDeletePhoto?: (photoId: string) => Promise<boolean>;
   onDeleteUpdate?: (updateId: string) => Promise<void>;
   guestMessages?: LiveGuestMessage[];
   onSendGuestMessage?: (authorName: string, message: string, replyTo?: LiveReplyTarget | null) => Promise<void>;
@@ -318,7 +320,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         caption: update.title || update.text || 'Scatto dal viaggio',
         location: update.locationName,
         timestamp: update.timestamp || Date.now(),
-        isCustom: false
+        isCustom: false,
+        inheritedFromTrip: isTripPhotoOrigin(update)
       }))
       .sort((a, b) => b.timestamp - a.timestamp);
   }, [props.galleryPhotos, props.updates]);
@@ -333,6 +336,21 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   );
 
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
+  const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const deletePhotoBusy = useRef(false);
+  const removePhoto = async (photo: LiveGalleryPhotoItem, closeLightbox = false) => {
+    if (!props.onDeletePhoto || deletePhotoBusy.current) return;
+    if (!window.confirm('Rimuovere questa foto dal LIVE? La foto originale nelle tappe del viaggio non verrà eliminata.')) return;
+    deletePhotoBusy.current = true;
+    setDeletingPhotoId(photo.id);
+    try {
+      if (await props.onDeletePhoto(photo.id) && closeLightbox) setActiveLightboxIndex(null);
+    } finally {
+      deletePhotoBusy.current = false;
+      setDeletingPhotoId(null);
+    }
+  };
+
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [isGuideControlsOpen, setIsGuideControlsOpen] = useState(false);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -1157,6 +1175,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                     onError={event => { event.currentTarget.style.display = 'none'; }}
                   />
                 </button>
+                {latestPhoto.inheritedFromTrip && !latestPhoto.pendingSync && (
+                  <span data-testid="live-trip-photo-origin" title="Foto proveniente dal viaggio" aria-label="Foto proveniente dal viaggio" className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1.5 text-xs font-bold text-white">
+                    <MapPin className="h-4 w-4" aria-hidden="true" /> Dal viaggio
+                  </span>
+                )}
                 {latestPhoto.pendingSync && !props.isExternal && (
                   <span className="pointer-events-none absolute left-3 top-3 rounded-full bg-amber-500/90 px-2.5 py-1 text-[11px] font-bold text-white shadow-xs">
                     Solo sul dispositivo
@@ -1165,11 +1188,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 {props.canPublish && !props.isExternal && props.onDeletePhoto && (
                   <button
                     type="button"
-                    onClick={() => window.confirm('Eliminare questa foto dal dispositivo?') && props.onDeletePhoto?.(latestPhoto.id)}
+                    disabled={deletingPhotoId !== null}
+                    onClick={() => void removePhoto(latestPhoto)}
                     className="absolute right-3 top-3 min-h-9 rounded-full bg-black/65 px-3 text-xs font-bold text-white cursor-pointer"
                     aria-label="Elimina foto"
                   >
-                    Elimina
+                    {deletingPhotoId === latestPhoto.id ? 'Rimozione…' : 'Elimina'}
                   </button>
                 )}
                 <span className="pointer-events-none absolute bottom-3 right-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-xs">
@@ -1778,16 +1802,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               {props.canPublish && !props.isExternal && props.onDeletePhoto && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const photo = displayPhotos[activeLightboxIndex];
-                    if (window.confirm('Eliminare questa foto dal dispositivo?')) {
-                      props.onDeletePhoto?.(photo.id);
-                      setActiveLightboxIndex(displayPhotos.length <= 1 ? null : Math.max(0, activeLightboxIndex - 1));
-                    }
-                  }}
+                  disabled={deletingPhotoId !== null}
+                  onClick={() => void removePhoto(displayPhotos[activeLightboxIndex], true)}
                   className="min-h-11 rounded-full bg-rose-500/20 px-3.5 text-xs font-bold text-rose-300 hover:bg-rose-500/30"
                 >
-                  Elimina
+                  {deletingPhotoId === displayPhotos[activeLightboxIndex].id ? 'Rimozione…' : 'Elimina'}
                 </button>
               )}
               <button
@@ -1838,7 +1857,10 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
           <div className="relative z-10 shrink-0 mx-auto w-full max-w-xl px-4 pb-3" onClick={event => event.stopPropagation()}>
             <div className="text-center">
-              <p className="text-sm font-bold">{displayPhotos[activeLightboxIndex].caption || 'Momento dal viaggio'}</p>
+              <p className="flex items-center gap-1.5 text-sm font-bold">
+                {displayPhotos[activeLightboxIndex].inheritedFromTrip && <MapPin className="h-4 w-4 shrink-0 text-[#FF9A90]" aria-label="Foto proveniente dal viaggio" />}
+                {displayPhotos[activeLightboxIndex].caption || 'Momento dal viaggio'}
+              </p>
               {displayPhotos[activeLightboxIndex].location && (
                 <p className="mt-0.5 text-xs text-white/65">{displayPhotos[activeLightboxIndex].location}</p>
               )}
