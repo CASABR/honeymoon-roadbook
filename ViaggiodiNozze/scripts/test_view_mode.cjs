@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');const path=require('node:path');const vm=require('node:vm');const ts=require('typescript');
+const exportsObject={};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/utils/viewMode.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:exportsObject});
+const {resolveViewMode,readViewMode}=exportsObject;
+assert.equal(resolveViewMode('auto',1133,744,true),'tablet');
+assert.equal(resolveViewMode('auto',744,1133,true),'tablet');
+assert.equal(resolveViewMode('auto',393,852,true),'mobile');
+assert.equal(resolveViewMode('auto',852,393,true),'mobile');
+assert.equal(resolveViewMode('auto',1440,900,false),'desktop');
+assert.equal(resolveViewMode('tablet',500,1133,true),'mobile');
+assert.equal(readViewMode(null,'mobile',1133,744,true),'auto');
+assert.equal(readViewMode('mobile','desktop',1133,744,true),'mobile');
+assert.equal(readViewMode(null,'mobile',1440,900,false),'mobile');
+console.log('PASS: tablet detection, saved preference, legacy migration, native mobile and desktop');

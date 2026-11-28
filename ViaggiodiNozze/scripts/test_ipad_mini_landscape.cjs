@@ -168,6 +168,31 @@ async function run() {
       assert.equal(await button.locator('.hounigo-ds-btn-text').count(), 0, 'Solo icona');
       assert.ok((await button.getAttribute('aria-label')).includes('Duplica'));
     }
+    // Tablet mode must use the real width and retain touch navigation in both orientations.
+    await page.getByRole('button', { name: 'Visualizzazione tablet' }).click();
+    await page.locator('[data-view-mode="tablet"]').waitFor({state:'visible'});
+    const readTablet = () => page.evaluate(() => {
+      const shell = document.querySelector('.app-tablet-view');
+      const grid = shell.querySelector('.hounigo-ipad-landscape-timeline');
+      const dock = document.querySelector('.app-tablet-dock .app-bottom-nav');
+      const cards = Array.from(grid.querySelectorAll('.hounigo-timeline-item'));
+      return { width: shell.getBoundingClientRect().width, viewport: innerWidth,
+        overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        columns: getComputedStyle(grid).display === 'grid' ? getComputedStyle(grid).gridTemplateColumns.split(' ').length : 1,
+        dockVisible: !!dock && dock.getBoundingClientRect().height > 0, count:cards.length,
+        sidebar: !!document.querySelector('.app-desktop-navigation') };
+    });
+    let tablet = await readTablet();
+    assert.ok(tablet.width >= tablet.viewport - 5 && !tablet.overflow && tablet.columns === 2 && tablet.dockVisible && !tablet.sidebar && tablet.count >= 2, 'Tablet landscape: full width, 2 columns, bottom dock');
+    await page.setViewportSize({width:744,height:1133});
+    await page.waitForTimeout(300);
+    tablet=await readTablet();
+    assert.ok(tablet.width >= tablet.viewport - 5 && !tablet.overflow && tablet.columns === 1 && tablet.dockVisible && tablet.count >= 2, 'Tablet portrait: full width, one column, day preserved');
+    await page.setViewportSize({width:1133,height:744});
+    await page.waitForTimeout(250);
+    await page.getByRole('button',{name:'Torna a Desktop'}).click();
+    await page.locator('.app-desktop-navigation').waitFor({state:'visible'});
+
     // Forced mobile layout must use a single full-width card per row, even in landscape.
     await page.getByRole('button', { name: 'Visualizzazione mobile' }).click();
     await page.locator('.app-forced-mobile .hounigo-ipad-landscape-timeline').waitFor({state:'visible'});

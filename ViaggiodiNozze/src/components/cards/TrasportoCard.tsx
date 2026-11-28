@@ -12,6 +12,7 @@ import { resolvePaymentInfo, resolveCardPaymentBadge, formatCompactEuro } from '
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import CardHeaderTimeBadge from './CardHeaderTimeBadge';
+import { findFlightContinuation, type FlightContinuation } from '../../utils/flightContinuation';
 
 export interface TrasportoCardProps {
   transport: Trasporto;
@@ -192,6 +193,25 @@ export default function TrasportoCard({
     (window.location.hash || '').toLowerCase().includes('live')
   );
   const canSeePrivateInfo = !isExternalLiveView && deviceCanSeePrivate;
+  const [continuation, setContinuation] = useState<FlightContinuation | null>(null);
+  React.useEffect(() => {
+    setContinuation(null);
+    if (isExternalLiveView || transport.type !== 'volo' || transport.layover) return;
+    let cancelled = false;
+    const refresh = async () => {
+      const flights = await storageService.getTransports();
+      if (!cancelled) setContinuation(findFlightContinuation(transport, flights));
+    };
+    void refresh();
+    window.addEventListener('roadbook_data_mutated', refresh);
+    window.addEventListener('roadbook_cloud_synced', refresh);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('roadbook_data_mutated', refresh);
+      window.removeEventListener('roadbook_cloud_synced', refresh);
+    };
+  }, [transport, isExternalLiveView]);
+
 
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isPNROpen, setIsPNROpen] = useState(false);
@@ -395,7 +415,7 @@ export default function TrasportoCard({
     : '';
   const headerTimeSummary = resolvedTimeSummary || formatDateIT(displayDateStr);
 
-  const hasHeaderNotice = Boolean(checkinInfo.cutoffTime || (transport.type === 'volo' && transport.layover));
+  const hasHeaderNotice = Boolean(checkinInfo.cutoffTime || (transport.type === 'volo' && (transport.layover || continuation)));
   const hasSpecCells = Boolean(
     transport.terminalGate ||
     transport.posti ||
@@ -464,6 +484,12 @@ export default function TrasportoCard({
                   SCALO: <strong>{transport.layover.airport}</strong>
                   {transport.layover.duration ? ` (${transport.layover.duration})` : ''}
                 </span>
+              )}
+              {transport.type === 'volo' && !transport.layover && continuation && (
+                <div data-testid="flight-onward-connection" className="flight-front-layover flex flex-col gap-1">
+                  <span>SCALO PREVISTO: <strong>{continuation.airport}</strong> · {Math.floor(continuation.minutes / 60)}h {continuation.minutes % 60}m</span>
+                  <span>Proseguimento {continuation.carrier || 'volo'} → {continuation.destination} · {formatDateIT(continuation.date)} ore {continuation.time}</span>
+                </div>
               )}
             </div>
           )}
