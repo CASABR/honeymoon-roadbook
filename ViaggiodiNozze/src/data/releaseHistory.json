@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.46",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "b7c40ae469a3a788ff5f4259333065be7253302f",
+      "changes": [
+        "Risposte LIVE compatte sotto il messaggio o commento originale.",
+        "Mappa LIVE con selettori visibili agli ospiti e tappe ordinate per orario locale.",
+        "Notifiche senza auto-avvisi e protezione contro i doppi invii."
+      ],
+      "publishedAtIso": "2026-11-28T09:27:45Z"
+    },
+    {
       "version": "1.7.45",
       "publishedAt": "2026-11-28",
       "sourceCommit": "79e813dabd9d0721f9318fa5d7b4c3404081c311",
@@ -83,14 +94,6 @@
       "changes": [
         "Retro Trasporti uniforme per tutte le sottocategorie, con campi specifici e dati precedenti preservati.",
         "Aereo: retro e fronte ridisegnati per mobile, campi editabili, avvisi leggibili, terminal e posti adattivi e azioni accessibili."
-      ]
-    },
-    {
-      "version": "1.7.36",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "8df2b473eb30a7683a6e951caff6505205cc19ea",
-      "changes": [
-        "Retro Treno compatto: binario, carrozza e posti separati, cambio treno dedicato, fusi automatici per località riconosciute e note collassate, con compatibilità dei dati precedenti."
       ]
     }
   ]
