@@ -1,8 +1,0 @@
-{
-  "version": "1.7.52",
-  "preparedAt": "2026-11-28",
-  "changes": [
-    "Importazione strutturata di una giornata dagli appunti direttamente in PWA, con anteprima e conferma.",
-    "Aggiornamento sicuro degli orari delle tappe corrispondenti e aggiunta delle nuove, senza cancellare prenotazioni o documenti."
-  ]
-}
