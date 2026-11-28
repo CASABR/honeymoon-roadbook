@@ -1170,6 +1170,23 @@ service cloud.firestore {
       allow create, update: if isTripPrivilegedMember(tripId) && validFeedHeader(request.resource.data);
       allow delete: if isTripOwner(tripId) && tripId != '0000';
 
+      // Isolated public projection: only a coarse point and timestamp, never itinerary records.
+      match /planned_location/{projectionId} {
+        allow get: if projectionId == 'current';
+        allow list: if false;
+        allow create, update: if projectionId == 'current'
+          && isTripOwner(tripId)
+          && request.resource.data.keys().hasOnly(['lat', 'lng', 'updatedAt'])
+          && request.resource.data.updatedAt is number
+          && request.resource.data.updatedAt >= request.time.toMillis() - 120000
+          && request.resource.data.updatedAt <= request.time.toMillis() + 120000
+          && ((!('lat' in request.resource.data) && !('lng' in request.resource.data))
+              || (request.resource.data.lat is number && request.resource.data.lng is number
+                  && request.resource.data.lat >= -90 && request.resource.data.lat <= 90
+                  && request.resource.data.lng >= -180 && request.resource.data.lng <= 180));
+        allow delete: if false;
+      }
+
       match /updates/{updateId} {
         allow get: if isTripPrivilegedMember(tripId) || validLiveUpdate(resource.data);
         allow list: if isTripPrivilegedMember(tripId) || resource.data.publicSchemaVersion == 2;
