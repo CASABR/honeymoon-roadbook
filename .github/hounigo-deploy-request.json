@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-28T10:11:02Z",
+  "requestedAt": "2026-11-28T10:21:32Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.49-roadbook-draft-20261128",
+  "requestId": "release-1.7.50-payment-20261128",
   "requestedBy": "CASABR",
-  "ref": "b357be0f6bece4fd323feb8dea9519d0205132fa",
+  "ref": "e0768a2b9ccd8970f2bff1e3561f1b7d10fcd9e9",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.49: local roadbook proposal handoff; PR #20 CI passed."
+  "note": "Verified PR #21 compact payment badges."
 }
