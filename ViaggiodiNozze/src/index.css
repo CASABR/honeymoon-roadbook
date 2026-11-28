@@ -2181,3 +2181,7 @@ html.dark .flight-front-spec-icon { color:#7dd3fc; }
 @media (orientation: portrait), (max-width: 899px) {
   .app-tablet-view .hounigo-ipad-landscape-timeline { display: block; }
 }
+
+.app-native-mobile .app-workspace { padding-bottom: calc(6rem + var(--app-safe-bottom)); }
+.app-native-mobile .app-sticky-subheader { top: calc(var(--app-safe-top) + 3.8125rem); }
+.app-safe-shell:has(.app-native-mobile) .app-fixed-bottom-floating { bottom: calc(max(0.75rem, var(--app-safe-bottom)) + 5.25rem); }
