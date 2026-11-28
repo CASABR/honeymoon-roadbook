@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.49 — 2026-11-28
+
+- Apertura di una proposta itinerario da un collegamento ChatGPT, nel viaggio autorizzato, senza copia-incolla o salvataggi automatici.
+
 ## 1.7.48 — 2026-11-28
 
 - Card attiva con cornice corallo ben visibile.
@@ -46,7 +50,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Resolver geografico condiviso con priorita alle coordinate salvate
 - Autocompletamento Photon contestualizzato sulla data della card anche su Shopping e Trasporti
-
-## 1.7.39 — 2026-11-26
-
-- Clona sul fronte di tutte le categorie: solo icona in modalità desktop, nascosta su smartphone e in modalità mobile forzata; duplicazione dal dettaglio preservata.
