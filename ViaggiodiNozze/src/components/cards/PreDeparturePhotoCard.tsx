@@ -1,14 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { IMAGE_FILE_ACCEPT, processFileForAttachment } from '../../utils/fileAttachment';
+import { IMAGE_FILE_ACCEPT } from '../../utils/fileAttachment';
+import { compressLivePhotoToDataUrl } from '../../utils/livePhotoImage';
+import { publishLivePhotoOnce } from '../../services/livePhotoPublication';
 import {
   dismissPredeparturePrompt,
   getJournalUserId,
   getPredeparturePhoto,
   isPredeparturePromptDismissed,
   isPredeparturePromptDismissedAsync,
-  savePredeparturePhoto,
+  loadPredeparturePhoto,
+  savePredeparturePhotoDurably,
   restorePredeparturePrompt,
-  setPredepartureLiveUpdate,
+  linkPredeparturePhotoToLive,
   type JournalPhotoRecord
 } from '../../services/photoJournalService';
 
@@ -31,7 +34,8 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
   const [isVisible, setIsVisible] = useState(false);
   const [canRestore, setCanRestore] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
-  const [shareOnLiveToggle, setShareOnLiveToggle] = useState(false);
+  const [photoLoading, setPhotoLoading] = useState(true);
+  const busy = useRef(false);
   const [photo, setPhoto] = useState<JournalPhotoRecord | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -42,6 +46,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     setCanRestore(false);
     setIsFlipped(false);
     setPhoto(null);
+    setPhotoLoading(true);
     setMessage('');
     if (!canEdit || !tripId || !startDate) return;
 
@@ -58,10 +63,12 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
 
     const existingPhoto = getPredeparturePhoto(tripId, userId);
     setPhoto(existingPhoto);
-    setShareOnLiveToggle(Boolean(existingPhoto?.liveUpdateId));
     setIsVisible(true);
 
     let cancelled = false;
+    void loadPredeparturePhoto(tripId, userId).then(saved => {
+      if (!cancelled) { setPhoto(saved); setPhotoLoading(false); }
+    });
     isPredeparturePromptDismissedAsync(tripId, userId).then((dismissed) => {
       if (!cancelled && dismissed) {
         setIsVisible(false);
@@ -80,7 +87,10 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
         restorePredeparturePrompt(tripId, journalUserId);
         const existingPhoto = getPredeparturePhoto(tripId, journalUserId);
         setPhoto(existingPhoto);
-        setShareOnLiveToggle(Boolean(existingPhoto?.liveUpdateId));
+        setPhotoLoading(true);
+        void loadPredeparturePhoto(tripId, journalUserId).then(saved => {
+          if (getJournalUserId() === journalUserId) { setPhoto(saved); setPhotoLoading(false); }
+        });
         setCanRestore(false);
         setIsVisible(true);
       } catch { setMessage('Impossibile ripristinare la foto su questo dispositivo.'); }
@@ -94,72 +104,46 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
   };
 
   const publishPhotoToLive = async (currentPhoto: JournalPhotoRecord) => {
-    if (currentPhoto.liveUpdateId) return;
+    if (busy.current || currentPhoto.liveUpdateId || photoLoading) return;
+    if (!navigator.onLine) { setMessage('Foto salvata sul dispositivo. Riprova quando sei online.'); return; }
+    busy.current = true;
     setIsSharing(true);
+    setMessage('');
     try {
       if (currentPhoto.userId !== getJournalUserId()) throw new Error('Sessione cambiata: riapri la tua foto prima di condividerla.');
-      const { liveService } = await import('../../services/liveService');
-      const { uploadLivePhoto } = await import('../../services/liveStorageService');
-      const photoId = `predeparture_${Date.now()}`;
-      const uploadRes = await uploadLivePhoto(tripId, currentPhoto.url, photoId, currentPhoto.userId);
-      const updateId = await liveService.publishToLive(tripId, {
-        title: 'Si parte! 📸',
-        text: 'La foto ricordo pre-partenza è stata aggiunta al diario di viaggio.',
-        photoUrl: uploadRes.downloadUrl
-      });
-      const updated = setPredepartureLiveUpdate(tripId, updateId, currentPhoto.userId);
-      if (updated) setPhoto(updated);
-      setMessage('Foto salvata (senza dati EXIF) e condivisa in LIVE.');
+      const result = await publishLivePhotoOnce(tripId, currentPhoto.url, {
+        title: 'Si parte! 📸', text: 'La foto ricordo pre-partenza è stata aggiunta al diario di viaggio.'
+      }, currentPhoto.userId);
+      const updated = await linkPredeparturePhotoToLive(currentPhoto, result.postId);
+      if (getJournalUserId() === currentPhoto.userId) setPhoto(updated);
+      setMessage('Foto pubblicata nel LIVE.');
     } catch (err) {
-      setShareOnLiveToggle(false);
-      setMessage(err instanceof Error ? `Foto salvata sul dispositivo. ${err.message}` : 'Foto salvata sul dispositivo. Condivisione LIVE non riuscita.');
+      setMessage(err instanceof Error ? err.message : 'Foto salvata. Condivisione non riuscita.');
     } finally {
+      busy.current = false;
       setIsSharing(false);
     }
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || busy.current || photoLoading) return;
+    busy.current = true;
     setIsSaving(true);
     setMessage('');
     try {
-      // Ricodifica via Canvas con rimozione garantita dei metadati EXIF sensibili (GPS/dispositivo)
-      const attachment = await processFileForAttachment(file, { stripExif: true });
-      const saved = savePredeparturePhoto(tripId, attachment.dataUrl);
+      // Same normalized JPEG as the LIVE uploader, with EXIF removed by canvas.
+      const dataUrl = await compressLivePhotoToDataUrl(file);
+      if (getJournalUserId() !== journalUserId) throw new Error('Sessione cambiata.');
+      const saved = await savePredeparturePhotoDurably(tripId, dataUrl, journalUserId);
       setPhoto(saved);
-      if (shareOnLiveToggle) {
-        await publishPhotoToLive(saved);
-      } else {
-        setMessage('Foto salvata nel diario di questo dispositivo (metadati EXIF rimossi).');
-      }
-    } catch {
-      setMessage('Non è stato possibile salvare la foto. Riprova con un’immagine più leggera.');
+      setMessage('Foto ricordo salvata sul dispositivo.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Non è stato possibile salvare la foto.');
     } finally {
+      busy.current = false;
       setIsSaving(false);
       event.target.value = '';
-    }
-  };
-
-  const handleToggleShareLive = async (checked: boolean) => {
-    setShareOnLiveToggle(checked);
-    if (!photo) return;
-    if (checked && !photo.liveUpdateId) {
-      await publishPhotoToLive(photo);
-    } else if (!checked && photo.liveUpdateId) {
-      setIsSharing(true);
-      setMessage('');
-      try {
-        const { liveService } = await import('../../services/liveService');
-        await liveService.deleteLiveUpdate(tripId, photo.liveUpdateId);
-        const updated = setPredepartureLiveUpdate(tripId, undefined);
-        if (updated) setPhoto(updated);
-        setMessage('Condivisione rimossa da LIVE; la foto resta salvata sul dispositivo.');
-      } catch {
-        setMessage('Non è stato possibile rimuovere la condivisione. Riprova online.');
-      } finally {
-        setIsSharing(false);
-      }
     }
   };
 
@@ -200,7 +184,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
             </p>
             <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-600 dark:text-slate-300">
               <li><strong>Privacy garantita:</strong> nessun costo, PNR, PIN, documento o nota privata viene mai esposto nel LIVE.</li>
-              <li><strong>Zero automatismi:</strong> questa card non crea attività fittizie nel roadbook e pubblica nel LIVE solo se attivi il toggle dedicato.</li>
+              <li><strong>Zero automatismi:</strong> questa card non crea attività fittizie nel roadbook e pubblica nel LIVE solo quando premi il pulsante dedicato.</li>
               <li><strong>Protezione EXIF:</strong> le foto caricate vengono ripulite dai metadati GPS del telefono.</li>
             </ul>
             {onOpenLive && (
@@ -229,21 +213,23 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
         </>
       ) : (
         <>
-          <div className="flex gap-3 items-start">
-            {photo ? (
-              <img src={photo.url} alt="Foto pre-partenza" className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-2xl object-cover border border-white shadow-sm" />
-            ) : (
-              <div className="h-11 w-11 sm:h-12 sm:w-12 shrink-0 rounded-xl bg-[#FF6B5F] text-white flex items-center justify-center shadow-sm mt-0.5">
-                <svg viewBox="0 0 24 24" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3h5Z"/><circle cx="12" cy="13" r="3.5"/></svg>
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-extrabold text-[#172033] dark:text-white leading-snug">Prima di partire, una foto ricordo?</p>
-              <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                Scatta o carica una foto dalla libreria: resta salvata offline sul dispositivo senza creare attività nel roadbook.
-              </p>
+          {photoLoading ? (
+            <p className="py-3 text-xs text-slate-500" role="status">Caricamento foto ricordo…</p>
+          ) : photo ? (
+            <div className="space-y-2">
+              <img data-testid="predeparture-photo-preview" src={photo.url} alt="Foto ricordo pre-partenza" className="w-full max-h-64 rounded-xl bg-white/70 object-contain dark:bg-slate-900/60" />
+              <p className="text-sm font-extrabold text-[#172033] dark:text-white">La nostra foto ricordo</p>
+              <p className="text-xs text-slate-600 dark:text-slate-300">Salvata sul dispositivo, disponibile anche offline.</p>
             </div>
-          </div>
+          ) : (
+            <div className="flex gap-3 items-start">
+              <div className="h-11 w-11 shrink-0 rounded-xl bg-[#FF6B5F] text-white flex items-center justify-center" aria-hidden="true">📷</div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-extrabold text-[#172033] dark:text-white">Prima di partire, una foto ricordo?</p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Scatta o carica una foto da conservare anche offline.</p>
+              </div>
+            </div>
+          )}
 
           <input ref={inputRef} type="file" accept={IMAGE_FILE_ACCEPT} onChange={handleFileChange} className="hidden" />
 
@@ -252,7 +238,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                disabled={isSaving}
+                disabled={isSaving || isSharing || photoLoading}
                 className="w-full sm:w-auto min-h-10 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#FF6B5F] hover:bg-[#e05b50] px-3.5 py-2 text-xs font-bold text-white shadow-xs disabled:opacity-60 cursor-pointer transition-colors whitespace-nowrap"
               >
                 {isSaving ? 'Salvataggio…' : photo ? '📷 Sostituisci foto' : '📷 Scatta o carica foto'}
@@ -269,16 +255,14 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
               )}
             </div>
 
-            <label className="w-full sm:w-auto min-h-10 inline-flex items-center gap-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer select-none bg-white/85 dark:bg-slate-900/60 px-3 py-2 rounded-xl border border-slate-200/80 dark:border-slate-700 whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={shareOnLiveToggle}
-                disabled={isSharing}
-                onChange={(e) => handleToggleShareLive(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-[#FF6B5F] focus:ring-[#FF6B5F] shrink-0"
-              />
-              <span>Condividi nel LIVE</span>
-            </label>
+            {photo && (photo.liveUpdateId ? (
+              <span data-testid="predeparture-published" className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200">✓ Pubblicata nel LIVE</span>
+            ) : (
+              <button type="button" disabled={isSharing || isSaving || photoLoading} onClick={() => void publishPhotoToLive(photo)}
+                className="w-full min-h-10 rounded-xl border border-[#FF6B5F]/40 bg-white px-3 py-2 text-xs font-bold text-[#B83F36] dark:bg-slate-900 dark:text-[#FF9A90] disabled:opacity-60">
+                {isSharing ? 'Pubblicazione…' : 'Condividi nel LIVE'}
+              </button>
+            ))}
           </div>
 
           {message && <p className="mt-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200" role="status">{message}</p>}
