@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.50",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "e0768a2b9ccd8970f2bff1e3561f1b7d10fcd9e9",
+      "changes": [
+        "Importi compatti sulle card: verde per saldato e giallo per il residuo da pagare, senza diciture ripetitive."
+      ],
+      "publishedAtIso": "2026-11-28T10:22:53Z"
+    },
+    {
       "version": "1.7.49",
       "publishedAt": "2026-11-28",
       "sourceCommit": "b357be0f6bece4fd323feb8dea9519d0205132fa",
@@ -88,16 +97,6 @@
         "Anteprima PDF integrata, nome file standardizzato e filtro permessi per ruolo"
       ],
       "publishedAtIso": "2026-11-27T11:04:37.821Z"
-    },
-    {
-      "version": "1.7.40",
-      "publishedAt": "2026-11-27",
-      "sourceCommit": "a09816cfde9d86aa81f928c25fe38382377564ef",
-      "changes": [
-        "Resolver geografico condiviso con priorita alle coordinate salvate",
-        "Autocompletamento Photon contestualizzato sulla data della card anche su Shopping e Trasporti"
-      ],
-      "publishedAtIso": "2026-11-27T10:45:19.287Z"
     }
   ]
 }
