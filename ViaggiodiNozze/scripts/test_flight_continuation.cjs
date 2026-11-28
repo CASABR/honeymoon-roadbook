@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');const path=require('node:path');const vm=require('node:vm');const ts=require('typescript');
+const read=p=>fs.readFileSync(path.join(__dirname,'..',p),'utf8');
+const exportsObject={};
+vm.runInNewContext(ts.transpileModule(read('src/utils/flightContinuation.ts'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:exportsObject});
+const {findFlightContinuation}=exportsObject;
+const a={id:'a',type:'volo',date:'2030-02-01',departureTime:'12:30',arrivalDate:'2030-02-02',arrivalTime:'05:30',arrivalIata:'AAA',status:'prenotato'};
+const b={id:'b',type:'volo',date:'2030-02-03',departureTime:'01:00',departureIata:'AAA',arrivalIata:'BBB',carrier:'Test 123',status:'prenotato'};
+assert.equal(findFlightContinuation(a,[a,b]).minutes,1170);
+assert.equal(findFlightContinuation(a,[a,b]).carrier,'Test 123');
+assert.equal(findFlightContinuation({...a,layover:{}},[a,b]),null);
+assert.equal(findFlightContinuation(a,[a,{...b,departureIata:'CCC'}]),null);
+assert.equal(findFlightContinuation(a,[a,{...b,date:'2030-02-05'}]),null);
+assert.equal(findFlightContinuation(a,[a,{...b,status:'annullato'}]),null);
+assert.equal(findFlightContinuation(a,[a,{...b,departureTime:''}]),null);
+assert.match(read('src/components/cards/TrasportoCard.tsx'),/flight-onward-connection/);
+assert.match(read('src/index.css'),/\.app-native-mobile \.hounigo-ds-duplicate-icon/);
+console.log('PASS: same-airport flight continuation, no invented times, touch duplicate hidden');
