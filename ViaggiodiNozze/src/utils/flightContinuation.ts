@@ -15,6 +15,8 @@ function wallTime(date?:string,time?:string):number {
 export function findFlightContinuation(flight:Trasporto, all:Trasporto[]):FlightContinuation|null {
   if(flight.type!=='volo'||flight.layover||flight.status==='annullato')return null;
   const airport=airportCode(flight.arrivalIata,flight.arrivalLocation);
+  // Without an explicit arrival date, a midnight crossing cannot be inferred reliably.
+  if (!flight.arrivalDate && (!flight.arrivalTime || !flight.departureTime || flight.arrivalTime < flight.departureTime)) return null;
   const arrival=wallTime(flight.arrivalDate||flight.date,flight.arrivalTime);
   if(!airport||!Number.isFinite(arrival))return null;
   const next=all.filter(t=>t.id!==flight.id&&t.type==='volo'&&t.status!=='annullato'&&Number.isFinite(wallTime(t.date,t.departureTime))&&wallTime(t.date,t.departureTime)>=arrival)
