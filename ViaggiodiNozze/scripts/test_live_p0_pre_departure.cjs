@@ -37,11 +37,28 @@ async function run() {
     logLevel: 'silent',
   });
   let deriveLiveIntelligence;
+  let groupLiveThreads;
   try {
     ({ deriveLiveIntelligence } = await vite.ssrLoadModule('/src/utils/liveIntelligenceHelper.ts'));
+    ({ groupLiveThreads } = await vite.ssrLoadModule('/src/utils/liveThreads.ts'));
   } finally {
     await vite.close();
   }
+
+  const messages = [
+    { id: 'reply2', replyToId: 'root', createdAt: 5 },
+    { id: 'other', createdAt: 3 },
+    { id: 'nested', replyToId: 'reply1', createdAt: 4 },
+    { id: 'root', createdAt: 1 },
+    { id: 'reply1', replyToId: 'root', createdAt: 2 },
+    { id: 'deleted', createdAt: 6, deleted: true },
+  ];
+  assert.deepEqual(groupLiveThreads(messages).map(g => g.map(r => [r.item.id, r.depth])),
+    [[['other', 0]], [['root', 0], ['reply1', 1], ['nested', 2], ['reply2', 1]]]);
+  assert.deepEqual(groupLiveThreads(messages.filter(m => m.id !== 'root'), false).flat().map(r => r.item.id).sort(),
+    ['nested', 'other', 'reply1', 'reply2']);
+  assert.equal(groupLiveThreads([{id:'a',replyToId:'b',createdAt:1},{id:'b',replyToId:'a',createdAt:2}]).flat().length, 2);
+  console.log('✓ [PASS] Compact LIVE threads, orphan replies, cycle safety and chronological children');
 
   const nov25 = new Date('2026-11-25T10:30:00+01:00');
   const preTripInternal = deriveLiveIntelligence({
