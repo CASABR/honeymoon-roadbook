@@ -45,6 +45,7 @@ import SmartInsertModal from './components/modals/SmartInsertModal';
 import GlobalSearchModal from './components/modals/GlobalSearchModal';
 import { InstallPWA } from './components/InstallPWA';
 import DesktopNavigation, { type DesktopNavSection } from './components/common/DesktopNavigation';
+import { readViewMode, resolveViewMode, type ViewMode } from './utils/viewMode';
 import PrenotazioniWorkspaceView from './views/desktop/PrenotazioniWorkspaceView';
 import AppInfoModal, { AppInfoButton } from './components/common/AppInfo';
 
@@ -604,24 +605,35 @@ export default function App() {
 
   const [desktopSection, setDesktopSection] = useState<DesktopNavSection>('prenotazioni');
 
-  // Modalità di visualizzazione: 'desktop' (standard workspace a schermo intero) o 'mobile' (shell smartphone centrata)
-  const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
-    if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('houni_view_mode');
-      if (saved === 'mobile' || saved === 'desktop') return saved;
-    }
-    return 'desktop';
+  // Layout preference is device-local; tablet detection never touches trip data.
+  const readViewport = () => ({ width: window.innerWidth, height: window.innerHeight, touch: navigator.maxTouchPoints > 0 || window.matchMedia('(pointer: coarse)').matches });
+  const [viewport, setViewport] = useState(readViewport);
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    try {
+      const v = readViewport();
+      return readViewMode(localStorage.getItem('houni_view_mode_v2'), localStorage.getItem('houni_view_mode'), v.width, v.height, v.touch);
+    } catch { return 'auto'; }
   });
-
-  const toggleViewMode = () => {
-    setViewMode(prev => {
-      const next = prev === 'desktop' ? 'mobile' : 'desktop';
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('houni_view_mode', next);
-      }
-      return next;
-    });
+  const effectiveViewMode = resolveViewMode(viewMode, viewport.width, viewport.height, viewport.touch);
+  const isTabletView = effectiveViewMode === 'tablet';
+  const isForcedMobileView = effectiveViewMode === 'mobile' && viewport.width >= 600;
+  const isCompactShell = isTabletView || isForcedMobileView;
+  const preferenceRef = useRef(viewMode);
+  preferenceRef.current = viewMode;
+  const changeViewMode = (next: ViewMode) => {
+    setViewMode(next);
+    try { localStorage.setItem('houni_view_mode_v2', next); } catch {}
   };
+  useEffect(() => {
+    const refresh = () => setViewport(readViewport());
+    window.addEventListener('resize', refresh);
+    window.addEventListener('orientationchange', refresh);
+    return () => {
+      window.removeEventListener('resize', refresh);
+      window.removeEventListener('orientationchange', refresh);
+    };
+  }, []);
+
 
   useEffect(() => {
     const handleReplayTutorial = () => {
@@ -689,7 +701,7 @@ export default function App() {
   const mainScrollContainerRef = useRef<HTMLDivElement>(null);
   const isForcedMobileViewRef = useRef(false);
   const lastScrollSnapshotRef = useRef<{ isDesktopScroll: boolean; top: number }>({
-    isDesktopScroll: typeof window !== 'undefined' ? window.innerWidth >= 768 : false,
+    isDesktopScroll: !isCompactShell && viewport.width >= 768,
     top: 0,
   });
 
@@ -706,7 +718,8 @@ export default function App() {
 
     const handleResizeOrOrientation = () => {
       const prev = lastScrollSnapshotRef.current;
-      const nextIsDesktopScroll = !isForcedMobileViewRef.current && window.innerWidth >= 768;
+      const v = readViewport();
+      const nextIsDesktopScroll = resolveViewMode(preferenceRef.current, v.width, v.height, v.touch) === 'desktop' && v.width >= 768;
       if (prev.isDesktopScroll !== nextIsDesktopScroll && prev.top > 0) {
         const targetTop = prev.top;
         window.requestAnimationFrame(() => {
@@ -907,8 +920,7 @@ export default function App() {
     }
   };
 
-  const isForcedMobileView = viewMode === 'mobile';
-  isForcedMobileViewRef.current = isForcedMobileView;
+  isForcedMobileViewRef.current = isCompactShell;
 
   return (
     <div className="app-safe-shell flex flex-col min-h-screen overflow-x-clip">
@@ -930,27 +942,10 @@ export default function App() {
         </div>
       )}
 
-      <div className={`flex-1 min-h-screen bg-[#F8F7F3] dark:bg-slate-950 text-[#172033] dark:text-slate-100 flex flex-col ${isForcedMobileView ? 'items-center justify-start bg-[#e9e5dd] dark:bg-slate-900/90' : 'md:flex-row'} selection:bg-[#FF6B5F] selection:text-white font-sans antialiased`}>
+      <div className={`flex-1 min-h-screen bg-[#F8F7F3] dark:bg-slate-950 text-[#172033] dark:text-slate-100 flex flex-col ${isForcedMobileView ? 'items-center justify-start bg-[#e9e5dd] dark:bg-slate-900/90' : isTabletView ? 'w-full' : 'md:flex-row'} selection:bg-[#FF6B5F] selection:text-white font-sans antialiased`}>
       
-      {/* ─── FLOATING BAR PER TORNARE A DESKTOP (Mostrata su schermi md+ se attiva la vista mobile) ─── */}
-      {isForcedMobileView && (
-        <div className="hidden md:flex fixed top-3 left-1/2 -translate-x-1/2 z-50 items-center gap-3 bg-[#F8F7F3]/95 dark:bg-[#172033]/95 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200/80 dark:border-slate-800 shadow-xl animate-fade-in">
-          <span className="flex items-center gap-1.5 text-xs font-black text-[#172033] dark:text-slate-200">
-            <span>📱</span>
-            <span>Modalità Mobile attiva</span>
-          </span>
-          <button
-            type="button"
-            onClick={toggleViewMode}
-            className="hounigo-button-primary px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer"
-          >
-            Torna a Desktop ↗
-          </button>
-        </div>
-      )}
-
       {/* ─── DESKTOP SIDEBAR NAVIGATION (Schermi md+ e solo se non in vista mobile forzata) ─── */}
-      {!isForcedMobileView && (
+      {!isCompactShell && (
         <div className="hidden md:block shrink-0 w-60 xl:w-80">
           <DesktopNavigation
             currentSection={desktopSection}
@@ -960,7 +955,8 @@ export default function App() {
               setIsSmartInsertOpen(true);
             }}
             tripConfig={tripConfig}
-            onToggleMobileView={toggleViewMode}
+            onToggleMobileView={() => changeViewMode('mobile')}
+            onToggleTabletView={() => changeViewMode('tablet')}
           />
         </div>
       )}
@@ -969,11 +965,12 @@ export default function App() {
       <div
         ref={mainScrollContainerRef}
         data-main-scroll-container="true"
-        className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative app-forced-mobile' : 'min-h-[100svh] overflow-x-clip md:h-[100dvh] md:overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}
+        data-view-mode={effectiveViewMode}
+        className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative app-forced-mobile' : isTabletView ? 'app-tablet-view w-full min-h-[100svh] overflow-x-clip bg-[#F8F7F3] dark:bg-[#172033]' : 'min-h-[100svh] overflow-x-clip md:h-[100dvh] md:overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}
       >
         
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
-        <header className={`app-mobile-header w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/92 dark:bg-[#172033]/92 backdrop-blur-md sticky top-0 z-30`}>
+        <header className={`app-mobile-header w-full flex ${isCompactShell ? 'flex' : 'md:hidden'} items-center justify-between pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/92 dark:bg-[#172033]/92 backdrop-blur-md sticky top-0 z-30`}>
           <div className="flex items-center gap-1.5 shrink-0">
             <HounigoLogo size={23.5} />
             <button
@@ -1005,13 +1002,21 @@ export default function App() {
 
         {/* Workspace Body */}
         <main
-          className={`app-workspace flex-1 px-3 sm:px-6 md:px-6 xl:px-8 py-3 md:py-4 xl:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : 'max-w-7xl w-full mx-auto pb-24 md:pb-10 xl:pb-12'}`}
+          className={`app-workspace flex-1 px-3 sm:px-6 md:px-6 xl:px-8 py-3 md:py-4 xl:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : isTabletView ? 'app-tablet-workspace w-full mx-auto' : 'max-w-7xl w-full mx-auto pb-24 md:pb-10 xl:pb-12'}`}
           onTouchStart={handleMainSwipeStart}
           onTouchEnd={handleMainSwipeEnd}
           onTouchCancel={() => { mainSwipeStartRef.current = null; }}
         >
+          {isCompactShell && (
+            <div data-testid="layout-mode-selector" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white/80 dark:border-slate-700 dark:bg-slate-800/80 px-3 py-2 text-xs">
+              <span className="font-bold">Visualizzazione {isTabletView ? 'tablet' : 'mobile'}</span>
+              <div className="flex flex-wrap gap-1" role="group" aria-label="Modalità di visualizzazione">
+                {(['auto','mobile','tablet','desktop'] as ViewMode[]).map(mode => <button key={mode} type="button" aria-pressed={viewMode === mode} onClick={() => changeViewMode(mode)} className={`min-h-9 rounded-lg px-2.5 text-xs font-bold ${viewMode === mode ? 'bg-[#FF6B5F] text-white' : 'bg-slate-100 dark:bg-slate-700'}`}>{mode === 'auto' ? 'Auto' : mode === 'desktop' ? 'Torna a Desktop' : mode === 'tablet' ? 'Tablet' : 'Mobile'}</button>)}
+              </div>
+            </div>
+          )}
           {/* Sezione Desktop Esclusiva Hub Prenotazioni (disponibile solo in modalità desktop piena) */}
-          {!isForcedMobileView && desktopSection === 'prenotazioni' ? (
+          {!isCompactShell && desktopSection === 'prenotazioni' ? (
             <div className="hidden md:block">
               <PrenotazioniWorkspaceView
                 onOpenSmartInsert={() => {
@@ -1024,7 +1029,7 @@ export default function App() {
           ) : null}
 
           {/* Viste Standard (Visibili sempre su mobile o in modalità mobile forzata, e su desktop quando selezionate dalla sidebar) */}
-          <div className={!isForcedMobileView && desktopSection === 'prenotazioni' ? 'block md:hidden' : 'block'}>
+          <div className={!isCompactShell && desktopSection === 'prenotazioni' ? 'block md:hidden' : 'block'}>
             {activeTab === 'oggi' && <OggiView onNavigateTab={handleTabChange} />}
             
             {activeTab === 'mappa' && (
@@ -1074,7 +1079,7 @@ export default function App() {
       </div>
 
       {/* ─── MOBILE BOTTOM BAR (Visibile su schermi < md oppure quando forzata la modalità mobile) ─ */}
-      <div className={`block fixed bottom-0 left-0 right-0 z-40 pointer-events-none ${isForcedMobileView ? 'left-1/2 -translate-x-1/2 max-w-md w-full' : 'md:hidden'}`} style={{ WebkitTransform: 'translate3d(0,0,0)', transform: 'translate3d(0,0,0)' }}>
+      <div className={`block fixed bottom-0 left-0 right-0 z-40 pointer-events-none ${isForcedMobileView ? 'app-mobile-preview-dock max-w-md w-full' : isTabletView ? 'app-tablet-dock w-full' : 'md:hidden'}`} style={{ WebkitTransform: 'translate3d(0,0,0)', transform: 'translate3d(0,0,0)' }}>
         <div className="pointer-events-auto w-full">
         <NavBar
           activeTab={activeTab}
