@@ -617,7 +617,7 @@ export default function App() {
   const effectiveViewMode = resolveViewMode(viewMode, viewport.width, viewport.height, viewport.touch);
   const isTabletView = effectiveViewMode === 'tablet';
   const isForcedMobileView = effectiveViewMode === 'mobile' && viewMode === 'mobile' && viewport.width >= 600;
-  const isCompactShell = isTabletView || isForcedMobileView;
+  const isCompactShell = effectiveViewMode !== 'desktop';
   const preferenceRef = useRef(viewMode);
   preferenceRef.current = viewMode;
   const changeViewMode = (next: ViewMode) => {
@@ -942,7 +942,7 @@ export default function App() {
         </div>
       )}
 
-      <div className={`flex-1 min-h-screen bg-[#F8F7F3] dark:bg-slate-950 text-[#172033] dark:text-slate-100 flex flex-col ${isForcedMobileView ? 'items-center justify-start bg-[#e9e5dd] dark:bg-slate-900/90' : isTabletView ? 'w-full' : 'md:flex-row'} selection:bg-[#FF6B5F] selection:text-white font-sans antialiased`}>
+      <div className={`flex-1 min-h-screen bg-[#F8F7F3] dark:bg-slate-950 text-[#172033] dark:text-slate-100 flex flex-col ${isForcedMobileView ? 'items-center justify-start bg-[#e9e5dd] dark:bg-slate-900/90' : isCompactShell ? 'w-full' : 'md:flex-row'} selection:bg-[#FF6B5F] selection:text-white font-sans antialiased`}>
       
       {/* ─── DESKTOP SIDEBAR NAVIGATION (Schermi md+ e solo se non in vista mobile forzata) ─── */}
       {!isCompactShell && (
@@ -966,7 +966,7 @@ export default function App() {
         ref={mainScrollContainerRef}
         data-main-scroll-container="true"
         data-view-mode={effectiveViewMode}
-        className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative app-forced-mobile' : isTabletView ? 'app-tablet-view w-full min-h-[100svh] overflow-x-clip bg-[#F8F7F3] dark:bg-[#172033]' : 'min-h-[100svh] overflow-x-clip md:h-[100dvh] md:overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}
+        className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative app-forced-mobile' : isTabletView ? 'app-tablet-view w-full min-h-[100svh] overflow-x-clip bg-[#F8F7F3] dark:bg-[#172033]' : isCompactShell ? 'app-native-mobile w-full min-h-[100svh] bg-[#F8F7F3] dark:bg-[#172033]' : 'min-h-[100svh] overflow-x-clip md:h-[100dvh] md:overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}
       >
         
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
@@ -1002,12 +1002,12 @@ export default function App() {
 
         {/* Workspace Body */}
         <main
-          className={`app-workspace flex-1 px-3 sm:px-6 md:px-6 xl:px-8 py-3 md:py-4 xl:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : isTabletView ? 'app-tablet-workspace w-full mx-auto' : 'max-w-7xl w-full mx-auto pb-24 md:pb-10 xl:pb-12'}`}
+          className={`app-workspace flex-1 px-3 sm:px-6 md:px-6 xl:px-8 py-3 md:py-4 xl:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : isTabletView ? 'app-tablet-workspace w-full mx-auto' : isCompactShell ? 'w-full mx-auto pb-24' : 'max-w-7xl w-full mx-auto pb-24 md:pb-10 xl:pb-12'}`}
           onTouchStart={handleMainSwipeStart}
           onTouchEnd={handleMainSwipeEnd}
           onTouchCancel={() => { mainSwipeStartRef.current = null; }}
         >
-          {(isCompactShell || (effectiveViewMode === 'mobile' && viewport.width >= 600)) && (
+          {(isTabletView || isForcedMobileView || (isCompactShell && Math.min(viewport.width,viewport.height) >= 600)) && (
             <div data-testid="layout-mode-selector" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white/80 dark:border-slate-700 dark:bg-slate-800/80 px-3 py-2 text-xs">
               <span className="font-bold">Visualizzazione {isTabletView ? 'tablet' : 'mobile'}</span>
               <div className="flex flex-wrap gap-1" role="group" aria-label="Modalità di visualizzazione">
@@ -1079,7 +1079,7 @@ export default function App() {
       </div>
 
       {/* ─── MOBILE BOTTOM BAR (Visibile su schermi < md oppure quando forzata la modalità mobile) ─ */}
-      <div className={`block fixed bottom-0 left-0 right-0 z-40 pointer-events-none ${isForcedMobileView ? 'app-mobile-preview-dock max-w-md w-full' : isTabletView ? 'app-tablet-dock w-full' : 'md:hidden'}`} style={{ WebkitTransform: 'translate3d(0,0,0)', transform: 'translate3d(0,0,0)' }}>
+      <div className={`block fixed bottom-0 left-0 right-0 z-40 pointer-events-none ${isForcedMobileView ? 'app-mobile-preview-dock max-w-md w-full' : isTabletView ? 'app-tablet-dock w-full' : isCompactShell ? 'w-full' : 'md:hidden'}`} style={{ WebkitTransform: 'translate3d(0,0,0)', transform: 'translate3d(0,0,0)' }}>
         <div className="pointer-events-auto w-full">
         <NavBar
           activeTab={activeTab}
