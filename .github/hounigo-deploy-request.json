@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-28T09:45:48Z",
+  "requestedAt": "2026-11-28T09:57:58Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.47-planned-location-20261128",
+  "requestId": "release-1.7.48-card-photo-20261128",
   "requestedBy": "CASABR",
-  "ref": "37e7541828d577fd5cf8a4939e086ec4a60b9a52",
+  "ref": "4fb4a1e9819908bd674c56eccc29337b9a6e25e3",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.47: public planned position, CI and Worker verified."
+  "note": "HOUNIGO 1.7.48: active card, photo preview and idempotent publishing; PR #19 CI passed."
 }
