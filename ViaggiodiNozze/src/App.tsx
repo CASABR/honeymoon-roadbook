@@ -616,7 +616,7 @@ export default function App() {
   });
   const effectiveViewMode = resolveViewMode(viewMode, viewport.width, viewport.height, viewport.touch);
   const isTabletView = effectiveViewMode === 'tablet';
-  const isForcedMobileView = effectiveViewMode === 'mobile' && viewport.width >= 600;
+  const isForcedMobileView = effectiveViewMode === 'mobile' && viewMode === 'mobile' && viewport.width >= 600;
   const isCompactShell = isTabletView || isForcedMobileView;
   const preferenceRef = useRef(viewMode);
   preferenceRef.current = viewMode;
@@ -1007,7 +1007,7 @@ export default function App() {
           onTouchEnd={handleMainSwipeEnd}
           onTouchCancel={() => { mainSwipeStartRef.current = null; }}
         >
-          {isCompactShell && (
+          {(isCompactShell || (effectiveViewMode === 'mobile' && viewport.width >= 600)) && (
             <div data-testid="layout-mode-selector" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white/80 dark:border-slate-700 dark:bg-slate-800/80 px-3 py-2 text-xs">
               <span className="font-bold">Visualizzazione {isTabletView ? 'tablet' : 'mobile'}</span>
               <div className="flex flex-wrap gap-1" role="group" aria-label="Modalità di visualizzazione">
