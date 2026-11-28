@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.53 — 2026-11-28
+
+- Card foto ricordo più compatta, miniatura espandibile e azioni su una riga.
+- Didascalia modificabile e conservata offline; inclusa nelle nuove pubblicazioni LIVE.
+
 ## 1.7.52 — 2026-11-28
 
 - Importazione strutturata di una giornata dagli appunti direttamente in PWA, con anteprima e conferma.
@@ -44,8 +49,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 ## 1.7.44 — 2026-11-27
 
 - Esportazione Word (.docx) compatibile con Microsoft Word senza errori di contenuto
-
-## 1.7.43 — 2026-11-27
-
-- Livello Compatto operativo ottimizzato per la stampa (15-20 pag.)
-- Esportazione Word (.docx) modificabile con tabelle editabili e numerazione pagine
