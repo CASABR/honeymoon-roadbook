@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.47 — 2026-11-28
+
+- Posizione programmata indicativa disponibile anche agli ospiti nel LIVE, senza accesso al programma privato.
+
 ## 1.7.46 — 2026-11-28
 
 - Risposte LIVE compatte sotto il messaggio o commento originale.
@@ -45,8 +49,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Retro Aereo: campo facoltativo Piattaforma di acquisto, conservato tra i dati privati.
 - Fronte Aereo più compatto su mobile, avvisi senza ripetizioni, terminal e posti proporzionati e pulsanti accessibili.
-
-## 1.7.37 — 2026-11-26
-
-- Retro Trasporti uniforme per tutte le sottocategorie, con campi specifici e dati precedenti preservati.
-- Aereo: retro e fronte ridisegnati per mobile, campi editabili, avvisi leggibili, terminal e posti adattivi e azioni accessibili.
