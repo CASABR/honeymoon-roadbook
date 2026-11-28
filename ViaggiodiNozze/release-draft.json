@@ -1,8 +1,0 @@
-{
-  "version": "1.7.55",
-  "preparedAt": "2026-11-28",
-  "changes": [
-    "Selettori LIVE Programma e GPS + Programma disponibili, con indicazione esplicita se manca la posizione prevista.",
-    "Evidenziazione automatica delle tappe solo durante l'evento o nell'ora precedente."
-  ]
-}
