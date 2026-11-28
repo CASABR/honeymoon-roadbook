@@ -1,0 +1,8 @@
+{
+  "version": "1.7.51",
+  "preparedAt": "2026-11-28",
+  "changes": [
+    "Rimozione delle foto LIVE confermata dal server, senza far ricomparire copie locali collegate.",
+    "Indicatore della provenienza dalle tappe del viaggio per le foto riconoscibili, senza eliminare gli originali."
+  ]
+}
