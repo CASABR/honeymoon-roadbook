@@ -1,9 +1,0 @@
-{
-  "version": "1.7.48",
-  "preparedAt": "2026-11-28",
-  "changes": [
-    "Card attiva con cornice corallo ben visibile.",
-    "Foto ricordo con archivio locale e anteprima persistente.",
-    "Protezione contro nuove pubblicazioni LIVE duplicate della stessa immagine normalizzata."
-  ]
-}
