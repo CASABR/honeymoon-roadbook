@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.48 — 2026-11-28
+
+- Card attiva con cornice corallo ben visibile.
+- Foto ricordo con archivio locale e anteprima persistente.
+- Protezione contro nuove pubblicazioni LIVE duplicate della stessa immagine normalizzata.
+
 ## 1.7.47 — 2026-11-28
 
 - Posizione programmata indicativa disponibile anche agli ospiti nel LIVE, senza accesso al programma privato.
@@ -44,8 +50,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 ## 1.7.39 — 2026-11-26
 
 - Clona sul fronte di tutte le categorie: solo icona in modalità desktop, nascosta su smartphone e in modalità mobile forzata; duplicazione dal dettaglio preservata.
-
-## 1.7.38 — 2026-11-26
-
-- Retro Aereo: campo facoltativo Piattaforma di acquisto, conservato tra i dati privati.
-- Fronte Aereo più compatto su mobile, avvisi senza ripetizioni, terminal e posti proporzionati e pulsanti accessibili.
