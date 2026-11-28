@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-28T10:57:59Z",
+  "requestedAt": "2026-11-28T11:04:52Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.53-memory-caption-20261128",
+  "requestId": "release-1.7.54-typed-day-import-20261128",
   "requestedBy": "CASABR",
-  "ref": "cd7050bfdc27cfed661248fc3ccce64b2924b6cb",
+  "ref": "0c3485bf148770ae21e92b7b842478586533cc7a",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "Verified PR #24 compact memory card and local caption."
+  "note": "Verified PR #25 typed itinerary and reliable route estimates."
 }
