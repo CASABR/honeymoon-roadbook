@@ -241,6 +241,64 @@ export async function idbApplyDayStopBatch<T extends { id: string; updatedAt: nu
   });
 }
 
+/** Narrow, trip-pinned import transaction. Only the planner may propose changes. */
+export const DAY_IMPORT_STORES = [STORES.TAPPE, STORES.RISTORANTI, STORES.TRASPORTI, STORES.ALLOGGI, STORES.ATTIVITA, STORES.DOCUMENTI, STORES.SETTINGS] as const;
+export type DayImportStore = typeof DAY_IMPORT_STORES[number];
+export type DayImportRecord = { id: string; [key:string]: any };
+export type DayImportSnapshot = Record<DayImportStore, DayImportRecord[]>;
+export type DayImportOperation = { store: DayImportStore; record: DayImportRecord; action: 'save' | 'delete' };
+
+export async function idbReadDayImportSnapshot(tripId: string): Promise<DayImportSnapshot> {
+  const db = await openDatabase(tripId);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([...DAY_IMPORT_STORES], 'readonly');
+    const snapshot = {} as DayImportSnapshot;
+    tx.onabort = () => reject(tx.error || new Error('Lettura programma non completata.'));
+    tx.oncomplete = () => resolve(snapshot);
+    for (const name of DAY_IMPORT_STORES) {
+      const request = tx.objectStore(name).getAll();
+      request.onsuccess = () => { snapshot[name] = request.result; };
+    }
+  });
+}
+
+export async function idbApplyTypedDayPlan(tripId: string, mayContinue: () => boolean,
+  build: (snapshot: DayImportSnapshot) => DayImportOperation[]): Promise<DayImportOperation[]> {
+  if (getActiveTripId() !== tripId || !mayContinue()) throw new Error('Sessione cambiata.');
+  const db = await openDatabase(tripId);
+  if (getActiveTripId() !== tripId || !mayContinue()) throw new Error('Sessione cambiata.');
+  return new Promise((resolve,reject) => {
+    const tx = db.transaction([...DAY_IMPORT_STORES], 'readwrite');
+    const snapshot = {} as DayImportSnapshot;
+    let remaining = DAY_IMPORT_STORES.length;
+    let operations: DayImportOperation[] = [];
+    let reason = 'Nessuna modifica applicata.';
+    tx.onabort = () => reject(new Error(reason));
+    tx.oncomplete = () => resolve(operations);
+    for (const name of DAY_IMPORT_STORES) {
+      const request = tx.objectStore(name).getAll();
+      request.onsuccess = () => {
+        snapshot[name] = request.result;
+        if (--remaining !== 0) return;
+        try {
+          if (getActiveTripId() !== tripId || !mayContinue()) throw new Error('Sessione cambiata.');
+          operations = build(snapshot);
+          for (const op of operations) {
+            if (![STORES.TAPPE,STORES.RISTORANTI,STORES.TRASPORTI,STORES.SETTINGS].includes(op.store as any)) throw new Error('Categoria protetta.');
+            if (op.action === 'delete') {
+              if (op.store !== STORES.TAPPE) throw new Error('Non è possibile cancellare prenotazioni.');
+              tx.objectStore(op.store).delete(op.record.id);
+            } else tx.objectStore(op.store).put(op.record);
+          }
+        } catch (error) {
+          reason = error instanceof Error ? error.message : reason;
+          tx.abort();
+        }
+      };
+    }
+  });
+}
+
 export async function idbDelete(storeName: StoreName, id: string): Promise<void> {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {

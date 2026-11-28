@@ -71,7 +71,8 @@ export default function RouteBadge({
 
     async function loadRoute() {
       if (!from || !to) return;
-      if (!loadedKeyRef.current) setLoading(true);
+      setLoading(true);
+      setRoute(null);
       try {
         const orsProfile: RouteProfile = mode === 'walking' ? 'foot-walking' : 'driving-car';
         const resolvedFromCoord = typeof fromLat === 'number' && typeof fromLng === 'number' ? { lat: fromLat, lng: fromLng } : undefined;
@@ -80,7 +81,7 @@ export default function RouteBadge({
 
         if (mounted && info) {
           loadedKeyRef.current = routeKey;
-          if (mode === 'transit') {
+          if (mode === 'transit' && !info.formattedDistance.toLowerCase().includes('verificare')) {
             if (info.manualOverride) {
               setRoute(info);
             } else {
@@ -89,7 +90,7 @@ export default function RouteBadge({
               const transitMinutes = Math.round(baseMinutes * 1.35);
               const hours = Math.floor(transitMinutes / 60);
               const mins = transitMinutes % 60;
-              const formattedDuration = hours > 0 ? `${hours}h ${mins > 0 ? `${mins}m` : ''}`.trim() : `${mins}m`;
+              const formattedDuration = '~' + (hours > 0 ? `${hours}h ${mins > 0 ? `${mins}m` : ''}`.trim() : `${mins}m`);
               setRoute({
                 ...info,
                 formattedDuration

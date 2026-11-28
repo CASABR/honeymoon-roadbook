@@ -105,3 +105,5 @@ test('Provenienza foto esplicita, senza classificare la didascalia ambigua',
   read('src/views/altro/LiveEditorialExperience.tsx').includes('await props.onDeletePhoto(photo.id)'));
 
 require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_day_plan_import.cjs')], { stdio: 'inherit' });
+
+require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_typed_day_plan.cjs')], { stdio: 'inherit' });

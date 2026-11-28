@@ -1,27 +1,48 @@
 import type { Tappa } from '../types';
 
-export interface DayPlanRow { time: string; title: string; notes?: string }
+export type DayPlanCategory = 'tappa' | 'ristorante' | 'metro';
+export interface DayPlanRow { time: string; title: string; notes?: string; category?: DayPlanCategory; from?: string; to?: string; endTime?: string; meal?: 'Colazione' | 'Pranzo' | 'Cena' | 'Aperitivo' | 'Altro' }
 export interface DayPlan { date: string; rows: DayPlanRow[] }
 export const DAY_PLAN_PREFIX = 'HOUNIGO-DAY/1';
 const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 export function parseDayPlan(raw: string): DayPlan {
   if (raw.length > 16000) throw new Error('Proposta troppo lunga.');
   const lines = raw.trim().split(/\r?\n/).filter(line => line.trim());
-  const header = lines.shift()?.match(/^HOUNIGO-DAY\/1\s+(\d{4}-\d{2}-\d{2})$/);
-  if (!header) throw new Error('Formato richiesto: HOUNIGO-DAY/1 AAAA-MM-GG, poi orario | titolo | nota.');
-  const date = header[1];
+  const header = lines.shift()?.match(/^HOUNIGO-DAY\/(1|2)\s+(\d{4}-\d{2}-\d{2})$/);
+  if (!header) throw new Error('Formato richiesto: HOUNIGO-DAY/1 oppure /2, seguito dalla data.');
+  const version = header[1];
+  const date = header[2];
   const parsed = new Date(date + 'T00:00:00Z');
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0,10) !== date) throw new Error('Data non valida.');
   if (!lines.length || lines.length > 30) throw new Error('Inserisci da 1 a 30 tappe.');
   const seen = new Set<string>();
   const rows = lines.map(line => {
     const parts = line.split('|').map(v => v.trim());
-    const [time, title, notes] = parts;
-    if (parts.length < 2 || parts.length > 3 || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time) || !title || title.length > 120 || !norm(title) || (notes?.length || 0) > 500) throw new Error('Riga non valida: ' + line.slice(0,70));
-    const key = norm(title);
-    if (seen.has(key)) throw new Error('Titolo duplicato: ' + title);
+    const validTime = (time: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time);
+    const time = parts[0];
+    let row: DayPlanRow;
+    if (version === '1') {
+      const [, title, notes] = parts;
+      if (parts.length < 2 || parts.length > 3) throw new Error('Riga non valida: ' + line.slice(0,70));
+      const meal = /^(cena|pranzo|colazione|aperitivo)\s+/i.exec(title)?.[1];
+      row = { time, title, ...(notes ? {notes} : {}), ...(meal ? {category:'ristorante' as const, meal: (meal[0].toUpperCase()+meal.slice(1).toLowerCase()) as DayPlanRow['meal']} : {}) };
+    } else {
+      const [, category, title, value, endOrNote, notes] = parts;
+      if (category === 'tappa' && parts.length >= 3 && parts.length <= 4) {
+        row = { time, title, category, ...(value ? {notes:value} : {}) };
+      } else if (category === 'ristorante' && parts.length >= 4 && parts.length <= 5 && ['Colazione','Pranzo','Cena','Aperitivo','Altro'].includes(value)) {
+        row = { time, title, category, meal:value as DayPlanRow['meal'], ...(endOrNote ? {notes:endOrNote} : {}) };
+      } else if (category === 'metro' && parts.length >= 5 && parts.length <= 6) {
+        const [from,to,...rest] = (value || '').split(' → ').map(v => v.trim());
+        if (!from || !to || rest.length || !validTime(endOrNote) || endOrNote < time || (notes && notes.length > 500)) throw new Error('Metro: specifica partenza → arrivo e orario di arrivo.');
+        row = { time, title, category, from, to, endTime:endOrNote, ...(notes ? {notes} : {}) };
+      } else throw new Error('Categoria o formato non valido: ' + line.slice(0,70));
+    }
+    if (!validTime(row.time) || !row.title || row.title.length > 120 || !norm(row.title) || (row.notes?.length || 0) > 500) throw new Error('Riga non valida: ' + line.slice(0,70));
+    const key = norm(row.title);
+    if (seen.has(key)) throw new Error('Titolo duplicato: ' + row.title);
     seen.add(key);
-    return { time, title, ...(notes ? {notes} : {}) };
+    return row;
   });
   return { date, rows: rows.sort((a,b) => a.time.localeCompare(b.time)) };
 }
@@ -30,4 +51,20 @@ export function isProtectedStop(t: Tappa): boolean {
 }
 export function matchingStops(row: DayPlanRow, existing: Tappa[]): Tappa[] {
   return existing.filter(t => norm(t.titolo) === norm(row.title));
+}
+
+export function dayPlanCategory(row: DayPlanRow): DayPlanCategory { return row.category || 'tappa'; }
+export function isUnstructuredMetro(row: DayPlanRow): boolean { return !row.category && /^metro\b/i.test(row.title); }
+export function dayPlanRestaurantName(row: DayPlanRow): string { return row.title.replace(/^(cena|pranzo|colazione|aperitivo)\s+/i,'').trim(); }
+export function dayPlanTitleMatches(a: string, b: string): boolean {
+  return norm(a.replace(/^(cena|pranzo|colazione|aperitivo)\s+/i,'')) === norm(b.replace(/^(cena|pranzo|colazione|aperitivo)\s+/i,''));
+}
+
+/** Conversion is opt-in, and only for plain itinerary stops with no linked or enriched data. */
+export function canConvertPlainStop(stop: Tappa): boolean {
+  if (isProtectedStop(stop)) return false;
+  const allowed = new Set(['id','titolo','sottocategoria','data','date','dayId','orario','time','timeStatus','nota','notes','noteCopilota','mostraNoteInCard','copilota','completed','createdAt','updatedAt','baseUpdatedAt','publicSchemaVersion','lastSanitizedAt','_enriched']);
+  return Object.entries(stop).every(([key,value]) => allowed.has(key) || value === undefined || value === null || value === '' || value === false || (Array.isArray(value) && !value.length))
+    && (!stop.sottocategoria || stop.sottocategoria === 'Tappa')
+    && !(stop as Tappa & {_enriched?:boolean})._enriched;
 }

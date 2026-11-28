@@ -162,7 +162,7 @@ function calculateFallbackRoute(
 
     return {
       distanceKm,
-      formattedDistance: `${distanceKm} km`,
+      formattedDistance: `~${distanceKm} km`,
       durationSeconds,
       formattedDuration: `~${formatDuration(durationSeconds, profile)}`,
       profile,
@@ -170,19 +170,9 @@ function calculateFallbackRoute(
     };
   }
 
-  // Se i nomi sono definiti ma mancano coordinate esatte, calcoliamo una stima simbolica realistica locale
-  const distanceKm = profile === 'driving-car' ? 18.5 : 2.4;
-  const avgSpeed = profile === 'driving-car' ? 70 : 4.5;
-  const durationSeconds = Math.round((distanceKm / avgSpeed) * 3600);
-
-  return {
-    distanceKm,
-    formattedDistance: `~${distanceKm} km`,
-    durationSeconds,
-    formattedDuration: `~${formatDuration(durationSeconds, profile)}`,
-    profile,
-    manualOverride: false
-  };
+  // No coordinates means no defensible estimate. Never invent a distance.
+  return { distanceKm: 0, formattedDistance: 'Da verificare', durationSeconds: 0,
+    formattedDuration: 'Da verificare', profile, manualOverride: false };
 }
 
 /**
@@ -246,17 +236,24 @@ export async function getRoute(
   // 1. Verifica cache persistente IndexedDB: route_[profile]_[from]_[to]
   const cleanFrom = String(from || '').trim().toLowerCase().replace(/\s+/g, '_');
   const cleanTo = String(to || '').trim().toLowerCase().replace(/\s+/g, '_');
-  const cacheKey = `route_${profile}_${cleanFrom}_${cleanTo}`;
+  const legacyKey = `route_${profile}_${cleanFrom}_${cleanTo}`;
+  const coordKey = (coord?: Coordinate) => coord ? `${coord.lat.toFixed(5)},${coord.lng.toFixed(5)}` : '';
+  const cacheKey = fromCoord || toCoord ? `${legacyKey}_coords_${coordKey(fromCoord)}_${coordKey(toCoord)}` : legacyKey;
 
   try {
-    const cached = await storageService.getRouteCache(cacheKey);
+    const manual = await storageService.getRouteCache(legacyKey);
+    if (manual?.route?.manualOverride) return manual.route;
+    const cached = cacheKey === legacyKey ? manual : await storageService.getRouteCache(cacheKey);
     // Se la cache ha una distanza 0 o un vecchio calcolo errato tra punti urbani distinti (es. Duomo e Starita), scartala e ricalcola
     const isMilanRoute = (cleanFrom.includes('duomo') || cleanFrom.includes('novecento')) && (cleanTo.includes('gherardini') || cleanTo.includes('starita'));
     const isReverseMilanRoute = (cleanTo.includes('duomo') || cleanTo.includes('novecento')) && (cleanFrom.includes('gherardini') || cleanFrom.includes('starita'));
     const isSuzzaniRoute = (cleanFrom.includes('gherardini') || cleanFrom.includes('starita')) && (cleanTo.includes('suzzani') || cleanTo.includes('a&o') || cleanTo.includes('hostel'));
     const isReverseSuzzaniRoute = (cleanTo.includes('gherardini') || cleanTo.includes('starita')) && (cleanFrom.includes('suzzani') || cleanFrom.includes('a&o') || cleanFrom.includes('hostel'));
     if (cached && cached.route) {
-      if ((isMilanRoute || isReverseMilanRoute) && (cached.route.distanceKm < 1 || cached.route.distanceKm > 10)) {
+      if (cached.route.manualOverride) return cached.route;
+      if (['~18.5 km', '~2.4 km'].includes(cached.route.formattedDistance) || cached.route.formattedDistance === 'Da verificare') {
+        // Discard historical symbolic distances and retry previously unresolved routes.
+      } else if ((isMilanRoute || isReverseMilanRoute) && (cached.route.distanceKm < 1 || cached.route.distanceKm > 10)) {
         // Forza ricalcolo con coordinate reali
       } else if ((isSuzzaniRoute || isReverseSuzzaniRoute) && (cached.route.distanceKm < 4 || cached.route.distanceKm > 12)) {
         // Scarta cache errata (< 4km non è realistica per Suzzani da Arco della Pace)
