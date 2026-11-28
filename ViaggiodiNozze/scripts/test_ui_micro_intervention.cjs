@@ -103,3 +103,5 @@ test('Provenienza foto esplicita, senza classificare la didascalia ambigua',
   photoShare.includes('title: TRIP_PHOTO_TITLE') &&
   read('src/views/altro/LiveEditorialExperience.tsx').includes('data-testid="live-trip-photo-origin"') &&
   read('src/views/altro/LiveEditorialExperience.tsx').includes('await props.onDeletePhoto(photo.id)'));
+
+require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_day_plan_import.cjs')], { stdio: 'inherit' });

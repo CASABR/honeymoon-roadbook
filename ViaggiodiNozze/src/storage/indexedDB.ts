@@ -210,6 +210,37 @@ export async function idbPut<T>(storeName: StoreName, item: T): Promise<void> {
   });
 }
 
+/** Atomic, trip-pinned local batch. All writes are aborted if the preview is stale or authorization changes. */
+export async function idbApplyDayStopBatch<T extends { id: string; updatedAt: number }>(
+  tripId: string, items: { before?: T; after: T }[], mayContinue: () => boolean,
+  validateSnapshot: (current: T[]) => boolean
+): Promise<void> {
+  if (!items.length || !mayContinue() || getActiveTripId() !== tripId) throw new Error('Sessione cambiata o nessuna modifica.');
+  const db = await openDatabase(tripId);
+  if (!mayContinue() || getActiveTripId() !== tripId) throw new Error('Sessione cambiata.');
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORES.TAPPE, 'readwrite');
+    const store = tx.objectStore(STORES.TAPPE);
+    let reason = 'Salvataggio non completato. Nessuna modifica applicata.';
+    tx.oncomplete = () => resolve();
+    tx.onabort = () => reject(new Error(reason));
+    tx.onerror = () => { reason = tx.error?.message || reason; };
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const current = request.result as T[];
+      if (!mayContinue() || getActiveTripId() !== tripId || !validateSnapshot(current) ||
+        items.some(item => item.before
+          ? !current.some(record => record.id === item.before!.id && record.updatedAt === item.before!.updatedAt)
+          : current.some(record => record.id === item.after.id))) {
+        reason = 'Il programma è cambiato. Riapri l’anteprima.';
+        tx.abort();
+        return;
+      }
+      for (const item of items) store.put(item.after);
+    };
+  });
+}
+
 export async function idbDelete(storeName: StoreName, id: string): Promise<void> {
   const db = await openDatabase();
   return new Promise((resolve, reject) => {

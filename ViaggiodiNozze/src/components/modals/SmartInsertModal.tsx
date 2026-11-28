@@ -27,6 +27,7 @@ import {
   type HouniAiQuotaState
 } from '../../services/houniAiGateway';
 import { useVisualViewportBox } from '../../hooks/useVisualViewportBox';
+import DayPlanImportPanel from '../common/DayPlanImportPanel';
 
 interface SmartInsertModalProps {
   isOpen: boolean;
@@ -1588,6 +1589,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   </button>
                 )}
               </div>
+              {inputMode === 'import' && step === 'input' && <DayPlanImportPanel text={text} onText={setText} />}
               </div>
 
               {/* Pulsanti Azione fissi in basso dentro il foglio anche con tastiera aperta */}
