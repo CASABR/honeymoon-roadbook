@@ -1,0 +1,8 @@
+{
+  "version": "1.7.54",
+  "preparedAt": "2026-11-28",
+  "changes": [
+    "Importazione di ristoranti e metro in categorie corrette, con conversione facoltativa delle tappe semplici.",
+    "Rotte senza coordinate indicate come da verificare, senza distanze fittizie; modifiche manuali conservate."
+  ]
+}
