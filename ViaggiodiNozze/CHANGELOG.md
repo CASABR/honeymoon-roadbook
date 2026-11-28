@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.50 — 2026-11-28
+
+- Importi compatti sulle card: verde per saldato e giallo per il residuo da pagare, senza diciture ripetitive.
+
 ## 1.7.49 — 2026-11-28
 
 - Apertura di una proposta itinerario da un collegamento ChatGPT, nel viaggio autorizzato, senza copia-incolla o salvataggi automatici.
@@ -45,8 +49,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Download diretto PDF su desktop, salvataggio e condivisione nativa su mobile
 - Anteprima PDF integrata, nome file standardizzato e filtro permessi per ruolo
-
-## 1.7.40 — 2026-11-27
-
-- Resolver geografico condiviso con priorita alle coordinate salvate
-- Autocompletamento Photon contestualizzato sulla data della card anche su Shopping e Trasporti
