@@ -2154,3 +2154,34 @@ html.dark .flight-front-spec-icon { color:#7dd3fc; }
   .hounigo-ds-card .hounigo-ds-duplicate-icon { display:inline-flex !important; min-width:2rem; }
   .app-forced-mobile .hounigo-ds-card .hounigo-ds-duplicate-icon { display:none !important; }
 }
+
+
+/* Dedicated tablet shell: real document scroll, wide cards and touch navigation. */
+.app-tablet-view .app-tablet-workspace {
+  max-width: 76rem;
+  padding-inline: max(1.25rem, var(--app-safe-left), var(--app-safe-right));
+  padding-bottom: calc(7rem + var(--app-safe-bottom));
+}
+.app-tablet-view .app-sticky-subheader { top: calc(var(--app-safe-top) + 3.8125rem); }
+.app-tablet-dock .app-bottom-nav > div { max-width: 56rem; }
+.app-mobile-preview-dock { left: 50%; right: auto; transform: translateX(-50%) !important; }
+.app-safe-shell:has(.app-tablet-view) .app-fixed-bottom-floating {
+  bottom: calc(max(0.75rem, var(--app-safe-bottom)) + 5.25rem);
+}
+@media (min-width: 900px) and (orientation: landscape) {
+  .app-tablet-view .hounigo-ipad-landscape-timeline {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 0.875rem;
+  }
+  .app-tablet-view .hounigo-ipad-landscape-timeline > * { min-width: 0; margin-block-start: 0 !important; }
+  .app-tablet-view .hounigo-ipad-landscape-span-full { grid-column: 1 / -1; }
+}
+@media (orientation: portrait), (max-width: 899px) {
+  .app-tablet-view .hounigo-ipad-landscape-timeline { display: block; }
+}
+
+.app-native-mobile .app-workspace { padding-bottom: calc(6rem + var(--app-safe-bottom)); }
+.app-native-mobile .app-sticky-subheader { top: calc(var(--app-safe-top) + 3.8125rem); }
+.app-safe-shell:has(.app-native-mobile) .app-fixed-bottom-floating { bottom: calc(max(0.75rem, var(--app-safe-bottom)) + 5.25rem); }
