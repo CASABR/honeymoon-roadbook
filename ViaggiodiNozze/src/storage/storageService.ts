@@ -6,13 +6,16 @@ import {
   idbGet,
   idbPut,
   idbApplyDayStopBatch,
+  idbReadDayImportSnapshot,
+  idbApplyTypedDayPlan,
   idbDelete,
   getActiveTripId,
   MASTER_TRIP_ID
 } from './indexedDB';
 import { formatDateIT, normalizeTimestamp } from '../utils/tripDates';
 import { assertCanMutate, getAuthorizedLocalEditorRole } from '../utils/useAuthIdentity';
-import { isProtectedStop, matchingStops, type DayPlanRow } from '../utils/dayPlanImport';
+import { isProtectedStop, matchingStops, type DayPlanRow, type DayPlan } from '../utils/dayPlanImport';
+import { previewTypedDay, buildTypedDayOperations, type TypedDayPreview } from '../utils/typedDayPlan';
 import { auth } from '../firebase';
 import { compareTimelineItems } from '../utils/timelineOrdering';
 import { sortDeadlines } from '../utils/deadlines';
@@ -919,6 +922,31 @@ class StorageService {
       console.error('[StorageService] Errore lettura tappe per data:', err);
       return [];
     }
+  }
+
+  async previewTypedDayPlan(tripId: string, uid: string, plan: DayPlan): Promise<TypedDayPreview> {
+    if (getActiveTripId() !== tripId || auth.currentUser?.uid !== uid || !getAuthorizedLocalEditorRole(tripId,uid)) throw new Error('Viaggio o sessione non autorizzati.');
+    const snapshot = await idbReadDayImportSnapshot(tripId);
+    if (getActiveTripId() !== tripId || auth.currentUser?.uid !== uid || !getAuthorizedLocalEditorRole(tripId,uid)) throw new Error('Sessione cambiata.');
+    return previewTypedDay(plan,snapshot,(store,id)=>this.isTombstoneActiveSync(store,id));
+  }
+
+  async applyTypedDayPlan(tripId: string, uid: string, plan: DayPlan, preview: TypedDayPreview, selected: number[]): Promise<number> {
+    const mayContinue = () => Boolean(getActiveTripId() === tripId && auth.currentUser?.uid === uid && getAuthorizedLocalEditorRole(tripId,uid));
+    if (!mayContinue()) throw new Error('Viaggio o sessione non autorizzati.');
+    for (const store of ['tappe','ristoranti','trasporti']) assertCanMutate(store);
+    const operations = await idbApplyTypedDayPlan(tripId,mayContinue,snapshot=>buildTypedDayOperations(
+      plan,snapshot,preview,selected,uid,Date.now(),()=>crypto.randomUUID(),(store,id)=>this.isTombstoneActiveSync(store,id)
+    ));
+    if (getActiveTripId() !== tripId || auth.currentUser?.uid !== uid) return selected.length;
+    for (const operation of operations) {
+      this.memoryCache.delete(operation.store);
+      if (operation.store === 'settings' && operation.record.id.startsWith('tombstone_')) {
+        try { localStorage.setItem(operation.record.id,'true'); } catch {}
+      }
+      notifyDataChanged(operation.store,operation.action,operation.action==='delete'?{id:operation.record.id}:operation.record);
+    }
+    return selected.length;
   }
 
   async applyDayPlan(tripId: string, uid: string, date: string,
