@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.7.55 — 2026-11-28
+
+- Selettori LIVE Programma e GPS + Programma disponibili, con indicazione esplicita se manca la posizione prevista.
+- Evidenziazione automatica delle tappe solo durante l'evento o nell'ora precedente.
+
 ## 1.7.54 — 2026-11-28
 
 - Importazione di ristoranti e metro in categorie corrette, con conversione facoltativa delle tappe semplici.
@@ -45,8 +50,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - Risposte LIVE compatte sotto il messaggio o commento originale.
 - Mappa LIVE con selettori visibili agli ospiti e tappe ordinate per orario locale.
 - Notifiche senza auto-avvisi e protezione contro i doppi invii.
-
-## 1.7.45 — 2026-11-28
-
-- Ripristino della foto ricordo nel primo giorno del viaggio.
-- Condivisione volontaria delle fotografie di tappe e attività nel LIVE.
