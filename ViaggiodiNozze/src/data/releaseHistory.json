@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.45",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "79e813dabd9d0721f9318fa5d7b4c3404081c311",
+      "changes": [
+        "Ripristino della foto ricordo nel primo giorno del viaggio.",
+        "Condivisione volontaria delle fotografie di tappe e attività nel LIVE."
+      ],
+      "publishedAtIso": "2026-11-28T09:21:29Z"
+    },
+    {
       "version": "1.7.44",
       "publishedAt": "2026-11-27",
       "sourceCommit": "97e8dffa1ac98295bc9d55c3a70a06ea132ca991",
@@ -81,14 +91,6 @@
       "sourceCommit": "8df2b473eb30a7683a6e951caff6505205cc19ea",
       "changes": [
         "Retro Treno compatto: binario, carrozza e posti separati, cambio treno dedicato, fusi automatici per località riconosciute e note collassate, con compatibilità dei dati precedenti."
-      ]
-    },
-    {
-      "version": "1.7.35",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "973e687c09b59e4fb4a6dd47c11a105cb52d9604",
-      "changes": [
-        "Retro Aereo: dati aeroportuali automatici con verifica solo in caso di anomalie, grafica dedicata allo scalo e card a larghezza intera nella modalità mobile su iPad."
       ]
     }
   ]
