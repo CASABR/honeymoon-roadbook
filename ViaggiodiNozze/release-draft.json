@@ -1,0 +1,9 @@
+{
+  "version": "1.7.56",
+  "preparedAt": "2026-11-28",
+  "changes": [
+    "Visualizzazione tablet dedicata, automatica e selezionabile, in entrambe le orientazioni.",
+    "Icona di duplicazione nascosta nelle interfacce touch.",
+    "Indicazione dello scalo previsto e del volo successivo dai dati delle prenotazioni esistenti."
+  ]
+}
