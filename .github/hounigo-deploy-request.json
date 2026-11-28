@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-28T11:04:56Z",
+  "requestedAt": "2026-11-28T13:41:48Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.54-typed-day-20261128",
+  "requestId": "release-1.7.55-live-programme-timeline-20261128",
   "requestedBy": "CASABR",
-  "ref": "317e0237c910be0d1553b94e0438a85e90c6a4f3",
+  "ref": "5370b4f3d0971c14c707bad6468f6ba6b7fbd939",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "Verified PR #25 typed itinerary import and route fixes."
+  "note": "PR #27 functional changes passed full CI; production pipeline rechecks lint, release metadata and build."
 }
