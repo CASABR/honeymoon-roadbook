@@ -1,8 +1,8 @@
 {
-  "requestId": "release-1.7.46-worker-live-20261128",
+  "requestId": "release-1.7.47-worker-planned-location-20261128",
   "action": "deploy",
   "version_id": "",
   "confirm": "CONFERMA",
   "requestedBy": "CASABR",
-  "purpose": "Verified PR #17: authenticated push actor, author group isolation, offline reply idempotency. No Firebase rules changes."
+  "purpose": "Verified PR #18: isolated public planned location with expiry; no Firebase rules changes."
 }
