@@ -69,8 +69,8 @@ export function buildTypedDayOperations(plan:DayPlan,snapshot:DayImportSnapshot,
     }
     const id=newId();
     if(stores.some(store=>snapshot[store].some(r=>r.id===id)))throw new Error('ID già presente.');
-    const notes=[before?.notes||before?.nota,row.notes].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join('\n')||undefined;
-    const common={id,data:plan.date,date:plan.date,createdAt:before?.createdAt||now,updatedAt:now,notes, ...(before?{noteCopilota:before.noteCopilota,copilota:before.copilota,mostraNoteInCard:before.mostraNoteInCard}: {})};
+    const notes=[before?.notes,before?.nota,row.notes].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join('\n')||undefined;
+    const common={id,data:plan.date,date:plan.date,createdAt:before?.createdAt||now,updatedAt:now,notes, ...(before?{timeStatus:before.timeStatus,noteCopilota:before.noteCopilota,copilota:before.copilota,mostraNoteInCard:before.mostraNoteInCard}: {})};
     if(category==='ristorante'){
       ops.push({store:'ristoranti',action:'save',record:{...common,nome:dayPlanRestaurantName(row),sottocategoria:row.meal||'Altro',dayId:'day_'+plan.date,orario:row.time,time:row.time,nota:notes}});
     }else if(category==='metro'){
