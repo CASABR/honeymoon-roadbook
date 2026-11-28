@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.53",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "cd7050bfdc27cfed661248fc3ccce64b2924b6cb",
+      "changes": [
+        "Card foto ricordo più compatta, miniatura espandibile e azioni su una riga.",
+        "Didascalia modificabile e conservata offline; inclusa nelle nuove pubblicazioni LIVE."
+      ],
+      "publishedAtIso": "2026-11-28T10:59:20Z"
+    },
+    {
       "version": "1.7.52",
       "publishedAt": "2026-11-28",
       "sourceCommit": "ba468200a05765a292eeeb96e4a82bec64c6c7a2",
@@ -88,16 +98,6 @@
         "Esportazione Word (.docx) compatibile con Microsoft Word senza errori di contenuto"
       ],
       "publishedAtIso": "2026-11-27T14:23:23.319Z"
-    },
-    {
-      "version": "1.7.43",
-      "publishedAt": "2026-11-27",
-      "sourceCommit": "54a84af24a8295b8412d54582c0d78a76e87021a",
-      "changes": [
-        "Livello Compatto operativo ottimizzato per la stampa (15-20 pag.)",
-        "Esportazione Word (.docx) modificabile con tabelle editabili e numerazione pagine"
-      ],
-      "publishedAtIso": "2026-11-27T13:50:36.431Z"
     }
   ]
 }
