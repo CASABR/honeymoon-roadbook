@@ -130,7 +130,8 @@ function toDateStr(d: Date, timeZone?: string): string {
 }
 
 function toWallClockMs(d: Date, timeZone?: string): number {
-  if (!timeZone) return d.getTime();
+  const localWallClock = () => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds());
+  if (!timeZone) return localWallClock();
   try {
     const parts = new Intl.DateTimeFormat('en-GB', {
       timeZone,
@@ -145,7 +146,7 @@ function toWallClockMs(d: Date, timeZone?: string): number {
     const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find(part => part.type === type)?.value || 0);
     return Date.UTC(value('year'), value('month') - 1, value('day'), value('hour'), value('minute'), value('second'));
   } catch {
-    return d.getTime();
+    return localWallClock();
   }
 }
 
@@ -473,6 +474,17 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
         date: tpDate, time: tpTime, title: tp.titolo, location: tp.titolo,
         coords: tp.coordinate || lookupKnownCoordinate(tp.titolo) || undefined, ms: dt.getTime()
       });
+    }
+  }
+
+  // Preserve a day-level fallback without inventing an appointment time.
+  if (!futureCandidates.length) {
+    for (const tp of tappe) {
+      const date = tp.data || tp.date;
+      if (!isTaskTappa(tp) && date && date > todayStr && !tp.orario && !tp.time) {
+        futureCandidates.push({ date, time: 'Orario da definire', title: tp.titolo, location: tp.titolo,
+          coords: tp.coordinate || lookupKnownCoordinate(tp.titolo) || undefined, ms: parseDateTime(date)?.getTime() || 0 });
+      }
     }
   }
 
