@@ -10,6 +10,7 @@ import { openAttachmentInNewTab } from '../../utils/fileAttachment';
 import { formatDateIT } from '../../utils/tripDates';
 import { PHOTO_LIGHT_LABELS, formatHikingDuration } from '../../utils/activityType';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { TripPhotoShareActions } from '../common/ShareTripPhotoButton';
 
 interface TimelineItemDetailModalProps {
   isOpen: boolean;
@@ -761,6 +762,8 @@ export default function TimelineItemDetailModal({
             </div>
           </div>
         )}
+
+        {canEdit && !isExternalLiveView && <TripPhotoShareActions attachments={attachments} />}
 
         {/* ─── 7. AZIONI DISPONIBILI ─── */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 gap-2 flex-wrap">

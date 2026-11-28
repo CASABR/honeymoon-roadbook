@@ -92,7 +92,23 @@ function dismissKey(tripId: string, userId: string): string {
   return `${DISMISS_PREFIX}:${tripId}:${userId}`;
 }
 
+// Device-local override only: never change the dismissal on another device.
+function restoreKey(tripId: string, userId: string): string {
+  return `${DISMISS_PREFIX}:restored:${tripId}:${userId}`;
+}
+
+export function restorePredeparturePrompt(tripId: string, userId = getJournalUserId()): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(restoreKey(tripId, userId), 'true');
+  }
+}
+
+function isPredeparturePromptRestored(tripId: string, userId: string): boolean {
+  return typeof localStorage !== 'undefined' && localStorage.getItem(restoreKey(tripId, userId)) === 'true';
+}
+
 export function isPredeparturePromptDismissed(tripId: string, userId = getJournalUserId()): boolean {
+  if (isPredeparturePromptRestored(tripId, userId)) return false;
   return typeof localStorage !== 'undefined' && (
     localStorage.getItem(dismissKey(tripId, userId)) === 'true' ||
     localStorage.getItem(`${DISMISS_PREFIX}:${tripId}`) === 'true'
@@ -100,10 +116,11 @@ export function isPredeparturePromptDismissed(tripId: string, userId = getJourna
 }
 
 export async function isPredeparturePromptDismissedAsync(tripId: string, userId = getJournalUserId()): Promise<boolean> {
+  if (isPredeparturePromptRestored(tripId, userId)) return false;
   if (isPredeparturePromptDismissed(tripId, userId)) return true;
   try {
     const idbDismissed = await storageService.getSetting<boolean>(dismissKey(tripId, userId));
-    if (idbDismissed) {
+    if (idbDismissed && !isPredeparturePromptRestored(tripId, userId)) {
       if (typeof localStorage !== 'undefined') {
         localStorage.setItem(dismissKey(tripId, userId), 'true');
       }
@@ -117,6 +134,7 @@ export async function isPredeparturePromptDismissedAsync(tripId: string, userId 
 
 export function dismissPredeparturePrompt(tripId: string, userId = getJournalUserId()): void {
   if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(restoreKey(tripId, userId));
     localStorage.setItem(dismissKey(tripId, userId), 'true');
     localStorage.setItem(`${DISMISS_PREFIX}:${tripId}`, 'true');
   }
