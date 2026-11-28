@@ -245,7 +245,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     [effectiveNowMs, effectiveClockResolution]
   );
   const plannedLocation = props.liveIntelligence?.plannedLocation || null;
-  const hasPlannedLocation = Boolean(!props.isExternal && plannedLocation?.coords);
+  const hasPlannedLocation = Boolean(plannedLocation?.coords);
   const showRealMarker = hasRealLocation && props.mapCenterMode !== 'planned';
   const showPlannedMarker = hasPlannedMarkerCheck(hasPlannedLocation, props.mapCenterMode);
   const permissionDenied = Boolean(props.gpsError && /permess|denied|negat|autorizzat/i.test(props.gpsError));
@@ -350,10 +350,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   });
   const [guestMessageInput, setGuestMessageInput] = useState('');
   const [isSendingGuestMsg, setIsSendingGuestMsg] = useState(false);
+  const guestSubmitBusy = useRef(false);
   const [guestMsgError, setGuestMsgError] = useState<string | null>(null);
   const [guestMsgSuccess, setGuestMsgSuccess] = useState<string | null>(null);
   const [photoCommentInput, setPhotoCommentInput] = useState('');
   const [isSendingPhotoComment, setIsSendingPhotoComment] = useState(false);
+  const photoCommentSubmitBusy = useRef(false);
   const [photoCommentError, setPhotoCommentError] = useState<string | null>(null);
   const [replyingToGuestMsg, setReplyingToGuestMsg] = useState<LiveReplyTarget | null>(null);
   const [replyingToPhotoComment, setReplyingToPhotoComment] = useState<LiveReplyTarget | null>(null);
@@ -375,7 +377,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
   const handleGuestMessageSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!props.onSendGuestMessage || isSendingGuestMsg) return;
+    if (!props.onSendGuestMessage || guestSubmitBusy.current) return;
+    guestSubmitBusy.current = true;
     setGuestMsgError(null);
     setGuestMsgSuccess(null);
     setIsSendingGuestMsg(true);
@@ -398,6 +401,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     } catch (err: any) {
       setGuestMsgError(err?.message || 'Impossibile inviare il messaggio. Riprova.');
     } finally {
+      guestSubmitBusy.current = false;
       setIsSendingGuestMsg(false);
     }
   };
@@ -510,7 +514,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
   const handlePhotoCommentSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!activeLightboxPhotoId || !activeLightboxIsPublic || !props.onAddPhotoComment || isSendingPhotoComment) return;
+    if (!activeLightboxPhotoId || !activeLightboxIsPublic || !props.onAddPhotoComment || photoCommentSubmitBusy.current) return;
     const cleanAuthor = guestAuthorInput.trim();
     const cleanText = photoCommentInput.trim();
     if (!cleanAuthor || !cleanText) {
@@ -518,6 +522,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       return;
     }
     setPhotoCommentError(null);
+    photoCommentSubmitBusy.current = true;
     setIsSendingPhotoComment(true);
     try {
       await props.onAddPhotoComment(activeLightboxPhotoId, cleanAuthor, cleanText, replyingToPhotoComment);
@@ -529,6 +534,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     } catch (err: any) {
       setPhotoCommentError(err?.message || 'Impossibile inviare il commento.');
     } finally {
+      photoCommentSubmitBusy.current = false;
       setIsSendingPhotoComment(false);
     }
   };
@@ -925,18 +931,18 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
               {props.tileGrid && !props.tileLoadFailed && (hasRealLocation || hasPlannedLocation) ? (
                 <div className="relative min-h-[300px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[420px] lg:min-h-[340px] lg:h-[calc(100dvh-16rem)] lg:max-h-[430px] xl:h-auto xl:min-h-[460px] xl:max-h-none">
-                  {!props.isExternal && (hasRealLocation || hasPlannedLocation) && (
+                  {(hasRealLocation || hasPlannedLocation) && (
                     <div className="absolute left-3 right-3 top-3 z-20 grid grid-cols-3 gap-1 rounded-full bg-[#172033]/90 p-1 text-[10px] font-bold text-white backdrop-blur" role="group" aria-label="Centra mappa">
                       {(['both', 'real', 'planned'] as const).map(mode => (
                         <button
                           key={mode}
                           type="button"
                           onClick={() => props.onChangeMapCenterMode?.(mode)}
-                          disabled={(mode === 'real' && !hasRealLocation) || (mode === 'planned' && !hasPlannedLocation)}
+                          disabled={(mode === 'real' && !hasRealLocation) || (mode === 'planned' && !hasPlannedLocation) || (mode === 'both' && !(hasRealLocation && hasPlannedLocation))}
                           className={`min-h-9 rounded-full px-2 disabled:opacity-35 ${props.mapCenterMode === mode ? 'bg-[#FF6B5F] text-white' : 'text-white/75'}`}
                           aria-pressed={props.mapCenterMode === mode}
                         >
-                          {mode === 'both' ? 'Insieme' : mode === 'real' ? 'GPS' : 'Programma'}
+                          {mode === 'both' ? 'GPS + Programma' : mode === 'real' ? 'GPS' : 'Programma'}
                         </button>
                       ))}
                     </div>
