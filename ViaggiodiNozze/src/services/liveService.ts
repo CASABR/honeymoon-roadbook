@@ -589,9 +589,10 @@ export const liveService = {
     if (!LIVE_PHOTO_ORIGIN) {
       throw new Error('Invio messaggi pubblici non disponibile.');
     }
+    const actorToken = user && !user.isAnonymous ? await user.getIdToken().catch(() => '') : '';
     const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/guest-messages`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(actorToken ? { Authorization: `Bearer ${actorToken}` } : {}) },
       body: JSON.stringify({
         visitorId,
         authorName: safe.authorName,
@@ -633,7 +634,7 @@ export const liveService = {
 
     const publishCombined = () => {
       if (disposed) return;
-      callback([...d1Messages, ...firestoreMessages]
+      callback([...new Map([...firestoreMessages, ...d1Messages].map(item => [item.id, item])).values()]
         .filter(item => !item.deleted && (includeHidden || !item.hidden))
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(0, 50));
@@ -823,7 +824,7 @@ export const liveService = {
     let pending = false;
     let refreshAgain = false;
     const publish = () => {
-      if (!disposed) callback([...legacy, ...remote].sort((a, b) => a.createdAt - b.createdAt).slice(-50));
+      if (!disposed) callback([...new Map([...legacy, ...remote].map(item => [item.id, item])).values()].sort((a, b) => a.createdAt - b.createdAt).slice(-50));
     };
     const refresh = async () => {
       if (disposed || (typeof document !== 'undefined' && document.hidden)) return;
@@ -976,9 +977,10 @@ export const liveService = {
 
     const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
     if (!LIVE_PHOTO_ORIGIN) throw new Error('Commenti pubblici non disponibili.');
+    const actorToken = user && !user.isAnonymous ? await user.getIdToken().catch(() => '') : '';
     const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/comments`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(actorToken ? { Authorization: `Bearer ${actorToken}` } : {}) },
       body: JSON.stringify({
         postId: photoId,
         authorName: cleanAuthor,
