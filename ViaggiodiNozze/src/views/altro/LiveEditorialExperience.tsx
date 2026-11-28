@@ -246,7 +246,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     [effectiveNowMs, effectiveClockResolution]
   );
   const plannedLocation = props.liveIntelligence?.plannedLocation || null;
-  const hasPlannedLocation = Boolean(!props.isExternal && plannedLocation?.coords);
+  const hasPlannedLocation = Boolean(plannedLocation?.coords);
   const showRealMarker = hasRealLocation && props.mapCenterMode !== 'planned';
   const showPlannedMarker = hasPlannedMarkerCheck(hasPlannedLocation, props.mapCenterMode);
   const permissionDenied = Boolean(props.gpsError && /permess|denied|negat|autorizzat/i.test(props.gpsError));

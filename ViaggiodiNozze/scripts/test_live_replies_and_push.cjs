@@ -100,6 +100,34 @@ async function run() {
       RATE_LIMITS: createD1Shim(db),
     };
 
+    // Public map: isolated, owner-authored, approximate, expires, no itinerary fields.
+    const projectionUrl = (trip = 'trip_a') => `https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/${trip}/planned-location`;
+    const projectionPost = (payload, uid, trip = 'trip_a') => handleRequest(new Request(projectionUrl(trip), {
+      method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json', 'CF-Connecting-IP': '9.9.9.9',
+        ...(uid ? { Authorization: `Bearer ${fakeJwt(uid)}` } : {}) }, body: JSON.stringify(payload)
+    }), env);
+    const projectionGet = (trip = 'trip_a') => handleRequest(new Request(projectionUrl(trip), {
+      headers: { 'CF-Connecting-IP': '9.9.9.8' }
+    }), env);
+    assert.equal((await (await projectionGet()).json()).available, false);
+    assert.equal((await projectionPost({lat:45.46381,lng:9.18261}, null)).status, 401);
+    assert.equal((await projectionPost({lat:45.46381,lng:9.18261}, 'copilota_1')).status, 403);
+    assert.equal((await projectionPost({lat:45.46381,lng:9.18261}, 'owner_1', 'trip_b')).status, 403);
+    assert.equal((await projectionPost({lat:91,lng:9}, 'owner_1')).status, 400);
+    assert.equal((await projectionPost({lat:45.46,lng:9.18,note:'synthetic private'}, 'owner_1')).status, 400);
+    assert.equal((await projectionPost({lat:45.46381,lng:9.18261}, 'owner_1')).status, 200);
+    const projected = await (await projectionGet()).json();
+    assert.deepEqual(Object.keys(projected.location).sort(), ['lat','lng','updatedAt']);
+    assert.equal(projected.location.lat, 45.46);
+    assert.equal(projected.location.lng, 9.18);
+    assert.equal((await (await projectionGet('trip_b')).json()).available, false);
+    db.prepare('UPDATE live_planned_points SET updated_at=? WHERE trip_id=?').run(Date.now()-1800001, 'trip_a');
+    assert.equal((await (await projectionGet()).json()).available, false);
+    assert.equal((await projectionPost({lat:45.46,lng:9.18}, 'owner_1')).status, 200);
+    assert.equal((await projectionPost({clear:true}, 'owner_1')).status, 200);
+    assert.equal((await (await projectionGet()).json()).available, false);
+    console.log('✓ [PASS] Public planned point: ownership, isolation, rounded coords, expiry and explicit clearing');
+
     // 1. Guest message + WhatsApp-style reply + cross-trip rejection + Copilota delete
     const m1 = await handleRequest(new Request('https://hounigo-ai.nunzio114.workers.dev/v1/live-photos/trip_a/guest-messages', {
       method: 'POST',
