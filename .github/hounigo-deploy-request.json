@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-28T10:21:32Z",
+  "requestedAt": "2026-11-28T10:28:29Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.50-payment-20261128",
+  "requestId": "release-1.7.51-photos-20261128",
   "requestedBy": "CASABR",
-  "ref": "e0768a2b9ccd8970f2bff1e3561f1b7d10fcd9e9",
+  "ref": "8d52492c4ccd780c3d71696d46a6fd8356f29d83",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "Verified PR #21 compact payment badges."
+  "note": "Verified PR #22 LIVE photo removal and provenance."
 }
