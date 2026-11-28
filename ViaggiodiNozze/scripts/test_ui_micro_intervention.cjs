@@ -40,4 +40,28 @@ test('La card Admin è visibile solo sul viaggio 0000',
 test('La card Admin non modifica i controlli globali esistenti',
   altro.includes('Accesso soggetto ad autorizzazione globale') && admin.includes("setAccessStatus('unauthorized')") && admin.includes('system_admins'));
 
+
+const predeparture = read('src/components/cards/PreDeparturePhotoCard.tsx');
+const photoJournal = read('src/services/photoJournalService.ts');
+const photoShare = read('src/components/common/ShareTripPhotoButton.tsx');
+test('Ripristino card solo nel primo giorno effettivo',
+  predeparture.includes('data-testid="restore-predeparture-photo"') &&
+  predeparture.includes('localDate() !== startDate') &&
+  predeparture.includes('selectedDate !== startDate') &&
+  predeparture.includes('restorePredeparturePrompt(tripId, journalUserId)'));
+test('Ripristino foto solo sul dispositivo e revocabile',
+  photoJournal.includes('restoreKey(tripId, userId)') &&
+  photoJournal.includes('localStorage.removeItem(restoreKey(tripId, userId))') &&
+  photoJournal.includes('if (isPredeparturePromptRestored(tripId, userId)) return false;'));
+test('Condivisione LIVE solo di foto esplicite e previa conferma',
+  photoShare.includes("attachment.purpose === 'photo'") &&
+  photoShare.includes("attachment.type === 'image'") &&
+  photoShare.includes('window.confirm(') && photoShare.includes('!navigator.onLine') &&
+  photoShare.includes('verifyPrivilegedLivePublisher(tripId, user.uid)') &&
+  photoShare.includes('uploadLivePhoto(tripId, photo.dataUrl, undefined, user.uid)') &&
+  !photoShare.includes('useEffect('));
+test('Condivisione foto integrata in tappe, attività e dettagli',
+  ['src/components/cards/TappaCard.tsx','src/components/cards/AttivitaCard.tsx','src/components/modals/TimelineItemDetailModal.tsx']
+    .every(p => read(p).includes('<TripPhotoShareActions attachments=')));
+
 console.log(`\n${passed}/${passed} verifiche UI mirate superate.`);
