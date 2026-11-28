@@ -167,6 +167,17 @@ function runUnitTests() {
     assert.equal(follow('2026-12-03', '2026-12-03', '2026-12-03'), null);
   });
 
+  check('6. No highlight or automatic scroll for dinner five hours ahead', () => {
+    const options = { now: new Date('2026-11-28T14:21:00+01:00'), tripStartDate: '2026-11-28', tripEndDate: '2027-01-10', activeTimeZone: 'Europe/Rome' };
+    const dinner = { id: 'dinner', type: 'ristorante', time: '19:30', timeStatus: 'confermato', title: 'Cena', location: 'Milano' };
+    const far = focus.resolveTripActiveCard([dinner], '2026-11-28', options);
+    assert.equal(far.activeItemId, null);
+    assert.equal(far.scrollItemId, null);
+    const near = focus.resolveTripActiveCard([dinner], '2026-11-28', { ...options, now: new Date('2026-11-28T18:30:00+01:00') });
+    assert.equal(near.activeItemId, 'dinner');
+    assert.equal(near.reason, 'upcoming');
+  });
+
   return passed;
 }
 
