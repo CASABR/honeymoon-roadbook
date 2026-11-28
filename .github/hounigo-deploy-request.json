@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-28T11:04:52Z",
+  "requestedAt": "2026-11-28T11:04:56Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.54-typed-day-import-20261128",
+  "requestId": "release-1.7.54-typed-day-20261128",
   "requestedBy": "CASABR",
-  "ref": "0c3485bf148770ae21e92b7b842478586533cc7a",
+  "ref": "317e0237c910be0d1553b94e0438a85e90c6a4f3",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "Verified PR #25 typed itinerary and reliable route estimates."
+  "note": "Verified PR #25 typed itinerary import and route fixes."
 }
