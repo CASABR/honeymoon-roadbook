@@ -291,6 +291,15 @@ export async function handleLivePhotoRequest(request, env, security) {
     const isCommentPost = request.method === 'POST' && id === 'comments' && !action;
     const isReactionPost = request.method === 'POST' && id === 'reactions' && !action;
     const isGuestMessagePost = request.method === 'POST' && id === 'guest-messages' && !action;
+    // Verified identity is used only for push attribution; guest writes remain public.
+    const resolvePublicPushActor = async () => {
+      const token = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
+      if (!token || token.length > 8192) return null;
+      try {
+        const uid = await security.verifyFirebaseIdentity(token, env);
+        return uid && await security.assertEditor(uid, tripId, token, env) ? uid : null;
+      } catch { return null; }
+    };
     if (!tripId || (id && !isPublicEndpoint && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish' && !isGuestMessageModerationPath && !isCommentModerationPath)) throw error(404, 'Foto non disponibile.');
     if (request.method === 'OPTIONS') {
       if (origin !== env.ALLOWED_ORIGIN) throw error(403, 'Origine non autorizzata.');
@@ -425,7 +434,7 @@ export async function handleLivePhotoRequest(request, env, security) {
       await security.enqueueLivePushEvent?.(env, {
         tripId,
         eventType: 'live_comment',
-        actorUid: null,
+        actorUid: await resolvePublicPushActor(),
         dedupeKey: commentId,
         photoId: postId,
         authorName: cleanAuthor,
@@ -547,7 +556,7 @@ export async function handleLivePhotoRequest(request, env, security) {
       await security.enqueueLivePushEvent?.(env, {
         tripId,
         eventType: 'live_guest_msg',
-        actorUid: null,
+        actorUid: await resolvePublicPushActor(),
         dedupeKey: messageId,
         authorName: cleanAuthor,
         isReply: Boolean(replyRef),
