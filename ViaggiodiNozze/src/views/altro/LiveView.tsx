@@ -1,3 +1,4 @@
+import { isTaskTappa } from '../../utils/taskTappa';
 import { useLiveMapInitialCenter } from '../../hooks/useLiveMapInitialCenter';
 import { compressLivePhotoToDataUrl } from '../../utils/livePhotoImage';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -1315,8 +1316,17 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
 
   const currentTappa = useMemo(() => {
-    return tappe.find(tp => tp.data === activeDate);
-  }, [tappe, activeDate]);
+    const clock = now.getHours() * 60 + now.getMinutes();
+    const todayStops = tappe.filter(tp => (tp.data || tp.date) === activeDate && !isTaskTappa(tp));
+    const timed = todayStops.flatMap(tp => {
+      const value = tp.orario || tp.time || '';
+      if (!/^\d{1,2}:\d{2}$/.test(value)) return [];
+      const [h, m] = value.split(':').map(Number);
+      return [{ tp, minutes: h * 60 + m }];
+    }).sort((a,b) => a.minutes - b.minutes || (a.tp.order ?? 0) - (b.tp.order ?? 0));
+    return timed.filter(t => t.minutes <= clock).at(-1)?.tp || timed[0]?.tp
+      || [...todayStops].sort((a,b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.id.localeCompare(b.id))[0];
+  }, [tappe, activeDate, now]);
 
   // Posizione GPS Reale
   const realLocation = useMemo(() => {
