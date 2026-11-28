@@ -1,8 +1,8 @@
 {
-  "requestId": "release-1.7.21-worker-photo-comments-d1-20261125",
+  "requestId": "release-1.7.46-worker-live-20261128",
   "action": "deploy",
   "version_id": "",
   "confirm": "CONFERMA",
-  "requestedBy": "ChatGPT",
-  "purpose": "D1 public photo comments; tested PR #2; no Firebase permission changes"
+  "requestedBy": "CASABR",
+  "purpose": "Verified PR #17: authenticated push actor, author group isolation, offline reply idempotency. No Firebase rules changes."
 }
