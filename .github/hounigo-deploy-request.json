@@ -1,10 +1,10 @@
 {
-  "requestedAt": "2026-11-28T09:20:00Z",
+  "requestedAt": "2026-11-28T09:26:36Z",
   "action": "deploy",
   "confirm": "CONFERMA",
-  "requestId": "release-1.7.45-trip-photo-20261128",
+  "requestId": "release-1.7.46-live-20261128",
   "requestedBy": "CASABR",
-  "ref": "79e813dabd9d0721f9318fa5d7b4c3404081c311",
+  "ref": "b7c40ae469a3a788ff5f4259333065be7253302f",
   "$schema": "./hounigo-deploy-request.schema.json",
-  "note": "HOUNIGO 1.7.45: ripristino foto primo giorno e condivisione volontaria dalle tappe; PR #15 CI superata."
+  "note": "HOUNIGO 1.7.46: risposte compatte, mappa e notifiche LIVE; CI e Worker verificati."
 }
