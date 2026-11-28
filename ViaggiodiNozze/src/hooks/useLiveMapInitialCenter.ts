@@ -42,8 +42,12 @@ export function useLiveMapInitialCenter(real: Point | null, planned: Point | nul
     mapCenterMode: mode,
     setMapCenterMode: selectMode,
     // A withdrawn/unavailable GPS must retain the existing privacy/no-position fallback.
-    effectiveMapCenter: valid(real)
-      ? fixedCenter || centerFor(mode, real, valid(planned) ? planned : null)
-      : centerFor(mode, null, valid(planned) ? planned : null),
+    effectiveMapCenter: mode === 'planned'
+      ? (valid(planned) ? planned : null)
+      : mode === 'both'
+        ? centerFor(mode, valid(real) ? real : null, valid(planned) ? planned : null)
+        : valid(real)
+          ? fixedCenter || real
+          : centerFor(mode, null, valid(planned) ? planned : null),
   };
 }
