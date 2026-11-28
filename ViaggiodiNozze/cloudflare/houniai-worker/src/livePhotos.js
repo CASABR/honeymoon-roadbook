@@ -286,7 +286,7 @@ export async function handleLivePhotoRequest(request, env, security) {
     const isCommentGet = request.method === 'GET' && id === 'comments' && !action;
     const isGuestMessageModerationPath = id === 'guest-messages' && action === 'moderate';
     const isGuestMessageGet = request.method === 'GET' && id === 'guest-messages' && !action;
-    const isPublicEndpoint = ((id === 'comments' || id === 'reactions' || id === 'guest-messages' || id === 'last-location') && !action) || isGuestMessageModerationPath || isCommentModerationPath;
+    const isPublicEndpoint = ((id === 'comments' || id === 'reactions' || id === 'guest-messages' || id === 'last-location' || id === 'planned-location') && !action) || isGuestMessageModerationPath || isCommentModerationPath;
     const isLastLocationGet = request.method === 'GET' && id === 'last-location' && !action;
     const resolveMutationId = async (prefix, actorUid, clientMutationId, scope) => {
       if (clientMutationId == null) return prefix + crypto.randomUUID().replace(/-/g, '');
@@ -328,6 +328,18 @@ export async function handleLivePhotoRequest(request, env, security) {
     }
     await gate(database, `ip:${Math.floor(now / 60000)}:${ip}`, 120, now + 120000);
     const key = id ? `photo:${tripId}:${id}` : null;
+    if (request.method === 'GET' && id === 'planned-location' && !action) {
+      const saToken = await security.getServiceAccountToken(env);
+      const feed = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}`, saToken, env);
+      const data = readFirestoreFields(feed?.fields || {});
+      if (!feed?.fields || data.deleted === true || data.status === 'disabled' || data.status === 'completato') {
+        return reply(200, { available: false });
+      }
+      await database.prepare('CREATE TABLE IF NOT EXISTS live_planned_points (trip_id TEXT PRIMARY KEY, lat REAL NOT NULL, lng REAL NOT NULL, updated_at INTEGER NOT NULL)').run();
+      const row = await database.prepare('SELECT lat,lng,updated_at FROM live_planned_points WHERE trip_id=?1 AND updated_at>?2').bind(tripId, now - 1800000).first();
+      if (!row) return reply(200, { available: false });
+      return reply(200, { available: true, location: { lat: row.lat, lng: row.lng, updatedAt: row.updated_at } });
+    }
     if (isLastLocationGet) {
       if (typeof security.getServiceAccountToken !== 'function') throw error(503, 'Posizione non disponibile.');
       const token = await security.getServiceAccountToken(env);
@@ -595,6 +607,27 @@ export async function handleLivePhotoRequest(request, env, security) {
     } catch { throw error(401, 'Sessione Firebase non valida o anonima.'); }
     await gate(database, `mutation:${Math.floor(now / 60000)}:${await hashIdentity(uid)}`, 10, now + 120000);
     if (!await security.assertEditor(uid, tripId, token, env)) throw error(403, 'Solo Owner e Copilota possono pubblicare o rimuovere foto.');
+    if (id === 'planned-location' && !action && request.method === 'POST') {
+      // Only the verified trip owner publishes this deliberately coarse projection.
+      const trip = await security.getFirestoreDocument(`trips/${encodeURIComponent(tripId)}`, token, env);
+      const tripData = readFirestoreFields(trip?.fields || {});
+      if (tripData.ownerUid !== uid && tripData.ownerId !== uid) throw error(403, 'Solo il proprietario può condividere il programma.');
+      const saToken = await security.getServiceAccountToken(env);
+      const feed = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}`, saToken, env);
+      const feedData = readFirestoreFields(feed?.fields || {});
+      if (!feed?.fields || feedData.deleted === true || feedData.status === 'disabled' || feedData.status === 'completato') throw error(404, 'Feed LIVE non attivo.');
+      const raw = await request.text();
+      if (!raw || raw.length > 512) throw error(400, 'Richiesta non valida.');
+      let data;
+      try { data = JSON.parse(raw); } catch { throw error(400, 'JSON non valido.'); }
+      if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(k => !['lat','lng','clear'].includes(k))) throw error(400, 'Dati non validi.');
+      const clear = data.clear === true && Object.keys(data).length === 1;
+      if (!clear && (Object.keys(data).length !== 2 || !Number.isFinite(data.lat) || !Number.isFinite(data.lng) || Math.abs(data.lat)>90 || Math.abs(data.lng)>180)) throw error(400, 'Coordinate non valide.');
+      await database.prepare('CREATE TABLE IF NOT EXISTS live_planned_points (trip_id TEXT PRIMARY KEY, lat REAL NOT NULL, lng REAL NOT NULL, updated_at INTEGER NOT NULL)').run();
+      if (clear) await database.prepare('DELETE FROM live_planned_points WHERE trip_id=?1').bind(tripId).run();
+      else await database.prepare('INSERT INTO live_planned_points(trip_id,lat,lng,updated_at) VALUES (?1,?2,?3,?4) ON CONFLICT(trip_id) DO UPDATE SET lat=excluded.lat,lng=excluded.lng,updated_at=excluded.updated_at').bind(tripId, Math.round(data.lat*100)/100, Math.round(data.lng*100)/100, now).run();
+      return reply(200, { updated: true });
+    }
     if (isCommentModerationPath && request.method === 'POST') {
       const raw = await request.text();
       if (!raw || raw.length > 1024) throw error(400, 'Richiesta non valida.');
