@@ -16,7 +16,7 @@ import {
 import LiveNextTransportCard from './LiveNextTransportCard';
 import { getTripConfig } from '../../utils/tripConfig';
 import { groupLiveThreads } from '../../utils/liveThreads';
-import { isTripPhotoOrigin } from '../../utils/livePhotoOrigin';
+import { publicPhotoCaption, isTripPhotoOrigin } from '../../utils/livePhotoOrigin';
 import { IMAGE_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
 
 export interface LiveGalleryPhotoItem {
@@ -317,7 +317,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       .map(update => ({
         id: update.id,
         url: update.photoUrl || '',
-        caption: update.title || update.text || 'Scatto dal viaggio',
+        caption: publicPhotoCaption(update, 'Scatto dal viaggio'),
         location: update.locationName,
         timestamp: update.timestamp || Date.now(),
         isCustom: false,
