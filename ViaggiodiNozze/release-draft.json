@@ -1,0 +1,7 @@
+{
+  "version": "1.7.50",
+  "preparedAt": "2026-11-28",
+  "changes": [
+    "Importi compatti sulle card: verde per saldato e giallo per il residuo da pagare, senza diciture ripetitive."
+  ]
+}
