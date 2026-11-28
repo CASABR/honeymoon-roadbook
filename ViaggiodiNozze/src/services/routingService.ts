@@ -162,7 +162,7 @@ function calculateFallbackRoute(
 
     return {
       distanceKm,
-      formattedDistance: `${distanceKm} km`,
+      formattedDistance: `~${distanceKm} km`,
       durationSeconds,
       formattedDuration: `~${formatDuration(durationSeconds, profile)}`,
       profile,
@@ -170,19 +170,9 @@ function calculateFallbackRoute(
     };
   }
 
-  // Se i nomi sono definiti ma mancano coordinate esatte, calcoliamo una stima simbolica realistica locale
-  const distanceKm = profile === 'driving-car' ? 18.5 : 2.4;
-  const avgSpeed = profile === 'driving-car' ? 70 : 4.5;
-  const durationSeconds = Math.round((distanceKm / avgSpeed) * 3600);
-
-  return {
-    distanceKm,
-    formattedDistance: `~${distanceKm} km`,
-    durationSeconds,
-    formattedDuration: `~${formatDuration(durationSeconds, profile)}`,
-    profile,
-    manualOverride: false
-  };
+  // No coordinates means no defensible estimate. Never invent a distance.
+  return { distanceKm: 0, formattedDistance: 'Da verificare', durationSeconds: 0,
+    formattedDuration: 'Da verificare', profile, manualOverride: false };
 }
 
 /**
@@ -256,7 +246,10 @@ export async function getRoute(
     const isSuzzaniRoute = (cleanFrom.includes('gherardini') || cleanFrom.includes('starita')) && (cleanTo.includes('suzzani') || cleanTo.includes('a&o') || cleanTo.includes('hostel'));
     const isReverseSuzzaniRoute = (cleanTo.includes('gherardini') || cleanTo.includes('starita')) && (cleanFrom.includes('suzzani') || cleanFrom.includes('a&o') || cleanFrom.includes('hostel'));
     if (cached && cached.route) {
-      if ((isMilanRoute || isReverseMilanRoute) && (cached.route.distanceKm < 1 || cached.route.distanceKm > 10)) {
+      if (cached.route.manualOverride) return cached.route;
+      if (['~18.5 km', '~2.4 km'].includes(cached.route.formattedDistance) || cached.route.formattedDistance === 'Da verificare') {
+        // Discard historical symbolic distances and retry previously unresolved routes.
+      } else if ((isMilanRoute || isReverseMilanRoute) && (cached.route.distanceKm < 1 || cached.route.distanceKm > 10)) {
         // Forza ricalcolo con coordinate reali
       } else if ((isSuzzaniRoute || isReverseSuzzaniRoute) && (cached.route.distanceKm < 4 || cached.route.distanceKm > 12)) {
         // Scarta cache errata (< 4km non è realistica per Suzzani da Arco della Pace)
