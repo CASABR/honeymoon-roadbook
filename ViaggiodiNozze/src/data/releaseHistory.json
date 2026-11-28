@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.48",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "4fb4a1e9819908bd674c56eccc29337b9a6e25e3",
+      "changes": [
+        "Card attiva con cornice corallo ben visibile.",
+        "Foto ricordo con archivio locale e anteprima persistente.",
+        "Protezione contro nuove pubblicazioni LIVE duplicate della stessa immagine normalizzata."
+      ],
+      "publishedAtIso": "2026-11-28T09:59:19Z"
+    },
+    {
       "version": "1.7.47",
       "publishedAt": "2026-11-28",
       "sourceCommit": "37e7541828d577fd5cf8a4939e086ec4a60b9a52",
@@ -85,15 +96,6 @@
       "sourceCommit": "6a927c61dced4765cfa57eb920c6127b362e6c9d",
       "changes": [
         "Clona sul fronte di tutte le categorie: solo icona in modalità desktop, nascosta su smartphone e in modalità mobile forzata; duplicazione dal dettaglio preservata."
-      ]
-    },
-    {
-      "version": "1.7.38",
-      "publishedAt": "2026-11-26",
-      "sourceCommit": "223c86f299f7b7cf56d5cdab57848483d25a4487",
-      "changes": [
-        "Retro Aereo: campo facoltativo Piattaforma di acquisto, conservato tra i dati privati.",
-        "Fronte Aereo più compatto su mobile, avvisi senza ripetizioni, terminal e posti proporzionati e pulsanti accessibili."
       ]
     }
   ]
