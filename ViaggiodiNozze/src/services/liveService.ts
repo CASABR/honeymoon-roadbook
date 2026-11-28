@@ -590,6 +590,7 @@ export const liveService = {
       throw new Error('Invio messaggi pubblici non disponibile.');
     }
     const actorToken = user && !user.isAnonymous ? await user.getIdToken().catch(() => '') : '';
+    if (clientMutationId && !actorToken) throw new Error('Sessione non disponibile: invio conservato in coda.');
     const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/guest-messages`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(actorToken ? { Authorization: `Bearer ${actorToken}` } : {}) },
@@ -598,6 +599,7 @@ export const liveService = {
         authorName: safe.authorName,
         message: safe.message,
         ...(replyTo?.id ? { replyToId: replyTo.id } : {}),
+        ...(clientMutationId ? { clientMutationId } : {}),
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -978,6 +980,7 @@ export const liveService = {
     const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
     if (!LIVE_PHOTO_ORIGIN) throw new Error('Commenti pubblici non disponibili.');
     const actorToken = user && !user.isAnonymous ? await user.getIdToken().catch(() => '') : '';
+    if (clientMutationId && !actorToken) throw new Error('Sessione non disponibile: invio conservato in coda.');
     const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/comments`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(actorToken ? { Authorization: `Bearer ${actorToken}` } : {}) },
@@ -986,6 +989,7 @@ export const liveService = {
         authorName: cleanAuthor,
         text: cleanText,
         ...(replyTo?.id ? { replyToId: replyTo.id } : {}),
+        ...(clientMutationId ? { clientMutationId } : {}),
       }),
     });
     const body = await res.json().catch(() => ({}));
