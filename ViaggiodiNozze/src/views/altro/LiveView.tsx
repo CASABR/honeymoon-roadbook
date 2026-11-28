@@ -1,5 +1,6 @@
 import { isTaskTappa } from '../../utils/taskTappa';
 import { useLiveMapInitialCenter } from '../../hooks/useLiveMapInitialCenter';
+import { useLivePublicPlannedLocation } from '../../hooks/useLivePublicPlannedLocation';
 import { compressLivePhotoToDataUrl } from '../../utils/livePhotoImage';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -1490,7 +1491,14 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     });
   }, [days, activities, tappe, accommodations, transports, now, tripRange, activeTripId, liveFeedTransports, remoteGpsLocation, liveGpsState, isStandaloneExternal, plannedTimeZone]);
 
-  const mapPlannedLocation = isStandaloneExternal ? null : liveIntelligence?.plannedLocation;
+  const publicPlannedLocation = useLivePublicPlannedLocation(
+    activeTripId, isStandaloneExternal, cloudRole === 'owner' && !loading && Boolean(tripRange),
+    liveIntelligence?.tripStatus === 'in_trip' ? liveIntelligence.plannedLocation?.coords : undefined,
+    now.getTime(), isOnline, currentUid
+  );
+  const mapPlannedLocation = isStandaloneExternal ? publicPlannedLocation : liveIntelligence?.plannedLocation;
+  const visibleIntelligence = isStandaloneExternal && liveIntelligence
+    ? { ...liveIntelligence, plannedLocation: publicPlannedLocation } : liveIntelligence;
 
   const upcomingImportantTransports = useMemo(
     () =>
@@ -2124,7 +2132,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       onRevokeGps={() => {
         if (currentUid) return handleTransferGps(currentUid, liveGpsService.getDeviceId());
       }}
-      liveIntelligence={liveIntelligence}
+      liveIntelligence={visibleIntelligence}
       nextImportantTransport={nextImportantTransport}
       upcomingTransports={upcomingImportantTransports}
       travelTimeZoneResolution={travelClockResolution}
