@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.52",
+      "publishedAt": "2026-11-28",
+      "sourceCommit": "ba468200a05765a292eeeb96e4a82bec64c6c7a2",
+      "changes": [
+        "Importazione strutturata di una giornata dagli appunti direttamente in PWA, con anteprima e conferma.",
+        "Aggiornamento sicuro degli orari delle tappe corrispondenti e aggiunta delle nuove, senza cancellare prenotazioni o documenti."
+      ],
+      "publishedAtIso": "2026-11-28T10:39:23Z"
+    },
+    {
       "version": "1.7.51",
       "publishedAt": "2026-11-28",
       "sourceCommit": "8d52492c4ccd780c3d71696d46a6fd8356f29d83",
@@ -88,15 +98,6 @@
         "Esportazione Word (.docx) modificabile con tabelle editabili e numerazione pagine"
       ],
       "publishedAtIso": "2026-11-27T13:50:36.431Z"
-    },
-    {
-      "version": "1.7.42",
-      "publishedAt": "2026-11-27",
-      "sourceCommit": "05a858e5ba2f9840aee58c2798be27ea8afc3f02",
-      "changes": [
-        "Card attiva: aggiornamento dell'orario locale anche dopo mezzanotte, al ritorno in primo piano e alla riapertura.",
-        "La timeline segue la nuova giornata solo quando si sta consultando oggi, rispettando la navigazione manuale e le finestre di modifica."
-      ]
     }
   ]
 }
