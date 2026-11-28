@@ -83,3 +83,5 @@ test('Card attiva: cornice corallo e indicatore integrato, senza secondo anello'
   read('src/views/OggiView.tsx').includes('className="hounigo-card-active-label"') &&
   read('src/index.css').includes('[data-active-card="true"].hounigo-card-highlighted'));
 console.log(`\n${passed}/${passed} verifiche UI mirate superate.`);
+
+require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'test_live_photo_reliability.cjs')], { stdio: 'inherit' });
